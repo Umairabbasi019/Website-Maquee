@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --project unit",
     "test:db": "vitest run --project db --passWithNoTests",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "db:seed": "supabase db reset && tsx scripts/seed-users.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
@@ -30,9 +31,11 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "otplib": "13.5.0",
     "pg": "^8.23.1",
     "supabase": "^2.121.0",
     "tailwindcss": "^4",
+    "tsx": "4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.5"
   }

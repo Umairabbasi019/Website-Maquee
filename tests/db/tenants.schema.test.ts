@@ -6,7 +6,7 @@ afterAll(closeDb);
 async function newTenant(c: Parameters<Parameters<typeof withDb>[0]>[0], status = "setup") {
   const a = await c.query("insert into accounts (name) values ('Acme') returning id");
   const t = await c.query(
-    "insert into tenants (account_id, slug, name, status) values ($1, 'manor', 'Manor', $2) returning id",
+    "insert into tenants (account_id, slug, name, status) values ($1, 'schema-test', 'Schema test', $2) returning id",
     [a.rows[0].id, status],
   );
   return t.rows[0].id as string;

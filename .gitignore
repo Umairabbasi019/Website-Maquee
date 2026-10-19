@@ -21,3 +21,5 @@ npm-debug.log*
 # playwright
 test-results/
 playwright-report/
+# seed outputs (TOTP secret)
+.seed/
