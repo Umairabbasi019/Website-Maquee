@@ -48,7 +48,7 @@ export async function saveTenantSecret(tenantId: string, kind: SecretKind, plain
     tenantId,
     action: "tenant.secret.save",
     entity: "tenant_secret",
-    entityId: `${tenantId}:${kind}`,
+    entityId: tenantId, // record_audit takes a uuid; the kind is in `after`
     after: { kind },
   });
 }

@@ -2,4 +2,4 @@ export { normalizeHost, resolveTenantByHost, type ResolvedTenant } from "./serve
 export { createTenantFromTemplate } from "./server/create-tenant";
 export * from "./settings";
 export { setupChecklist, type ChecklistItem } from "./checklist";
-export { encryptSecret, decryptSecret, saveTenantSecret, type SecretKind } from "./server/secrets";
+export { encryptSecret, saveTenantSecret, type SecretKind } from "./server/secrets";

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const upsert = vi.fn(async () => ({ error: null }));
 const recordAudit = vi.fn(async () => undefined);
-const requirePerm = vi.fn(async () => ({ userId: "user-1" }));
+const requirePerm = vi.fn<(tenantId: string, key: string) => Promise<{ userId: string }>>(async () => ({ userId: "user-1" }));
 
 vi.mock("@/modules/access", () => ({
   requirePerm,
@@ -11,8 +11,11 @@ vi.mock("@/modules/access", () => ({
   createServiceClient: () => ({ from: () => ({ upsert }) }),
 }));
 
-const { decryptSecret, encryptSecret, saveTenantSecret } = await import("@/modules/tenants");
+const { encryptSecret, saveTenantSecret } = await import("@/modules/tenants");
+// decryptSecret is deliberately not exported from the module index.
+const { decryptSecret } = await import("@/modules/tenants/server/secrets");
 
+const TENANT = "11111111-1111-4111-8111-111111111111";
 const key = () => randomBytes(32).toString("base64");
 
 beforeEach(() => {
@@ -63,15 +66,17 @@ describe("encryptSecret / decryptSecret", () => {
 
 describe("saveTenantSecret", () => {
   it("checks permission, stores ciphertext, audits without the value", async () => {
-    await saveTenantSecret("t1", "payments", "SUPERSECRET");
-    expect(requirePerm).toHaveBeenCalledWith("t1", "platform.tenants.manage");
+    await saveTenantSecret(TENANT, "payments", "SUPERSECRET");
+    expect(requirePerm).toHaveBeenCalledWith(TENANT, "platform.tenants.manage");
     const row = (upsert.mock.calls[0] as unknown[])[0] as Record<string, string>;
-    expect(row).toMatchObject({ tenant_id: "t1", kind: "payments", updated_by: "user-1" });
+    expect(row).toMatchObject({ tenant_id: TENANT, kind: "payments", updated_by: "user-1" });
     expect(row.ciphertext).not.toContain("SUPERSECRET");
     expect(decryptSecret(row.ciphertext)).toBe("SUPERSECRET");
     const audit = JSON.stringify(recordAudit.mock.calls);
     expect(audit).toContain("tenant.secret.save");
     expect(audit).toContain("payments");
+    const input = (recordAudit.mock.calls[0] as unknown[])[0] as { entityId: string };
+    expect(input.entityId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     expect(audit).not.toContain("SUPERSECRET");
     expect(audit).not.toContain(row.ciphertext);
   });

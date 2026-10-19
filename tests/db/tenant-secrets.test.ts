@@ -15,6 +15,20 @@ async function seedTenant(c: Parameters<Parameters<typeof withDb>[0]>[0]) {
 }
 
 describe("tenant_secrets lockdown", () => {
+  it("record_audit accepts the arguments saveTenantSecret sends", async () => {
+    await withDb(async (c) => {
+      const admin = await createTestUser(c, "sec-audit@test.local");
+      await c.query("insert into platform_admins (user_id) values ($1)", [admin]);
+      const tenant = await seedTenant(c);
+      await asUser(c, admin, "aal2");
+      const { rows } = await c.query(
+        "select public.record_audit($1, 'tenant.secret.save', 'tenant_secret', $1, null, $2::jsonb, null) as id",
+        [tenant, JSON.stringify({ kind: "payments" })],
+      );
+      expect(rows[0].id).toBeTruthy();
+    });
+  });
+
   it("denies authenticated platform admin at aal2 on select and insert", async () => {
     await withDb(async (c) => {
       const admin = await createTestUser(c, "sec-admin@test.local");
