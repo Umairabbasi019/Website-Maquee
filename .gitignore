@@ -1,0 +1,9 @@
+.superpowers/
+.tools/
+.playwright-mcp/
+*.mp4
+.env*
+!.env.example
+node_modules/
+# venue media (571 MB) stays out of git; product media lives in object storage
+references/
