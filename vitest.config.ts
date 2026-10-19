@@ -1,7 +1,15 @@
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 
-const alias = { "@": fileURLToPath(new URL("./src", import.meta.url)) };
+// DB tests need the same .env.local the app reads (Supabase URL and keys). Already-set variables win.
+if (existsSync(".env.local")) process.loadEnvFile(".env.local");
+
+const alias = {
+  "@": fileURLToPath(new URL("./src", import.meta.url)),
+  // The real package throws outside a server build; tests run in plain Node.
+  "server-only": fileURLToPath(new URL("./tests/stubs/server-only.ts", import.meta.url)),
+};
 
 export default defineConfig({
   test: {

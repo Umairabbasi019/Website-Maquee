@@ -70,6 +70,8 @@ No adapter configured → the feature shows an honest "not connected" state.
 | How prices are calculated | `src/modules/pricing/` (tests in the same folder) |
 | Booking statuses or transitions | `src/modules/booking/state-machine.ts` |
 | Who can do what | `src/modules/access/permissions.ts` + migration for new keys (keys and role defaults seeded in `supabase/migrations/20261020000200_access.sql`) |
+| Which tenant a public host belongs to | `src/modules/tenants/server/resolve.ts`; header set in `src/proxy.ts` (public routes only) |
+| The signed-in user, `can()`, `requirePerm()`, audit writes | `src/modules/access/server/` (key rule in SQL `viewer_keys()`, `supabase/migrations/20261020000450_viewer_keys.sql`) |
 | Who can read or write a table (RLS) | The module's RLS migration, e.g. `supabase/migrations/20261020000300_rls_tenants.sql`; negative tests in `tests/db/access.rls.test.ts` |
 | Connect the bank or a gateway | New file `src/providers/payments/<vendor>.ts` + keys in admin console |
 | Change WhatsApp provider | New file in `src/providers/messaging/` |
