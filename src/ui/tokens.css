@@ -1,0 +1,8 @@
+/* Platform defaults. Tenants override these variables at runtime. */
+:root {
+  --color-bg: #ece7df; /* warm stone */
+  --color-accent: #c2a878; /* muted champagne */
+  --color-text: #2b2a28; /* charcoal */
+  --color-muted: #8a857d; /* stone grey */
+  --color-brand: #9c7a3c; /* brass */
+}

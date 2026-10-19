@@ -7,3 +7,17 @@
 node_modules/
 # venue media (571 MB) stays out of git; product media lives in object storage
 references/
+# next.js
+.next/
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+.DS_Store
+*.pem
+npm-debug.log*
+# playwright
+test-results/
+playwright-report/
