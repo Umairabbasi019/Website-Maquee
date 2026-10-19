@@ -127,6 +127,9 @@ async function tenantTables(c: Client): Promise<string[]> {
   return r.rows.map((row) => row.table_name as string);
 }
 
+// Revoked from client roles outright (tests/db/tenant-secrets.test.ts), so RLS count checks do not apply.
+const REVOKED_TABLES = new Set(["tenant_secrets"]);
+
 async function allTables(c: Client): Promise<string[]> {
   const r = await c.query(
     "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' order by 1",
@@ -152,7 +155,7 @@ describe("access RLS", () => {
 
       await asUser(c, s.managerA);
       expect(await count(c, "select count(*) from halls where tenant_id = $1", [s.A])).toBe(1);
-      for (const t of tables) {
+      for (const t of tables.filter((t) => !REVOKED_TABLES.has(t))) {
         expect(await count(c, `select count(*) from public.${t} where tenant_id = $1`, [s.B]), t).toBe(0);
         expect((await c.query(`update public.${t} set tenant_id = tenant_id where tenant_id = $1`, [s.B])).rowCount, t).toBe(0);
         expect((await c.query(`delete from public.${t} where tenant_id = $1`, [s.B])).rowCount, t).toBe(0);
@@ -375,7 +378,7 @@ describe("access RLS", () => {
       await seed(c);
       const tables = await allTables(c);
       await asUser(c, null);
-      for (const t of tables) {
+      for (const t of tables.filter((t) => !REVOKED_TABLES.has(t))) {
         expect(await count(c, `select count(*) from public.${t}`), t).toBe(0);
       }
     }));
