@@ -176,42 +176,87 @@ create trigger audit_events_no_truncate
 before truncate on audit_events
 for each statement execute function public.audit_events_append_only();
 
--- Grants (role keys and overrides): platform.* never; a client may only grant keys it holds.
-create function public.check_permission_grant() returns trigger
+-- Below platform admin, the JOURNEYS.md matrix rules apply to clients (role authenticated/anon);
+-- server sessions (service_role, postgres) are trusted. platform.* is never granted to a tenant.
+
+-- Overrides: only a platform admin grants above role defaults (○/– cells). Others may only add
+-- revokes, may remove a revoke only for a key they hold, and never touch their own membership.
+create function public.check_override_change() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_tenant uuid;
+  v_user uuid;
+begin
+  if tg_op <> 'DELETE' and new.permission_key like 'platform.%' then
+    raise exception 'platform permissions cannot be granted to a tenant member: %', new.permission_key
+      using errcode = '42501';
+  end if;
+  if current_setting('role') not in ('authenticated', 'anon') or public.is_platform_admin() then
+    return coalesce(new, old);
+  end if;
+  if tg_op <> 'INSERT' then
+    select tenant_id, user_id into v_tenant, v_user from public.memberships where id = old.membership_id;
+    if not found then
+      return old; -- cascade from deleting the whole membership
+    end if;
+    if v_user = (select auth.uid()) then
+      raise exception 'cannot change overrides on your own membership' using errcode = '42501';
+    end if;
+    if not old.granted and not public.auth_has_perm(v_tenant, old.permission_key) then
+      raise exception 'cannot lift the revoke of %: acting user does not hold it', old.permission_key
+        using errcode = '42501';
+    end if;
+  end if;
+  if tg_op <> 'DELETE' then
+    select user_id into v_user from public.memberships where id = new.membership_id;
+    if v_user = (select auth.uid()) then
+      raise exception 'cannot change overrides on your own membership' using errcode = '42501';
+    end if;
+    if new.granted then
+      raise exception 'only a platform admin can grant % above role defaults', new.permission_key
+        using errcode = '42501';
+    end if;
+  end if;
+  return coalesce(new, old);
+end $$;
+
+create trigger membership_overrides_check_change
+before insert or update or delete on membership_overrides
+for each row execute function public.check_override_change();
+
+-- Tenant custom roles: a key must be held by the actor and be an owner-role default.
+create function public.check_role_permission_grant() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare
   v_tenant uuid;
 begin
   if new.permission_key like 'platform.%' then
-    raise exception 'platform permissions cannot be granted to a tenant role or member: %', new.permission_key
+    raise exception 'platform permissions cannot be granted to a tenant role: %', new.permission_key
       using errcode = '42501';
   end if;
-  if tg_table_name = 'membership_overrides' then
-    if not new.granted then
-      return new; -- removing a key needs no extra right beyond users.manage (RLS)
-    end if;
-    select tenant_id into v_tenant from public.memberships where id = new.membership_id;
-  else
-    select tenant_id into v_tenant from public.roles where id = new.role_id;
+  if current_setting('role') not in ('authenticated', 'anon') or public.is_platform_admin() then
+    return new;
   end if;
-  if current_setting('role') in ('authenticated', 'anon') and not public.is_platform_admin()
-     and (v_tenant is null or not public.auth_has_perm(v_tenant, new.permission_key)) then
+  select tenant_id into v_tenant from public.roles where id = new.role_id;
+  if v_tenant is null or not public.auth_has_perm(v_tenant, new.permission_key) then
     raise exception 'cannot grant %: acting user does not hold it', new.permission_key using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.role_permissions rp
+                 join public.roles r on r.id = rp.role_id
+                 where r.tenant_id is null and r.name = 'owner' and rp.permission_key = new.permission_key) then
+    raise exception 'cannot grant %: above the owner role defaults', new.permission_key using errcode = '42501';
   end if;
   return new;
 end $$;
 
-create trigger membership_overrides_check_grant
-before insert or update on membership_overrides
-for each row execute function public.check_permission_grant();
-
 create trigger role_permissions_check_grant
 before insert or update on role_permissions
-for each row execute function public.check_permission_grant();
+for each row execute function public.check_role_permission_grant();
 
--- A membership's role must be built-in or from the same tenant, and a client may only
--- assign a role whose keys it holds itself (blocks self-promotion to owner).
-create function public.check_membership_role() returns trigger
+-- A membership's role must be built-in or from the same tenant. Below platform admin: user and
+-- tenant never change (no takeover), your own role is fixed, and you may only assign a role
+-- whose keys you hold.
+create function public.check_membership_change() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare
   v_role_tenant uuid;
@@ -220,24 +265,38 @@ begin
   if v_role_tenant <> new.tenant_id then -- null (built-in role) passes
     raise exception 'role belongs to another tenant' using errcode = '42501';
   end if;
-  if current_setting('role') in ('authenticated', 'anon') and not public.is_platform_admin()
-     and exists (select 1 from public.role_permissions rp
-                 where rp.role_id = new.role_id
-                   and not public.auth_has_perm(new.tenant_id, rp.permission_key)) then
+  if current_setting('role') not in ('authenticated', 'anon') or public.is_platform_admin() then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' then
+    if new.user_id <> old.user_id or new.tenant_id <> old.tenant_id then
+      raise exception 'membership user and tenant cannot be changed' using errcode = '42501';
+    end if;
+    if new.role_id = old.role_id then
+      return new;
+    end if;
+    if old.user_id = (select auth.uid()) then
+      raise exception 'cannot change the role of your own membership' using errcode = '42501';
+    end if;
+  end if;
+  if exists (select 1 from public.role_permissions rp
+             where rp.role_id = new.role_id
+               and not public.auth_has_perm(new.tenant_id, rp.permission_key)) then
     raise exception 'cannot assign role: acting user does not hold all of its permissions'
       using errcode = '42501';
   end if;
   return new;
 end $$;
 
-create trigger memberships_check_role
-before insert or update of role_id, tenant_id on memberships
-for each row execute function public.check_membership_role();
+create trigger memberships_check_change
+before insert or update on memberships
+for each row execute function public.check_membership_change();
 
 revoke execute on function
   public.is_platform_admin(), public.auth_membership(uuid), public.auth_has_perm(uuid, text),
   public.record_audit(uuid, text, text, uuid, jsonb, jsonb, text),
-  public.audit_events_append_only(), public.check_permission_grant(), public.check_membership_role()
+  public.audit_events_append_only(), public.check_override_change(), public.check_role_permission_grant(),
+  public.check_membership_change()
 from public, anon;
 grant execute on function
   public.is_platform_admin(), public.auth_membership(uuid), public.auth_has_perm(uuid, text),

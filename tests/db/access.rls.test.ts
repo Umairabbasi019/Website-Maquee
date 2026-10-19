@@ -40,6 +40,15 @@ async function count(c: Client, sql: string, params: unknown[] = []): Promise<nu
   return Number(await one(c, sql, params));
 }
 
+/** Expects the statement to fail with `re`, keeping the test transaction usable. */
+async function expectReject(c: Client, sql: string, params: unknown[], re: RegExp) {
+  await c.query("savepoint expect_reject");
+  await expect(c.query(sql, params)).rejects.toThrow(re);
+  await c.query("rollback to savepoint expect_reject");
+}
+
+const OVERRIDE = "insert into membership_overrides (membership_id, permission_key, granted) values ($1, $2, $3)";
+
 async function hasPerm(c: Client, tenant: string, key: string): Promise<boolean> {
   return one<boolean>(c, "select public.auth_has_perm($1, $2)", [tenant, key]);
 }
@@ -64,11 +73,13 @@ async function seed(c: Client) {
 
   const ownerA = await createTestUser(c, "owner-a@test.local");
   const managerA = await createTestUser(c, "manager-a@test.local");
+  const accountsA = await createTestUser(c, "accounts-a@test.local");
   const managerB = await createTestUser(c, "manager-b@test.local");
   const admin = await createTestUser(c, "admin@test.local");
   await c.query("insert into platform_admins (user_id) values ($1)", [admin]);
   const ownerAMembership = await member(A, ownerA, "owner");
   const managerAMembership = await member(A, managerA, "manager");
+  const accountsAMembership = await member(A, accountsA, "accounts");
   const managerBMembership = await member(B, managerB, "manager");
 
   await c.query(
@@ -89,7 +100,19 @@ async function seed(c: Client) {
     B,
   ]);
 
-  return { A, B, ownerA, managerA, managerB, admin, ownerAMembership, managerAMembership, roleB, role };
+  return {
+    A,
+    B,
+    ownerA,
+    managerA,
+    managerB,
+    admin,
+    ownerAMembership,
+    managerAMembership,
+    accountsAMembership,
+    roleB,
+    role,
+  };
 }
 
 /** Every public table with a tenant_id column, so new tables are covered automatically. */
@@ -195,54 +218,128 @@ describe("access RLS", () => {
   it("cannot_grant_platform_or_unheld_keys", () =>
     withDb(async (c) => {
       const s = await seed(c);
-      const grant = (membership: string, key: string) =>
-        c.query("insert into membership_overrides (membership_id, permission_key, granted) values ($1, $2, true)", [
-          membership,
-          key,
-        ]);
-      await grant(s.ownerAMembership, "users.manage");
-      await grant(s.managerAMembership, "users.manage");
+      await c.query(OVERRIDE, [s.ownerAMembership, "users.manage", true]);
+      await c.query(OVERRIDE, [s.managerAMembership, "users.manage", true]);
 
       await asUser(c, s.ownerA);
-      await c.query("savepoint s1");
-      await expect(grant(s.managerAMembership, "platform.tenants.manage")).rejects.toThrow(/platform/);
-      await c.query("rollback to savepoint s1");
-      await grant(s.managerAMembership, "reports.view"); // owner holds it, so this is allowed
+      await expectReject(c, OVERRIDE, [s.managerAMembership, "platform.tenants.manage", true], /platform/);
+      // ○/– cells: only a platform admin grants above role defaults, even a key the owner holds.
+      await expectReject(c, OVERRIDE, [s.managerAMembership, "reports.view", true], /platform admin/);
+      await expectReject(c, OVERRIDE, [s.accountsAMembership, "audit.view", true], /platform admin/);
+
+      await asUser(c, s.admin);
+      await c.query(OVERRIDE, [s.managerAMembership, "reports.view", true]);
 
       await asUser(c, s.managerA);
-      await c.query("savepoint s2");
-      await expect(grant(s.managerAMembership, "audit.view")).rejects.toThrow(/does not hold/);
-      await c.query("rollback to savepoint s2");
-
       const roleA = await one(c, "insert into roles (tenant_id, name) values ($1, 'A custom') returning id", [s.A]);
-      await c.query("savepoint s3");
-      await expect(
-        c.query("insert into role_permissions (role_id, permission_key) values ($1, 'audit.view')", [roleA]),
-      ).rejects.toThrow(/does not hold/);
-      await c.query("rollback to savepoint s3");
-      await expect(
-        c.query("insert into role_permissions (role_id, permission_key) values ($1, 'platform.tenants.manage')", [roleA]),
-      ).rejects.toThrow(/platform/);
+      const rolePerm = "insert into role_permissions (role_id, permission_key) values ($1, $2)";
+      await expectReject(c, rolePerm, [roleA, "audit.view"], /does not hold/);
+      await expectReject(c, rolePerm, [roleA, "platform.tenants.manage"], /platform/);
+
+      await asUser(c, s.ownerA);
+      await c.query(rolePerm, [roleA, "audit.view"]); // owner holds it and it is an owner default
+      // Owner holds users.manage via override, but it is not an owner default (○ cell).
+      await expectReject(c, rolePerm, [roleA, "users.manage"], /owner role defaults/);
     }));
 
   it("cannot_assign_role_beyond_own_keys_or_from_other_tenant", () =>
     withDb(async (c) => {
       const s = await seed(c);
-      await c.query(
-        "insert into membership_overrides (membership_id, permission_key, granted) values ($1, 'users.manage', true)",
-        [s.managerAMembership],
-      );
+      await c.query(OVERRIDE, [s.managerAMembership, "users.manage", true]);
       const ownerRole = await s.role("owner");
       await asUser(c, s.managerA);
-      await c.query("savepoint s1");
-      await expect(
-        c.query("update memberships set role_id = $1 where id = $2", [ownerRole, s.managerAMembership]),
-      ).rejects.toThrow(/does not hold/);
-      await c.query("rollback to savepoint s1");
+      await expectReject(
+        c,
+        "update memberships set role_id = $1 where id = $2",
+        [ownerRole, s.accountsAMembership],
+        /does not hold/,
+      );
       await asSuper(c);
-      await expect(
-        c.query("update memberships set role_id = $1 where id = $2", [s.roleB, s.managerAMembership]),
-      ).rejects.toThrow(/another tenant/);
+      await expectReject(
+        c,
+        "update memberships set role_id = $1 where id = $2",
+        [s.roleB, s.managerAMembership],
+        /another tenant/,
+      );
+    }));
+
+  it("membership_user_and_tenant_areImmutable", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      await c.query(OVERRIDE, [s.managerAMembership, "users.manage", true]);
+      const secondAccount = await createTestUser(c, "manager-a-2@test.local");
+      await asUser(c, s.managerA);
+      await expectReject(
+        c,
+        "update memberships set user_id = $1 where id = $2",
+        [secondAccount, s.ownerAMembership],
+        /cannot be changed/,
+      );
+      await expectReject(
+        c,
+        "update memberships set tenant_id = $1 where id = $2",
+        [s.B, s.accountsAMembership],
+        /cannot be changed/,
+      );
+    }));
+
+  it("own_membership_isOffLimits", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      await c.query(OVERRIDE, [s.managerAMembership, "users.manage", true]);
+      await c.query(OVERRIDE, [s.managerAMembership, "payments.verify", false]);
+      await asUser(c, s.managerA);
+      await expectReject(c, OVERRIDE, [s.managerAMembership, "prices.edit", false], /own membership/);
+      await expectReject(
+        c,
+        "delete from membership_overrides where membership_id = $1 and permission_key = 'payments.verify'",
+        [s.managerAMembership],
+        /own membership/,
+      );
+      await expectReject(
+        c,
+        "update memberships set role_id = $1 where id = $2",
+        [await one(c, "select id from roles where tenant_id is null and name = 'staff'"), s.managerAMembership],
+        /own membership/,
+      );
+    }));
+
+  it("deleting_a_revoke_needs_the_key", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      await c.query(OVERRIDE, [s.ownerAMembership, "users.manage", true]);
+      await c.query(OVERRIDE, [s.managerAMembership, "users.manage", true]);
+      await c.query(OVERRIDE, [s.accountsAMembership, "reports.view", false]);
+      const deleteRevoke = "delete from membership_overrides where membership_id = $1 and permission_key = 'reports.view'";
+
+      await asUser(c, s.managerA); // manager lacks reports.view
+      await expectReject(c, deleteRevoke, [s.accountsAMembership], /does not hold/);
+      expect(
+        (await c.query("update membership_overrides set permission_key = 'prices.edit' where membership_id = $1", [
+          s.accountsAMembership,
+        ]).then(
+          (r) => r.rowCount,
+          (e: Error) => e.message,
+        )),
+      ).toMatch(/does not hold/);
+    }));
+
+  it("deleting_a_revoke_works_for_key_holders_and_membership_delete", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      await c.query(OVERRIDE, [s.ownerAMembership, "users.manage", true]);
+      await c.query(OVERRIDE, [s.accountsAMembership, "reports.view", false]);
+      await asUser(c, s.ownerA); // owner holds reports.view
+      const r = await c.query(
+        "delete from membership_overrides where membership_id = $1 and permission_key = 'reports.view'",
+        [s.accountsAMembership],
+      );
+      expect(r.rowCount).toBe(1);
+      await asSuper(c);
+      await c.query(OVERRIDE, [s.accountsAMembership, "audit.view", false]);
+      await c.query(OVERRIDE, [s.managerAMembership, "users.manage", true]);
+      await asUser(c, s.managerA); // lacks audit.view, but removing the whole membership is fine
+      expect((await c.query("delete from memberships where id = $1", [s.accountsAMembership])).rowCount).toBe(1);
     }));
 
   it("audit_isAppendOnly", () =>
