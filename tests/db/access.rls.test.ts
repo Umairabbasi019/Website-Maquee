@@ -210,7 +210,7 @@ describe("access RLS", () => {
       expect(await hasPerm(c, s.A, "bookings.view")).toBe(false);
       expect(await count(c, "select count(*) from halls")).toBe(0);
       expect(await count(c, "select count(*) from tenants")).toBe(0);
-      await asUser(c, s.admin);
+      await asUser(c, s.admin, "aal2");
       expect(await hasPerm(c, s.A, "bookings.view")).toBe(true);
       expect(await count(c, "select count(*) from halls where tenant_id = $1", [s.A])).toBe(1);
     }));
@@ -227,7 +227,7 @@ describe("access RLS", () => {
       await expectReject(c, OVERRIDE, [s.managerAMembership, "reports.view", true], /platform admin/);
       await expectReject(c, OVERRIDE, [s.accountsAMembership, "audit.view", true], /platform admin/);
 
-      await asUser(c, s.admin);
+      await asUser(c, s.admin, "aal2");
       await c.query(OVERRIDE, [s.managerAMembership, "reports.view", true]);
 
       await asUser(c, s.managerA);
@@ -345,7 +345,7 @@ describe("access RLS", () => {
   it("audit_isAppendOnly", () =>
     withDb(async (c) => {
       const s = await seed(c);
-      await asUser(c, s.admin);
+      await asUser(c, s.admin, "aal2");
       await c.query("select public.record_audit($1, 'test', 'tenant', $1, null, '{}'::jsonb, 'why')", [s.A]);
       const actor = await one(c, "select actor_user_id from audit_events where action = 'test'");
       expect(actor).toBe(s.admin);

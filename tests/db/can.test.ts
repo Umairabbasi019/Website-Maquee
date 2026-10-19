@@ -31,22 +31,22 @@ async function join(c: Client, tenantId: string, userId: string, role: string): 
 }
 
 /** Builds the Viewer as `userId` the way getViewer does, from the SQL functions. */
-async function viewerFor(c: Client, userId: string) {
-  await asUser(c, userId);
+async function viewerFor(c: Client, userId: string, aal: "aal1" | "aal2" = "aal1") {
+  await asUser(c, userId, aal);
   const isAdmin = await scalar<boolean>(c, "select public.is_platform_admin()");
   const keys = (await c.query("select tenant_id, key from public.viewer_keys()")).rows;
   const roles = (await c.query("select tenant_id, role from public.viewer_roles()")).rows;
   return buildViewer({
     userId,
     isPlatformAdmin: isAdmin,
-    aal: "aal1",
+    aal,
     keys: keys.map((r) => ({ tenantId: r.tenant_id, key: r.key })),
     roles: roles.map((r) => ({ tenantId: r.tenant_id, role: r.role })),
   });
 }
 
-async function expectSameAsSql(c: Client, userId: string, tenantId: string) {
-  const viewer = await viewerFor(c, userId);
+async function expectSameAsSql(c: Client, userId: string, tenantId: string, aal: "aal1" | "aal2" = "aal1") {
+  const viewer = await viewerFor(c, userId, aal);
   for (const key of PERMISSIONS) {
     const sql = await scalar<boolean>(c, "select public.auth_has_perm($1, $2)", [tenantId, key]);
     expect(can(viewer, tenantId, key), key).toBe(sql);
@@ -125,9 +125,33 @@ describe("can() matches auth_has_perm", () => {
       const t = await tenant(c, "t-admin");
       const u = await createTestUser(c, "adm@test.local");
       await c.query("insert into platform_admins (user_id) values ($1)", [u]);
-      const viewer = await expectSameAsSql(c, u, t);
+      const viewer = await expectSameAsSql(c, u, t, "aal2");
       expect(viewer.isPlatformAdmin).toBe(true);
       expect(can(viewer, t, "platform.tenants.manage")).toBe(true);
+    }),
+  );
+
+  it("platform admin at aal1 is not an admin: SQL and Viewer both say no", () =>
+    withDb(async (c) => {
+      const t = await tenant(c, "t-admin1");
+      const u = await createTestUser(c, "adm1@test.local");
+      await c.query("insert into platform_admins (user_id) values ($1)", [u]);
+      const viewer = await expectSameAsSql(c, u, t, "aal1");
+      expect(viewer.isPlatformAdmin).toBe(false);
+      expect(can(viewer, t, "platform.tenants.manage")).toBe(false);
+      expect(await scalar<boolean>(c, "select public.is_platform_admin()")).toBe(false);
+    }),
+  );
+
+  it("aal1 platform admin reads no tenant rows; aal2 reads them", () =>
+    withDb(async (c) => {
+      await tenant(c, "t-admin-rows");
+      const u = await createTestUser(c, "adm2@test.local");
+      await c.query("insert into platform_admins (user_id) values ($1)", [u]);
+      await asUser(c, u, "aal1");
+      expect(Number(await scalar(c, "select count(*) from tenants"))).toBe(0);
+      await asUser(c, u, "aal2");
+      expect(Number(await scalar(c, "select count(*) from tenants"))).toBeGreaterThan(0);
     }),
   );
 });

@@ -18,9 +18,13 @@ export async function withDb<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T
   }
 }
 
-/** Acts as `userId` (role authenticated) or, when null, as anon. Lasts for the transaction. */
-export async function asUser(c: pg.PoolClient, userId: string | null): Promise<void> {
-  const claims = userId ? { sub: userId, role: "authenticated" } : { role: "anon" };
+/** Acts as `userId` (role authenticated, session level `aal`) or, when null, as anon. Lasts for the transaction. */
+export async function asUser(
+  c: pg.PoolClient,
+  userId: string | null,
+  aal: "aal1" | "aal2" = "aal1",
+): Promise<void> {
+  const claims = userId ? { sub: userId, role: "authenticated", aal } : { role: "anon" };
   await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
   await c.query(`set local role ${userId ? "authenticated" : "anon"}`);
 }
