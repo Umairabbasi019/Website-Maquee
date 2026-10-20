@@ -105,6 +105,7 @@ async function seed(c: Client) {
     B,
     ownerA,
     managerA,
+    accountsA,
     managerB,
     admin,
     ownerAMembership,
@@ -256,6 +257,22 @@ describe("access RLS", () => {
         "update memberships set role_id = $1 where id = $2",
         [ownerRole, s.accountsAMembership],
         /assign the owner role/, // owner rule (owner-protection.test.ts) fires before the key check
+      );
+      // Grant ceiling: an accounts user holding users.manage cannot hand out the manager role.
+      await asSuper(c);
+      const staffUser = await createTestUser(c, "staff-a@test.local");
+      const staffMembership = await one(
+        c,
+        "insert into memberships (tenant_id, user_id, role_id) values ($1, $2, $3) returning id",
+        [s.A, staffUser, await s.role("staff")],
+      );
+      await c.query(OVERRIDE, [s.accountsAMembership, "users.manage", true]);
+      await asUser(c, s.accountsA);
+      await expectReject(
+        c,
+        "update memberships set role_id = $1 where id = $2",
+        [await s.role("manager"), staffMembership],
+        /does not hold/,
       );
       await asSuper(c);
       await expectReject(
