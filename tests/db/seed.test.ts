@@ -1,5 +1,5 @@
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { TenantSettingsSchema } from "@/modules/tenants";
 
 // Reads committed seed data (supabase/seed.sql + scripts/seed-users.ts), so run `npm run db:seed` first.
@@ -8,11 +8,8 @@ const pool = new pg.Pool({
 });
 afterAll(() => pool.end());
 
-// After a bare `supabase db reset` only seed.sql ran; the membership test then skips instead of failing.
-let usersSeeded = false;
-beforeAll(async () => {
-  usersSeeded = (await pool.query("select 1 from auth.users where email = 'super@demo.test'")).rowCount === 1;
-});
+// A bare `supabase db reset` runs only seed.sql, so the user test fails unless SKIP_SEED_TESTS=1 opts out.
+const skipUsers = process.env.SKIP_SEED_TESTS === "1";
 
 const slugs = ["manor", "demo-hall"];
 
@@ -58,7 +55,9 @@ describe("seeded demo tenants", () => {
   });
 
   it("gives each tenant 5 active memberships and makes super a platform admin", async (ctx) => {
-    if (!usersSeeded) ctx.skip("no seed users; run `npm run db:seed`");
+    if (skipUsers) ctx.skip("SKIP_SEED_TESTS=1");
+    const su = await pool.query("select 1 from auth.users where email = 'super@demo.test'");
+    expect(su.rowCount, "seed users missing: run `npm run db:seed` first").toBe(1);
     const { rows } = await pool.query(
       `select t.slug, count(*)::int as n
        from memberships m join tenants t on t.id = m.tenant_id

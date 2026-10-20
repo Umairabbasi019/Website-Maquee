@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { generate } from "otplib";
+import { assertLocalSupabaseUrl } from "./local-guard";
 
 process.loadEnvFile(".env.local");
 
@@ -11,6 +12,7 @@ function env(name: string): string {
 }
 
 const url = env("NEXT_PUBLIC_SUPABASE_URL");
+assertLocalSupabaseUrl(url);
 const password = env("SEED_USER_PASSWORD");
 const admin = createClient(url, env("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false } });
 
