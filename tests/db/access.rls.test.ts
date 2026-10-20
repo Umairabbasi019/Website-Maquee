@@ -255,7 +255,7 @@ describe("access RLS", () => {
         c,
         "update memberships set role_id = $1 where id = $2",
         [ownerRole, s.accountsAMembership],
-        /does not hold/,
+        /assign the owner role/, // owner rule (owner-protection.test.ts) fires before the key check
       );
       await asSuper(c);
       await expectReject(
@@ -275,7 +275,7 @@ describe("access RLS", () => {
       await expectReject(
         c,
         "update memberships set user_id = $1 where id = $2",
-        [secondAccount, s.ownerAMembership],
+        [secondAccount, s.accountsAMembership],
         /cannot be changed/,
       );
       await expectReject(
