@@ -11,6 +11,7 @@
     "test": "vitest run --project unit",
     "//test:db": "needs seed users: run npm run db:seed first (or set SKIP_SEED_TESTS=1 to skip the user checks)",
     "test:db": "vitest run --project db --passWithNoTests",
+    "//test:e2e": "signs in as the seeded demo users: run npm run db:seed first",
     "test:e2e": "playwright test",
     "db:seed": "supabase db reset && tsx scripts/seed-users.ts"
   },

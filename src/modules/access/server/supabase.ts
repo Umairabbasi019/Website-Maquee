@@ -2,6 +2,7 @@ import "server-only";
 import { createServerClient as createSsrClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 
 function env(name: string): string {
   const value = process.env[name];
@@ -11,6 +12,8 @@ function env(name: string): string {
 
 /** Client acting as the signed-in user (cookie session). RLS applies. Call per request, never share. */
 export async function createServerClient(): Promise<SupabaseClient> {
+  // The auth client reads the clock (token expiry), so it must run at request time, never in a prerender.
+  await connection();
   const store = await cookies();
   return createSsrClient(env("NEXT_PUBLIC_SUPABASE_URL"), env("NEXT_PUBLIC_SUPABASE_ANON_KEY"), {
     cookies: {

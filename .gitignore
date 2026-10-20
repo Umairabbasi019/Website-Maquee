@@ -23,3 +23,5 @@ test-results/
 playwright-report/
 # seed outputs (TOTP secret)
 .seed/
+# e2e screenshots
+e2e-shots/

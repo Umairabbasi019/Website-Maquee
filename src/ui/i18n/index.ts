@@ -1,5 +1,7 @@
-import { en } from "./en";
+import { en, type TranslationKey } from "./en";
 
-export function t(key: keyof typeof en): string {
+export type { TranslationKey };
+
+export function t(key: TranslationKey): string {
   return en[key];
 }

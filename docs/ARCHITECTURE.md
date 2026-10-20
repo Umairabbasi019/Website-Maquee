@@ -77,7 +77,9 @@ No adapter configured → the feature shows an honest "not connected" state.
 | Connect the bank or a gateway | New file `src/providers/payments/<vendor>.ts` + keys in admin console |
 | Change WhatsApp provider | New file in `src/providers/messaging/` |
 | Message wording | Templates in Dashboard → Messages (WhatsApp ones need Meta re-approval) |
-| A dashboard screen | `src/modules/<feature>/ui/` + route file in `src/app/dashboard/` |
+| A dashboard screen | `src/modules/<feature>/ui/` + route folder in `src/app/dashboard/` (replaces its placeholder from `src/app/dashboard/[section]/page.tsx`) |
+| Dashboard menu: which screens exist and the permission each needs | `DASHBOARD_SCREENS` in `src/modules/access/ui/nav.ts` (mirrors the `/dashboard` table in `docs/SITEMAP.md`) |
+| Sign-in, MFA (TOTP) and sign-out flow; venue choice | `src/app/login/`, `src/app/mfa/`, `src/app/dashboard/context.ts`; MFA rule in `src/modules/access/server/session.ts` |
 | A scheduled job | `src/modules/<feature>/jobs.ts` (registered in the job runner) |
 | Database tables of a feature | `supabase/migrations/` file named after the module |
 

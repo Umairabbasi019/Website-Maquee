@@ -4,3 +4,5 @@ export { PERMISSIONS, type PermissionKey } from "./permissions";
 export { createServerClient, createServiceClient } from "./server/supabase";
 export { getViewer, buildViewer, can, requirePerm, ForbiddenError, type Viewer } from "./server/can";
 export { recordAudit, type AuditInput } from "./server/audit";
+export { isPlatformAdminUser, needsMfa, hasPausedMembership } from "./server/session";
+export { DASHBOARD_SCREENS, dashboardNav } from "./ui/nav";
