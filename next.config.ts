@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  // Every visitor gets one fully formed document, so the page also works without JavaScript (no hidden streamed content).
+  htmlLimitedBots: /.*/,
   turbopack: {
     rules: {
       "*.css": {

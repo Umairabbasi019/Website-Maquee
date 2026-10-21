@@ -21,9 +21,10 @@ test("a venue in setup shows the preview bar and is not indexed", async ({ page 
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 });
 
-// The page streams inside Suspense (cacheComponents), so the HTTP status is already 200 when notFound() runs; the not-found page is what shows.
 test("an unknown venue host shows the not-found page", async ({ page }) => {
-  await page.goto("http://nobody.localhost:3000");
+  // htmlLimitedBots renders the full document before sending, so notFound() sets a real 404.
+  const res = await page.goto("http://nobody.localhost:3000");
+  expect(res?.status()).toBe(404);
   await expect(page.getByText("This page could not be found.")).toBeVisible();
   await expect(page.locator("footer#footer")).toHaveCount(0);
 });

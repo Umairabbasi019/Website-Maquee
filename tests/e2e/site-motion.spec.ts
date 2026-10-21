@@ -1,10 +1,11 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { en } from "../../src/ui/i18n/en";
 import { manorContent } from "../../scripts/seed-data/manor";
 import { TENANT_BASE } from "./helpers";
 
 const { hero, inside, stage } = manorContent;
 const plain = (lines: string[]) => lines.join(" ").replaceAll("*", "");
-const heading = (page: Page, lines: string[], includeHidden = false) => page.getByRole("heading", { name: plain(lines), includeHidden });
+const heading = (page: Page, lines: string[]) => page.getByRole("heading", { name: plain(lines) });
 
 /** Scrolls so the pinned section `#id` is `progress` (0..1) of the way through its scroll range. */
 async function scrollPin(page: Page, id: string, progress: number) {
@@ -71,24 +72,25 @@ test("reduced motion: every caption shows on its own frame and no photo moves", 
   expect(transforms.filter((t) => t !== "none")).toEqual([]);
 });
 
-test("without JavaScript every hero caption is in the page and shown", async ({ browser }) => {
+test("without JavaScript every caption and the footer are shown, not the loading fallback", async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   await page.goto(TENANT_BASE);
+  await expect(page.getByText(en.loading, { exact: true })).not.toBeVisible();
   const { arrival, doors, hall } = hero.captions;
   const texts = [arrival, doors, hall].flatMap((c) => [c.chapter, ...(c.body ? [c.body] : [])]);
-  texts.push(arrival.primaryCta, arrival.secondaryCta);
+  texts.push(arrival.primaryCta, arrival.secondaryCta, stage.caption.chapter, manorContent.footer.line);
   const els = [
-    ...texts.map((text) => page.locator("#hero").getByText(text, { exact: true })),
-    // includeHidden: without JS the whole page still sits in the hidden streaming boundary (src/app/page.tsx Suspense), see task 6 report.
-    ...[arrival, doors, hall].map((c) => heading(page, c.lines, true)),
+    ...texts.map((text) => page.getByText(text, { exact: true }).first()),
+    ...[arrival.lines, doors.lines, hall.lines, inside.title, ...inside.rooms.map((r) => r.lines), stage.caption.lines].map((l) => heading(page, l)),
   ];
   for (const el of els) {
-    await expect(el).toHaveCount(1);
+    await expect(el).toBeVisible();
+    // toBeVisible ignores opacity, so walk the whole ancestor chain for anything that hides it.
     const hidden = await el.evaluate((node) => {
-      for (let n: Element | null = node; n && n.id !== "hero"; n = n.parentElement) {
+      for (let n: Element | null = node; n; n = n.parentElement) {
         const s = getComputedStyle(n);
-        if (s.visibility === "hidden" || s.opacity === "0") return true;
+        if (n.hasAttribute("hidden") || s.display === "none" || s.visibility === "hidden" || s.opacity === "0") return true;
       }
       return false;
     });
