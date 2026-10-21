@@ -1,0 +1,135 @@
+.block {
+  position: relative;
+  padding: 160px 8vw;
+}
+.bg {
+  z-index: 0;
+  opacity: 0.45;
+  filter: blur(3px) brightness(0.45);
+}
+.title {
+  margin-bottom: 20px;
+}
+.rel {
+  position: relative;
+  z-index: 2;
+}
+.lead {
+  max-width: 540px;
+  opacity: 0.82;
+  transition-delay: 0.2s;
+}
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 40px 0 34px;
+  transition-delay: 0.3s;
+}
+.tab {
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--color-muted);
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  cursor: pointer;
+  transition: background 0.3s, color 0.3s;
+}
+.tab:hover {
+  color: var(--color-text);
+}
+.tab:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+.tab[aria-selected="true"] {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+.pkgs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  transition-delay: 0.35s;
+}
+.pkgs[hidden] {
+  display: none;
+}
+.pkg {
+  padding: 38px 32px;
+  background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+}
+.feat {
+  background: color-mix(in srgb, var(--color-deep) 78%, transparent);
+}
+.pkg h3 {
+  font-family: var(--font-heading);
+  font-weight: 300;
+  font-size: 40px;
+}
+.price {
+  font-family: var(--font-heading);
+  font-size: 36px;
+  color: var(--color-accent);
+  margin: 4px 0 2px;
+}
+.price small {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-muted);
+}
+.total {
+  font-size: 13.5px;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+.pkg ul {
+  list-style: none;
+  margin: 20px 0 26px;
+  font-size: 15px;
+  opacity: 0.85;
+}
+.pkg li {
+  padding: 7px 0;
+}
+.fine {
+  margin-top: 18px;
+  font-size: 13.5px;
+  color: var(--color-muted);
+}
+.offers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  margin-top: 2px;
+}
+.offer {
+  padding: 22px 32px;
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  font-size: 15px;
+}
+.offer b {
+  display: block;
+  color: var(--color-accent);
+  font-weight: 500;
+  font-family: var(--font-heading);
+  font-size: 24px;
+}
+@media (max-width: 860px) {
+  .block {
+    padding: 110px 16px;
+  }
+  .tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-right: -16px;
+  }
+  .tab {
+    flex: none;
+  }
+  .pkgs,
+  .offers {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,3 +1,4 @@
+import { EnquiryProvider } from "@/sections/shared/enquiry-state";
 import type { SiteView } from "@/sections/types";
 import { t } from "@/ui/i18n";
 import { fontClassName } from "../fonts";
@@ -25,10 +26,12 @@ export function SiteShell({ site }: { site: SiteView }) {
         links={site.navLinks}
       />
       <main>
-        {site.sections.map((key) => {
-          const Section = SECTION_COMPONENTS[key];
-          return Section && <Section key={key} site={site} />;
-        })}
+        <EnquiryProvider>
+          {site.sections.map((key) => {
+            const Section = SECTION_COMPONENTS[key];
+            return Section && <Section key={key} site={site} />;
+          })}
+        </EnquiryProvider>
       </main>
       {site.status === "setup" && (
         <div className={styles.previewBar} role="status">

@@ -127,6 +127,12 @@ export const en = {
   "enquiry.package": "Package:",
   "enquiry.name": "Name:",
   "enquiry.perGuest": "per guest",
+  "gallery.stars": "{value} out of 5 stars",
+  "gallery.reviews": "{count} {source} reviews",
+  "packages.tabs": "Event",
+  "packages.perGuestMin": "per guest · min {min}",
+  "packages.from": "From Rs {lakh} lakh for {guests} guests",
+  "packages.choose": "Choose {name}",
 } as const;
 
 export type TranslationKey = keyof typeof en;

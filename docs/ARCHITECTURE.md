@@ -68,6 +68,7 @@ No adapter configured → the feature shows an honest "not connected" state.
 | How one public section looks or moves | `src/sections/<section>/` |
 | Pinned scroll scenes (pin length, frames, how they stack with reduced motion or no JS), shared caption/shade/shot styles | `src/modules/site/ui/site-base.css` (`.pin .sticky .frame .shot .shade`); `usePin` in `src/sections/shared/motion.ts`; `src/sections/shared/Caption.tsx` |
 | Add a new public section | New folder in `src/sections/` + register in `src/modules/site/sections.ts` |
+| What a "Check a date" or "Choose <package>" click carries into the enquiry (event, package, guests) | `src/sections/shared/enquiry-state.tsx` (`EnquiryProvider`, `useEnquiry`; provider wraps sections in `src/modules/site/ui/SiteShell.tsx`) |
 | How prices are calculated | `src/modules/pricing/` (tests in the same folder) |
 | Booking statuses or transitions | `src/modules/booking/state-machine.ts` |
 | Who can do what | `src/modules/access/permissions.ts` + migration for new keys (keys and role defaults seeded in `supabase/migrations/20261020000200_access.sql`) |

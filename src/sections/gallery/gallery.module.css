@@ -1,0 +1,75 @@
+.gal {
+  position: relative;
+  padding: 64px 0 110px;
+  overflow: hidden;
+}
+.proof {
+  padding: 0 8vw;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 30px;
+  flex-wrap: wrap;
+  margin-bottom: 60px;
+}
+.rating {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--color-text);
+  text-decoration: none;
+  order: 3;
+  width: 100%;
+}
+.score {
+  font-size: 64px;
+  line-height: 1;
+  color: var(--color-accent);
+}
+/* --stars is the filled share of the five stars (4.5 of 5 = 90%). */
+.rating b {
+  letter-spacing: 0.12em;
+  font-weight: 400;
+  font-size: 18px;
+  background: linear-gradient(
+    90deg,
+    var(--color-accent) var(--stars),
+    color-mix(in srgb, var(--color-accent) 25%, transparent) var(--stars)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.follow {
+  transition-delay: 0.2s;
+}
+.reel {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+  display: grid;
+  gap: 14px;
+}
+.row {
+  display: flex;
+  gap: 14px;
+  width: max-content;
+  will-change: transform;
+}
+.row > * {
+  height: 34vh;
+  flex: none;
+  background-size: cover;
+  background-position: center;
+  border-radius: 2px;
+}
+@media (max-width: 860px) {
+  .gal {
+    padding: 48px 0 80px;
+  }
+  .proof {
+    padding: 0 16px;
+  }
+  .row > * {
+    height: 24vh;
+  }
+}

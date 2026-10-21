@@ -130,6 +130,16 @@
   background: transparent;
   color: var(--color-accent);
 }
+.site-root .pill:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+/* Section title in flowing (not pinned) sections: gallery, packages. */
+.site-root .title {
+  font-size: clamp(34px, min(4.4vw, 8vh), 64px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
 
 /* Hidden until revealed: only when the inline script has set html.js. Without JavaScript everything shows. */
 .js .site-root .line > span {
