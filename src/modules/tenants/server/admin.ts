@@ -85,7 +85,7 @@ export async function listTenants(): Promise<TenantSummary[]> {
   await requirePerm(null, MANAGE);
   const db = await createServerClient();
   const rows = check(
-    await db.from("tenants").select(TENANT_SELECT).eq("halls.is_active", true).order("name"),
+    await db.from("tenants").select(TENANT_SELECT).eq("halls.is_active", true).eq("media_assets.category", "hero").order("name"),
     "listTenants",
   ) as unknown as TenantRow[];
   // shortcut: one audit query per tenant (fine for tens of tenants); move to a SQL view when the list grows.
@@ -111,6 +111,7 @@ export async function getTenantDetail(tenantId: string): Promise<TenantDetail | 
       .select(`${TENANT_SELECT}, login_limit, manager_limit`)
       .eq("id", tenantId)
       .eq("halls.is_active", true)
+      .eq("media_assets.category", "hero")
       .maybeSingle(),
     "getTenantDetail",
   ) as unknown as (TenantRow & { login_limit: number; manager_limit: number }) | null;
