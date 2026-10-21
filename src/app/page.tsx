@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 import { eventVenueJsonLd, getPublicSite, siteMetadata, SiteShell } from "@/modules/site";
 import { isPlatformHost, normalizeHost } from "@/modules/tenants";
 import { t } from "@/ui/i18n";
+
+// Allowed to block: the page renders whole per request with no Suspense boundary, because React outlines a large
+// completed boundary into a hidden segment that only JavaScript reveals, and the site must work without JavaScript.
+export const instant = false;
 
 // Tenant headers are set by src/proxy.ts from the host; any copy sent by the browser is dropped there.
 async function request() {
@@ -23,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return site ? siteMetadata(site, host) : {};
 }
 
-async function Home() {
+export default async function HomePage() {
   const { tenantId, status, host } = await request();
   if (!tenantId) {
     return (
@@ -51,13 +54,5 @@ async function Home() {
       />
       <SiteShell site={site} />
     </>
-  );
-}
-
-export default function HomePage() {
-  return (
-    <Suspense fallback={<p className="p-8">{t("loading")}</p>}>
-      <Home />
-    </Suspense>
   );
 }

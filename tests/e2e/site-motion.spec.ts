@@ -77,6 +77,8 @@ test("without JavaScript every caption and the footer are shown, not the loading
   const page = await context.newPage();
   await page.goto(TENANT_BASE);
   await expect(page.getByText(en.loading, { exact: true })).not.toBeVisible();
+  // React outlines a large completed Suspense boundary into <div hidden id="S:n"> that only script reveals; none may exist at any page size.
+  await expect(page.locator('[hidden][id^="S:"], template[id^="B:"]')).toHaveCount(0);
   const { arrival, doors, hall } = hero.captions;
   const texts = [arrival, doors, hall].flatMap((c) => [c.chapter, ...(c.body ? [c.body] : [])]);
   texts.push(arrival.primaryCta, arrival.secondaryCta, stage.caption.chapter, manorContent.footer.line);
