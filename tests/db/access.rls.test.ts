@@ -93,6 +93,7 @@ async function seed(c: Client) {
     [B, eventB],
   );
   await c.query("insert into offers (tenant_id, title, body) values ($1, 't', 'b')", [B]);
+  await c.query("insert into media_assets (tenant_id, key, alt, category, sizes) values ($1, 'front', 'a', 'hero', '{s}')", [B]);
   await c.query("insert into tenant_domains (tenant_id, host) values ($1, 'b.test')", [B]);
   await c.query("insert into tenant_features (tenant_id, feature_key, enabled) values ($1, 'invites', true)", [B]);
   await c.query("insert into tenant_secrets (tenant_id, kind, ciphertext) values ($1, 'whatsapp', 'x')", [B]);

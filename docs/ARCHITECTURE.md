@@ -74,6 +74,7 @@ No adapter configured → the feature shows an honest "not connected" state.
 | Which tenant a public host belongs to | `src/modules/tenants/server/resolve.ts`; header set in `src/proxy.ts` (public routes only) |
 | The signed-in user, `can()`, `requirePerm()`, audit writes; session refresh (`refreshSession`, called from `src/proxy.ts` on signed-in routes) | `src/modules/access/server/` (key rule in SQL `viewer_keys()`, `supabase/migrations/20261020000450_viewer_keys.sql`) |
 | Event types, packages and offers (tables, public read for the site; sample seed data) | `src/modules/catalogue/server/public.ts`; `supabase/migrations/20261022000200_catalogue.sql`; seed in `scripts/seed-site.ts` and `scripts/seed-data/` |
+| Venue photos (bucket `venue-media`, `media_assets` table, public URLs for the site; demo images) | `src/modules/media/server/assets.ts`; `supabase/migrations/20261022000300_media.sql`; seed in `scripts/seed-media.ts` and `scripts/seed-data/media-manifest.ts`; demo images made by `tools/make_demo_images.py` |
 | Who can read or write a table (RLS) | The module's RLS migration, e.g. `supabase/migrations/20261020000300_rls_tenants.sql`; negative tests in `tests/db/access.rls.test.ts` |
 | Connect the bank or a gateway | New file `src/providers/payments/<vendor>.ts` + keys in admin console |
 | Change WhatsApp provider | New file in `src/providers/messaging/` |

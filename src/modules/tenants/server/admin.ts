@@ -28,6 +28,7 @@ type TenantRow = {
   tenant_settings: { identity: unknown } | null;
   halls: { count: number }[];
   packages: { count: number }[];
+  media_assets: { count: number }[];
 };
 
 const MANAGE = "platform.tenants.manage";
@@ -55,10 +56,9 @@ function summarise(row: TenantRow, lastActivity: string | null): TenantSummary {
       {
         domains: verified.length,
         halls: row.halls[0]?.count ?? 0,
-        // shortcut: hero media and payment accounts have no tables until M2–M5, so these
-        // items stay honestly "missing"; count the real tables when those milestones add them.
+        // shortcut: payment accounts have no table until M5, so this item stays honestly "missing".
         packages: row.packages[0]?.count ?? 0,
-        heroMedia: 0,
+        heroMedia: row.media_assets[0]?.count ?? 0,
         paymentAccounts: 0,
       },
     ),
@@ -66,7 +66,7 @@ function summarise(row: TenantRow, lastActivity: string | null): TenantSummary {
 }
 
 const TENANT_SELECT =
-  "id, name, slug, status, tenant_domains(host, verified_at), tenant_settings(identity), halls(count), packages(count)";
+  "id, name, slug, status, tenant_domains(host, verified_at), tenant_settings(identity), halls(count), packages(count), media_assets(count)";
 
 async function lastActivity(db: Awaited<ReturnType<typeof createServerClient>>, tenantId: string) {
   const rows = check(

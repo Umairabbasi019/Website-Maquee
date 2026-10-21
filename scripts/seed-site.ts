@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 // Relative on purpose: the module index pulls in server-only and React code that plain Node cannot load.
 import { IdentitySchema, MessagingSchema, SiteContentSchema, ThemeSchema } from "../src/modules/tenants/settings";
 import { assertLocalSupabaseUrl } from "./local-guard";
+import { seedMedia } from "./seed-media";
 import { demoCatalogue, demoContent } from "./seed-data/demo";
 import { manorCatalogue, manorContent, manorIdentity, manorMessaging, manorTheme } from "./seed-data/manor";
 import type { SeedCatalogue } from "./seed-data/types";
@@ -106,7 +107,8 @@ async function main() {
   await seedCatalogue("manor", manorCatalogue);
   await seedCatalogue("demo-hall", demoCatalogue);
   await seedTemplate();
-  console.log("seeded site content and catalogue for manor, demo-hall and the template");
+  await seedMedia(admin);
+  console.log("seeded site content, catalogue and media for manor, demo-hall and the template");
 }
 
 main().catch((e) => {
