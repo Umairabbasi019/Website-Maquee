@@ -5,6 +5,7 @@ import { createServiceClient, recordAudit, requirePerm } from "@/modules/access"
 export type SecretKind = "payments" | "whatsapp" | "email";
 
 const VERSION = "v1";
+const TAG_LENGTH = 16;
 
 /** Read at call time so a missing key fails the call, not the import. */
 function loadKey(): Buffer {
@@ -26,8 +27,10 @@ export function encryptSecret(plain: string): string {
 export function decryptSecret(cipher: string): string {
   const [version, iv, tag, data] = cipher.split(":");
   if (version !== VERSION || !iv || !tag || data === undefined) throw new Error("Malformed secret ciphertext");
-  const decipher = createDecipheriv("aes-256-gcm", loadKey(), Buffer.from(iv, "base64"));
-  decipher.setAuthTag(Buffer.from(tag, "base64"));
+  const tagBytes = Buffer.from(tag, "base64");
+  if (tagBytes.length !== TAG_LENGTH) throw new Error("Malformed secret ciphertext");
+  const decipher = createDecipheriv("aes-256-gcm", loadKey(), Buffer.from(iv, "base64"), { authTagLength: TAG_LENGTH });
+  decipher.setAuthTag(tagBytes);
   return Buffer.concat([decipher.update(Buffer.from(data, "base64")), decipher.final()]).toString("utf8");
 }
 

@@ -70,7 +70,7 @@ No adapter configured → the feature shows an honest "not connected" state.
 | How prices are calculated | `src/modules/pricing/` (tests in the same folder) |
 | Booking statuses or transitions | `src/modules/booking/state-machine.ts` |
 | Who can do what | `src/modules/access/permissions.ts` + migration for new keys (keys and role defaults seeded in `supabase/migrations/20261020000200_access.sql`) |
-| A tenant setting field, default or its validation; the setup checklist; new-tenant templates | `src/modules/tenants/settings.ts`, `checklist.ts`; template payload in `supabase/migrations/20261020000500_create_tenant_fn.sql` |
+| A tenant setting field, default or its validation; the setup checklist; new-tenant templates | `src/modules/tenants/settings.ts`, `checklist.ts`; the "Standard marquee" template payload in `supabase/seed.sql`; creation function in `supabase/migrations/20261020000500_create_tenant_fn.sql` (fixed in `20261020000510_create_tenant_fn_fix.sql`) |
 | Which tenant a public host belongs to | `src/modules/tenants/server/resolve.ts`; header set in `src/proxy.ts` (public routes only) |
 | The signed-in user, `can()`, `requirePerm()`, audit writes; session refresh (`refreshSession`, called from `src/proxy.ts` on signed-in routes) | `src/modules/access/server/` (key rule in SQL `viewer_keys()`, `supabase/migrations/20261020000450_viewer_keys.sql`) |
 | Who can read or write a table (RLS) | The module's RLS migration, e.g. `supabase/migrations/20261020000300_rls_tenants.sql`; negative tests in `tests/db/access.rls.test.ts` |
@@ -83,6 +83,12 @@ No adapter configured → the feature shows an honest "not connected" state.
 | Super admin console screens and actions (tenant list, create, status, features, limits, secrets) | `src/app/admin/` (host + MFA gate in `guard.ts`); data and writes in `src/modules/tenants/server/admin.ts`; limit check in SQL `set_tenant_limits()` (`supabase/migrations/20261021000100_set_tenant_limits.sql`) |
 | Banner telling the super admin which tenant the dashboard shows; "Open dashboard" (`/dashboard?tenant=<id>` turned into the venue cookie) | `src/modules/tenants/ui/TenantBanner.tsx`, used in `src/app/dashboard/layout.tsx`; query handling in `src/proxy.ts`, cookie in `src/app/dashboard/venue-cookie.ts` |
 | Public holding page for a paused tenant; platform 404 for unknown hosts | `src/app/page.tsx` (reads `x-tenant-id` / `x-tenant-status` set by `src/proxy.ts`) |
+| Login and manager limits per venue | Enforced by the trigger in `supabase/migrations/20261020000400_login_limits.sql`; super admin changes them through `set_tenant_limits()` in `supabase/migrations/20261021000100_set_tenant_limits.sql`; range check in `supabase/migrations/20261021000300_tenant_limit_checks.sql` |
+| Tenant secrets (payment, WhatsApp, email keys) | Encrypt and decrypt in `src/modules/tenants/server/secrets.ts`; table locked to the server by `supabase/migrations/20261020000600_tenant_secrets_lockdown.sql` |
+| Owner protection (who can touch owner memberships) | `supabase/migrations/20261020000700_owner_protection.sql`; tests in `tests/db/owner-protection.test.ts` |
+| Custom tenant roles (super admin only until M6) | Write policies in `supabase/migrations/20261021000200_custom_roles_admin_only.sql` |
+| Local demo data | `supabase/seed.sql` (tenants, template) and `scripts/seed-users.ts` (auth users, memberships); run `npm run db:seed` |
+| Which modules the import-boundary lint rule covers | `modules` list in `eslint.config.mjs`; add a name there when a module is created |
 | A scheduled job | `src/modules/<feature>/jobs.ts` (registered in the job runner) |
 | Database tables of a feature | `supabase/migrations/` file named after the module |
 

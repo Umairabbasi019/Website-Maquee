@@ -234,16 +234,34 @@ describe("access RLS", () => {
       await asUser(c, s.admin, "aal2");
       await c.query(OVERRIDE, [s.managerAMembership, "reports.view", true]);
 
-      await asUser(c, s.managerA);
+      // Custom roles are platform-admin only until M6 (see custom_roles_are_platform_admin_only).
+      await asUser(c, s.admin, "aal2");
       const roleA = await one(c, "insert into roles (tenant_id, name) values ($1, 'A custom') returning id", [s.A]);
       const rolePerm = "insert into role_permissions (role_id, permission_key) values ($1, $2)";
-      await expectReject(c, rolePerm, [roleA, "audit.view"], /does not hold/);
       await expectReject(c, rolePerm, [roleA, "platform.tenants.manage"], /platform/);
+      await c.query(rolePerm, [roleA, "audit.view"]);
+    }));
+
+  it("custom_roles_are_platform_admin_only", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      await c.query(OVERRIDE, [s.ownerAMembership, "users.manage", true]);
+      const insRole = "insert into roles (tenant_id, name) values ($1, $2)";
+      const insPerm = "insert into role_permissions (role_id, permission_key) values ($1, $2)";
+      await asUser(c, s.admin, "aal2");
+      const roleA = await one(c, `${insRole} returning id`, [s.A, "A custom"]);
+      await c.query(insPerm, [roleA, "bookings.view"]);
 
       await asUser(c, s.ownerA);
-      await c.query(rolePerm, [roleA, "audit.view"]); // owner holds it and it is an owner default
-      // Owner holds users.manage via override, but it is not an owner default (○ cell).
-      await expectReject(c, rolePerm, [roleA, "users.manage"], /owner role defaults/);
+      // Probe 1: custom role holding a "never" key for staff (audit.view).
+      await expectReject(c, insRole, [s.A, "Staff audit"], /row-level security/);
+      // Probe 2: extra manager-like role to dodge manager_limit.
+      await expectReject(c, insRole, [s.A, "Manager two"], /row-level security/);
+      await expectReject(c, insPerm, [roleA, "audit.view"], /row-level security/);
+      expect((await c.query("update role_permissions set permission_key = 'audit.view' where role_id = $1", [roleA])).rowCount).toBe(0);
+      expect((await c.query("update roles set name = 'x' where id = $1", [roleA])).rowCount).toBe(0);
+      expect((await c.query("delete from role_permissions where role_id = $1", [roleA])).rowCount).toBe(0);
+      expect((await c.query("delete from roles where id = $1", [roleA])).rowCount).toBe(0);
     }));
 
   it("cannot_assign_role_beyond_own_keys_or_from_other_tenant", () =>

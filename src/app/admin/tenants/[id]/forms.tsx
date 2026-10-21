@@ -85,7 +85,7 @@ export function SecretForm({
     <form action={action} className="space-y-2 rounded-lg border border-muted/40 p-4">
       <label className="block">
         {label}
-        <input name="value" type="password" autoComplete="off" required maxLength={4000} className={inputClass} />
+        <input name="value" type="password" autoComplete="new-password" required maxLength={4000} className={inputClass} />
       </label>
       <p data-testid={`secret-${kind}`} className="text-sm">
         {savedOn ? `${t("admin.secretSavedOn")} ${savedOn}` : t("admin.secretNotSet")}

@@ -46,6 +46,12 @@ describe("encryptSecret / decryptSecret", () => {
     expect(() => decryptSecret([v, iv, bad.toString("base64"), data].join(":"))).toThrow();
   });
 
+  it("throws on truncated tag", () => {
+    const [v, iv, tag, data] = encryptSecret("hello").split(":");
+    const short = Buffer.from(tag, "base64").subarray(0, 4).toString("base64");
+    expect(() => decryptSecret([v, iv, short, data].join(":"))).toThrow(/Malformed/);
+  });
+
   it("throws with the wrong key", () => {
     const c = encryptSecret("hello");
     process.env.TENANT_SECRETS_KEY = key();

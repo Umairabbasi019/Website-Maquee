@@ -23,3 +23,6 @@
 | 2026-10-20 | Tenant login limit, manager limit, currency and time zone are columns on `tenants`, not settings JSON | The database enforces them with a locked trigger, so they must be real columns |
 | 2026-10-20 | Platform admin needs MFA (aal2) in the database, not only in the app | A bug in app code cannot give admin rights to a password-only session |
 | 2026-10-21 | Session refresh runs in the proxy | Server components cannot write cookies, so expired sessions would otherwise log users out |
+| 2026-10-21 | Halls and slots are written with `tenant.settings.edit` | Simple for M1; revisit in M2/M3 when booking rules are built |
+| 2026-10-21 | Members of a paused tenant cannot read their tenant row; the server shows a paused notice | The database blocks everything for paused tenants; only the super admin sees them |
+| 2026-10-21 | Custom roles are super admin only until M6 | A tenant owner could create roles with "never" keys or extra manager-like roles that skip the manager limit |

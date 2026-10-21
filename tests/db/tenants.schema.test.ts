@@ -25,6 +25,15 @@ describe("tenants schema", () => {
       expect(r.rows[0]).toEqual({ login_limit: 5, manager_limit: 2 });
     }));
 
+  it.each([["login_limit", 0], ["login_limit", 51], ["manager_limit", 0], ["manager_limit", 51]])(
+    "rejects %s = %i",
+    (col, value) =>
+      withDb(async (c) => {
+        const id = await newTenant(c);
+        await expect(c.query(`update tenants set ${col} = $1 where id = $2`, [value, id])).rejects.toThrow(/range/);
+      }),
+  );
+
   it("stores hosts lowercase and enforces uniqueness", () =>
     withDb(async (c) => {
       const id = await newTenant(c);
