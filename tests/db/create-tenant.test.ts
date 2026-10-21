@@ -10,7 +10,7 @@ async function setup(c: Client) {
   const admin = await createTestUser(c, "admin@t6.test");
   await c.query("insert into platform_admins (user_id) values ($1)", [admin]);
   const acc = await c.query("insert into accounts (name) values ('Acme') returning id");
-  const tpl = await c.query("select id from tenant_templates order by name limit 1");
+  const tpl = await c.query("select id from tenant_templates where name = 'Standard marquee'");
   return { admin, account: acc.rows[0].id as string, template: tpl.rows[0].id as string };
 }
 
@@ -55,9 +55,10 @@ describe("create_tenant_from_template", () => {
       const parsed = TenantSettingsSchema.parse({
         identity: r.identity, theme: r.theme, sections: r.sections,
         moneyRules: { ...r.money_rules, currency: "PKR", timeZone: "Asia/Karachi" },
-        messaging: r.messaging, limits: { loginLimit: 5, managerLimit: 2 },
+        messaging: r.messaging, limits: { loginLimit: 5, managerLimit: 2 }, content: r.content,
       });
       expect(parsed.identity.name).toBe("New Venue");
+      expect(parsed.content.sample).toBe(true);
 
       const f = await c.query("select count(*)::int n from tenant_features where tenant_id = $1", [id]);
       expect(f.rows[0].n).toBeGreaterThan(0);

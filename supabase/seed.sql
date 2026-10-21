@@ -7,7 +7,7 @@ insert into tenant_templates (name, payload) values ('Standard marquee', $json$
   "settings": {
     "identity": { "name": "", "phones": [], "openingHours": [], "social": {} },
     "theme": {
-      "colors": { "primary": "#c2a878", "background": "#ece7df", "text": "#2b2a28" },
+      "colors": { "primary": "#c2a878", "background": "#ece7df", "text": "#2b2a28", "muted": "#8a857d", "deep": "#9c7a3c" },
       "fonts": { "heading": "Cormorant Garamond", "body": "Inter" }
     },
     "sections": [
@@ -38,7 +38,7 @@ begin
   for v_def in
     select * from (values
       ('Manor Group', 'manor', 'Manor', 'live', 'manor.localhost',
-       '{"colors":{"primary":"#d9bf8c","background":"#0b0405","text":"#f4ece0"},"fonts":{"heading":"Cormorant Garamond","body":"Inter"}}'::jsonb),
+       '{"colors":{"primary":"#d9bf8c","background":"#0b0405","text":"#f4ece0","muted":"#b3a597","deep":"#5b0f1a"},"fonts":{"heading":"Cormorant Garamond","body":"Inter"}}'::jsonb),
       ('Demo Events', 'demo-hall', 'Demo Hall', 'setup', 'demo.localhost', null::jsonb)
     ) as t(account_name, slug, tenant_name, status, host, theme)
   loop

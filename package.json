@@ -13,7 +13,7 @@
     "test:db": "vitest run --project db --passWithNoTests",
     "//test:e2e": "signs in as the seeded demo users: run npm run db:seed first",
     "test:e2e": "playwright test",
-    "db:seed": "supabase db reset && tsx scripts/seed-users.ts"
+    "db:seed": "supabase db reset && tsx scripts/seed-users.ts && tsx scripts/seed-site.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
