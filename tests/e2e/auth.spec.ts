@@ -1,28 +1,11 @@
-import { readFileSync } from "node:fs";
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import { generate } from "otplib";
-import pg from "pg";
+import { expect, test, type BrowserContext } from "@playwright/test";
 import { en } from "../../src/ui/i18n/en";
+import { assertPassword, openDb, PLATFORM_BASE, signIn, shoot, passMfa, TENANT_BASE as BASE } from "./helpers";
 
-// Needs the demo data: run `npm run db:seed` before `npm run test:e2e`.
-const BASE = "http://manor.localhost:3000";
-const SHOTS = "e2e-shots"; // git-ignored
-const password = process.env.SEED_USER_PASSWORD ?? "";
-const db = new pg.Pool({
-  connectionString: process.env.DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
-});
+const db = openDb();
 
-test.beforeAll(() => {
-  if (!password) throw new Error("SEED_USER_PASSWORD is not set (see .env.example)");
-});
+test.beforeAll(assertPassword);
 test.afterAll(() => db.end());
-
-async function signIn(page: Page, email: string, pass = password) {
-  await page.goto(`${BASE}/login`);
-  await page.getByLabel(en["login.email"]).fill(email);
-  await page.getByLabel(en["login.password"]).fill(pass);
-  await page.getByRole("button", { name: en["login.submit"] }).click();
-}
 
 // The @supabase/ssr session cookie ("base64-" + base64url JSON), possibly split into .0, .1… chunks.
 async function sessionCookie(context: BrowserContext) {
@@ -48,13 +31,6 @@ async function expireAccessToken(context: BrowserContext) {
   return session.refresh_token;
 }
 
-async function shoot(page: Page, name: string) {
-  for (const width of [1440, 375]) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.screenshot({ path: `${SHOTS}/${name}-${width}.png`, fullPage: true });
-  }
-}
-
 test("proxy refreshes an expired session and stores the rotated cookie", async ({ page, context }) => {
   await signIn(page, "manager2@manor.test");
   await expect(page).toHaveURL(`${BASE}/dashboard`);
@@ -72,10 +48,10 @@ test("proxy refreshes an expired session and stores the rotated cookie", async (
 });
 
 test("wrong password shows one generic error", async ({ page }) => {
-  await signIn(page, "manager1@manor.test", "not-the-password");
+  await signIn(page, "manager1@manor.test", BASE, "not-the-password");
   await expect(page.getByRole("alert").filter({ hasText: en["login.failed"] })).toBeVisible();
   await shoot(page, "login-error");
-  await signIn(page, "nobody@manor.test", "not-the-password");
+  await signIn(page, "nobody@manor.test", BASE, "not-the-password");
   await expect(page.getByRole("alert").filter({ hasText: en["login.failed"] })).toBeVisible();
 });
 
@@ -125,14 +101,12 @@ test("paused venue shows the paused notice", async ({ page }) => {
 });
 
 test("super admin must pass the MFA challenge before /admin", async ({ page }) => {
-  await signIn(page, "super@demo.test");
-  await expect(page).toHaveURL(`${BASE}/mfa`);
-  await page.goto(`${BASE}/admin`);
-  await expect(page).toHaveURL(`${BASE}/mfa`); // no way around the challenge
+  await signIn(page, "super@demo.test", PLATFORM_BASE);
+  await expect(page).toHaveURL(`${PLATFORM_BASE}/mfa`);
+  await page.goto(`${PLATFORM_BASE}/admin`);
+  await expect(page).toHaveURL(`${PLATFORM_BASE}/mfa`); // no way around the challenge
   await shoot(page, "mfa-challenge");
 
-  const secret = readFileSync(".seed/totp-secret", "utf8").trim();
-  await page.getByLabel(en["mfa.code"]).fill(await generate({ secret }));
-  await page.getByRole("button", { name: en["mfa.verify"] }).click();
-  await expect(page).toHaveURL(`${BASE}/admin`);
+  await passMfa(page);
+  await expect(page).toHaveURL(`${PLATFORM_BASE}/admin`);
 });

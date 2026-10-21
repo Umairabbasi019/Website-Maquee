@@ -80,6 +80,9 @@ No adapter configured → the feature shows an honest "not connected" state.
 | A dashboard screen | `src/modules/<feature>/ui/` + route folder in `src/app/dashboard/` (replaces its placeholder from `src/app/dashboard/[section]/page.tsx`) |
 | Dashboard menu: which screens exist and the permission each needs | `DASHBOARD_SCREENS` in `src/modules/access/ui/nav.ts` (mirrors the `/dashboard` table in `docs/SITEMAP.md`) |
 | Sign-in, MFA (TOTP) and sign-out flow; venue choice | `src/app/login/`, `src/app/mfa/`, `src/app/dashboard/context.ts`; MFA rule in `src/modules/access/server/session.ts` |
+| Super admin console screens and actions (tenant list, create, status, features, limits, secrets) | `src/app/admin/` (host + MFA gate in `guard.ts`); data and writes in `src/modules/tenants/server/admin.ts`; limit check in SQL `set_tenant_limits()` (`supabase/migrations/20261021000100_set_tenant_limits.sql`) |
+| Banner telling the super admin which tenant the dashboard shows; "Open dashboard" (`/dashboard?tenant=<id>` turned into the venue cookie) | `src/modules/tenants/ui/TenantBanner.tsx`, used in `src/app/dashboard/layout.tsx`; query handling in `src/proxy.ts`, cookie in `src/app/dashboard/venue-cookie.ts` |
+| Public holding page for a paused tenant; platform 404 for unknown hosts | `src/app/page.tsx` (reads `x-tenant-id` / `x-tenant-status` set by `src/proxy.ts`) |
 | A scheduled job | `src/modules/<feature>/jobs.ts` (registered in the job runner) |
 | Database tables of a feature | `supabase/migrations/` file named after the module |
 

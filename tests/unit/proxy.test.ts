@@ -18,13 +18,20 @@ vi.mock("@supabase/ssr", () => ({
     },
   }),
 }));
-vi.mock("@/modules/tenants", () => ({ resolveTenantByHost: async () => ({ tenantId: "tenant-from-host" }) }));
+vi.mock("@/modules/tenants", () => ({
+  resolveTenantByHost: async () => ({ tenantId: "tenant-from-host", status: "paused" }),
+}));
 
 const { proxy } = await import("@/proxy");
 
 const request = (path: string) =>
   new NextRequest(`http://manor.localhost:3000${path}`, {
-    headers: { host: "manor.localhost:3000", cookie: "sb-auth-token=old; other=1", "x-tenant-id": "forged" },
+    headers: {
+      host: "manor.localhost:3000",
+      cookie: "sb-auth-token=old; other=1",
+      "x-tenant-id": "forged",
+      "x-tenant-status": "live",
+    },
   });
 
 beforeEach(() => {
@@ -59,5 +66,28 @@ describe("proxy session refresh", () => {
     expect(ssr.calls).toBe(0);
     expect(res.headers.get("set-cookie")).toBeNull();
     expect(res.headers.get("x-middleware-request-x-tenant-id")).toBe("tenant-from-host");
+    expect(res.headers.get("x-middleware-request-x-tenant-status")).toBe("paused");
+  });
+
+  it("never forwards a tenant status the browser sent on private routes", async () => {
+    const res = await proxy(request("/dashboard"));
+    expect(res.headers.get("x-middleware-request-x-tenant-status")).toBeNull();
+    expect(res.headers.get("x-middleware-override-headers")).not.toContain("x-tenant-status");
+  });
+
+  it("turns /dashboard?tenant=<uuid> into the venue cookie and drops the query", async () => {
+    const id = "6f1c2a7e-1b2c-4d3e-8f90-0a1b2c3d4e5f";
+    const res = await proxy(request(`/dashboard?tenant=${id}`));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("http://manor.localhost:3000/dashboard");
+    const cookie = res.headers.get("set-cookie") ?? "";
+    expect(cookie).toContain(`venue=${id}`);
+    expect(cookie.toLowerCase()).toContain("httponly");
+  });
+
+  it("ignores a tenant query that is not a uuid", async () => {
+    const res = await proxy(request("/dashboard?tenant=not-a-uuid"));
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("set-cookie") ?? "").not.toContain("venue=");
   });
 });

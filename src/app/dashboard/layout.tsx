@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { dashboardNav } from "@/modules/access";
+import { TenantBanner } from "@/modules/tenants";
 import { t } from "@/ui/i18n";
 import { buttonClass } from "@/ui/form-styles";
 import { signOut } from "../login/actions";
@@ -57,33 +58,36 @@ async function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="md:flex md:min-h-screen">
-      <aside className="border-b border-muted/40 p-4 md:w-60 md:shrink-0 md:border-r md:border-b-0">
-        <p className="px-3 font-semibold">{venue.name}</p>
-        <nav aria-label={t("nav.label")} className="mt-3">
-          <ul className="flex flex-wrap gap-1 md:block md:space-y-1">
-            {dashboardNav(viewer, venue.id).map((item) => (
-              <li key={item.href}>
-                <Link href={item.href} className={linkClass}>
-                  {t(item.labelKey)}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <div className="mt-3 flex flex-wrap gap-1 border-t border-muted/40 pt-3 md:block">
-          {venues.length > 1 && (
-            <form action={changeVenue}>
-              <button type="submit" className={linkClass}>
-                {t("venue.change")}
-              </button>
-            </form>
-          )}
-          <SignOutButton />
-        </div>
-      </aside>
-      <main className="flex-1 p-4 md:p-8">{children}</main>
-    </div>
+    <>
+      {viewer.isPlatformAdmin && <TenantBanner tenantName={venue.name} />}
+      <div className="md:flex md:min-h-screen">
+        <aside className="border-b border-muted/40 p-4 md:w-60 md:shrink-0 md:border-r md:border-b-0">
+          <p className="px-3 font-semibold">{venue.name}</p>
+          <nav aria-label={t("nav.label")} className="mt-3">
+            <ul className="flex flex-wrap gap-1 md:block md:space-y-1">
+              {dashboardNav(viewer, venue.id).map((item) => (
+                <li key={item.href}>
+                  <Link href={item.href} className={linkClass}>
+                    {t(item.labelKey)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <div className="mt-3 flex flex-wrap gap-1 border-t border-muted/40 pt-3 md:block">
+            {venues.length > 1 && (
+              <form action={changeVenue}>
+                <button type="submit" className={linkClass}>
+                  {t("venue.change")}
+                </button>
+              </form>
+            )}
+            <SignOutButton />
+          </div>
+        </aside>
+        <main className="flex-1 p-4 md:p-8">{children}</main>
+      </div>
+    </>
   );
 }
 

@@ -6,7 +6,7 @@ export type ChecklistItem = {
 };
 
 export function setupChecklist(
-  settings: TenantSettings,
+  settings: Pick<TenantSettings, "identity">,
   counts: { domains: number; halls: number; packages: number; heroMedia: number; paymentAccounts: number },
 ): ChecklistItem[] {
   return [

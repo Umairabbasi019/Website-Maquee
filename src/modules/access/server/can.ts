@@ -67,14 +67,14 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   });
 });
 
-/** Mirrors SQL auth_has_perm: platform admin passes, else the key must be held in that tenant. */
-export function can(viewer: Viewer, tenantId: string, key: PermissionKey): boolean {
+/** Mirrors SQL auth_has_perm: platform admin passes, else the key must be held in that tenant. null = platform-wide (admin only). */
+export function can(viewer: Viewer, tenantId: string | null, key: PermissionKey): boolean {
   if (viewer.isPlatformAdmin) return true;
   return viewer.memberships.some((m) => m.tenantId === tenantId && m.keys.includes(key));
 }
 
 /** Throws ForbiddenError unless the viewer may do `key` in `tenantId`. Platform admins also need aal2. */
-export async function requirePerm(tenantId: string, key: PermissionKey): Promise<Viewer> {
+export async function requirePerm(tenantId: string | null, key: PermissionKey): Promise<Viewer> {
   const viewer = await getViewer();
   if (!viewer || !can(viewer, tenantId, key)) throw new ForbiddenError();
   if (viewer.isPlatformAdmin && viewer.aal !== "aal2") throw new ForbiddenError("Platform admin needs MFA");

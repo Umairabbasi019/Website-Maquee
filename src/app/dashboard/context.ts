@@ -3,8 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { createServerClient, getViewer, hasPausedMembership, needsMfa } from "@/modules/access";
-
-export const VENUE_COOKIE = "venue";
+import { VENUE_COOKIE } from "./venue-cookie";
 
 /**
  * Everything a dashboard request needs, read fresh once per request. The venue cookie is only a

@@ -17,6 +17,7 @@ export async function createTenantFromTemplate(input: {
     p_name: input.name,
     p_slug: slug,
   });
-  if (error) throw new Error(`create_tenant_from_template failed: ${error.message}`);
+  // Keep the Postgres code so the UI can say "slug taken" (23505) or "invalid slug" (22023).
+  if (error) throw Object.assign(new Error(`create_tenant_from_template failed: ${error.message}`), { code: error.code });
   return data as string;
 }

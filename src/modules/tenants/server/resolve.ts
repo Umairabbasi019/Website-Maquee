@@ -13,6 +13,12 @@ export function normalizeHost(raw: string): string {
     .replace(/^www\./, "");
 }
 
+/** True only for PLATFORM_HOST itself (the super admin console's home), never a tenant host. */
+export function isPlatformHost(host: string): boolean {
+  const root = normalizeHost(process.env.PLATFORM_HOST ?? "");
+  return root !== "" && normalizeHost(host) === root;
+}
+
 /**
  * Host name -> tenant, for public pages only. Looks up a verified custom domain first, then
  * <slug>.<PLATFORM_HOST>. Uses the service client because anon cannot read these tables.

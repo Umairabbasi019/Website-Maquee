@@ -52,3 +52,16 @@ export async function saveTenantSecret(tenantId: string, kind: SecretKind, plain
     after: { kind },
   });
 }
+
+export const SECRET_KINDS = ["payments", "whatsapp", "email"] as const satisfies readonly SecretKind[];
+
+/** When each secret was last saved. Metadata only: the ciphertext never leaves this function. */
+export async function listSecretMeta(tenantId: string): Promise<{ kind: SecretKind; updatedAt: string }[]> {
+  await requirePerm(tenantId, "platform.tenants.manage");
+  const { data, error } = await createServiceClient()
+    .from("tenant_secrets")
+    .select("kind, updated_at")
+    .eq("tenant_id", tenantId);
+  if (error) throw new Error(`listSecretMeta failed: ${error.message}`);
+  return data.map((r) => ({ kind: r.kind as SecretKind, updatedAt: r.updated_at as string }));
+}
