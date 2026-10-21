@@ -1,0 +1,44 @@
+{
+  "name": "marquee-platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --project unit",
+    "//test:db": "needs seed users: run npm run db:seed first (or set SKIP_SEED_TESTS=1 to skip the user checks)",
+    "test:db": "vitest run --project db --passWithNoTests",
+    "//test:e2e": "signs in as the seeded demo users: run npm run db:seed first",
+    "test:e2e": "playwright test",
+    "db:seed": "supabase db reset && tsx scripts/seed-users.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
+    "next": "16.4.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.2",
+    "otplib": "13.5.0",
+    "pg": "^8.23.1",
+    "supabase": "^2.121.0",
+    "tailwindcss": "^4",
+    "tsx": "4.23.15",
+    "typescript": "^5",
+    "vitest": "^5.0.5"
+  }
+}

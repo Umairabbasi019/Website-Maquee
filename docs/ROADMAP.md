@@ -5,7 +5,7 @@ One milestone at a time. Each ends with a code review, checks actually run, docs
 | ID | Milestone | Size | Depends on | Status |
 |---|---|---|---|---|
 | M0 | Planning documents | S | – | Done, approved 2026-10-19 |
-| M1 | Foundation and security | L | M0 | Not started |
+| M1 | Foundation and security | L | M0 | Built 2026-10-21, awaiting review and approval |
 | M2 | Public site from config | L | M1 | Not started |
 | M3 | Venue configuration and catalogue | M | M1 | Not started |
 | M4 | Booking engine and pricing | L | M3 | Not started |
@@ -66,4 +66,15 @@ Scope: choose hosting, deploy, domains and HTTPS, backups, monitoring, security 
 Acceptance: every launch checklist item verified, not assumed.
 
 ## Handoff
-Current state: M0 approved and merged 2026-10-19. Next: M1 plan in `docs/superpowers/plans/`, then the choice of subagent-driven or inline execution.
+Current state: M1 is built on branch `feat/m1-foundation` and awaits the final branch review and your approval. It is not merged to `main`. M0 was approved and merged 2026-10-19.
+
+Checks run on the branch (2026-10-21): lint, typecheck and build clean; 47 unit tests, 69 database tests and 11 Playwright tests pass.
+
+Built in M1: module folders with an import lint rule; Supabase schema for tenants and access; permission keys and built-in roles; RLS on every table with negative tests; one key rule in SQL (`auth_has_perm`, `viewer_keys`); platform admin needs aal2 in the database; grant rules below the super admin; owner protection; login limits (5 total, 2 managers by default); tenant settings schemas, templates and setup checklist; encrypted per-tenant secrets; seeds (Manor live, demo hall in setup, role users, super admin with TOTP); proxy (host to tenant for public routes, session refresh); login, super admin MFA, permission-filtered dashboard shell; super admin console shell; holding page for paused tenants.
+
+Notes for M2:
+- Read the tenant from `x-tenant-id` and `x-tenant-status` set by `src/proxy.ts`. Never take a tenant ID from the browser.
+- Public pages need a server view or function for site data. Tables stay closed to anonymous users.
+- Replace the paused-tenant holding page in `src/app/page.tsx` with the real site; keep the paused case.
+- Run `npm run db:seed` before `npm run test:db` and `npm run test:e2e`.
+- Not built yet: audit log screen, users and permissions UI, deactivation screens (M6), staff invite flow, phone OTP login.

@@ -1,0 +1,15 @@
+@import "tailwindcss";
+@import "../ui/tokens.css";
+
+@theme inline {
+  --color-bg: var(--color-bg);
+  --color-accent: var(--color-accent);
+  --color-text: var(--color-text);
+  --color-muted: var(--color-muted);
+  --color-brand: var(--color-brand);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}

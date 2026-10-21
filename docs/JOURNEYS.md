@@ -65,6 +65,8 @@ Keys are checked on the server and in RLS. S = super admin, O = venue owner, M =
 | `schedule.view_own` and run sheets for own events | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `audit.view` | ✓ | ✓ | – | – | – |
 
+Owner memberships (built-in owner role) are created, changed, deactivated and deleted only by the super admin, even when an owner holds `users.manage`. An owner with it manages the other staff.
+
 Customer (no login) with a valid booking token: view own booking, quote, payments; upload receipt; edit invite and final details until the cutoff. Nothing else.
 
 Rules:
