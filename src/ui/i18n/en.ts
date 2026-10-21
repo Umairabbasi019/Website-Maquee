@@ -114,6 +114,13 @@ export const en = {
   "banner.back": "Back to the console",
   "holding.heading": "We will be back soon",
   "holding.body": "This venue's website is paused for now. Please check again later.",
+  "enquiry.date": "Date:",
+  "enquiry.dateUndecided": "not decided",
+  "enquiry.event": "Event:",
+  "enquiry.guests": "Guests: about",
+  "enquiry.package": "Package:",
+  "enquiry.name": "Name:",
+  "enquiry.perGuest": "per guest",
 } as const;
 
 export type TranslationKey = keyof typeof en;

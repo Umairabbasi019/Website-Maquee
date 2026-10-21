@@ -16,7 +16,7 @@ export default defineConfig({
     projects: [
       {
         resolve: { alias },
-        test: { name: "unit", testTimeout: 30_000, include: ["tests/unit/**/*.test.ts", "tests/lint/**/*.test.ts"] },
+        test: { name: "unit", testTimeout: 30_000, include: ["tests/unit/**/*.test.{ts,tsx}", "tests/lint/**/*.test.ts"] },
       },
       {
         resolve: { alias },
