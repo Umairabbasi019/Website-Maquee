@@ -1,0 +1,17 @@
+.title {
+  left: 7vw;
+  top: 20vh;
+}
+.room {
+  left: 7vw;
+  bottom: 14vh;
+}
+@media (max-width: 860px) {
+  .title {
+    left: 16px;
+    top: 14vh;
+  }
+  .room {
+    left: 16px;
+  }
+}

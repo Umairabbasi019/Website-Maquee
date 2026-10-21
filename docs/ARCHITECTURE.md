@@ -66,6 +66,7 @@ No adapter configured → the feature shows an honest "not connected" state.
 | Turn a feature on/off for a tenant | Admin console → Features (no code) |
 | Reminder timings, hold length, caps, summary time | Tenant settings (no code) |
 | How one public section looks or moves | `src/sections/<section>/` |
+| Pinned scroll scenes (pin length, frames, how they stack with reduced motion or no JS), shared caption/shade/shot styles | `src/modules/site/ui/site-base.css` (`.pin .sticky .frame .shot .shade`); `usePin` in `src/sections/shared/motion.ts`; `src/sections/shared/Caption.tsx` |
 | Add a new public section | New folder in `src/sections/` + register in `src/modules/site/sections.ts` |
 | How prices are calculated | `src/modules/pricing/` (tests in the same folder) |
 | Booking statuses or transitions | `src/modules/booking/state-machine.ts` |

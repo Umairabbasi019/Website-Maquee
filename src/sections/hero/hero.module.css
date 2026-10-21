@@ -1,0 +1,80 @@
+.low {
+  left: 7vw;
+  bottom: 17vh;
+}
+.high {
+  right: 7vw;
+  top: 28vh;
+  text-align: right;
+}
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+  transition-delay: 0.55s;
+}
+.rays {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: conic-gradient(
+    from 200deg at 72% -10%,
+    transparent 0deg,
+    color-mix(in srgb, var(--color-accent) 13%, transparent) 7deg,
+    transparent 15deg,
+    color-mix(in srgb, var(--color-accent) 8%, transparent) 23deg,
+    transparent 33deg
+  );
+  mix-blend-mode: screen;
+}
+.cue {
+  position: absolute;
+  left: 50%;
+  bottom: 9vh;
+  z-index: 10;
+  transform: translateX(-50%);
+  width: 1px;
+  height: 60px;
+  background: linear-gradient(var(--color-accent), transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rays {
+    animation: ray 9s ease-in-out infinite alternate;
+  }
+  .cue {
+    animation: cue 2s ease-in-out infinite;
+  }
+}
+@keyframes ray {
+  to {
+    transform: translateX(-6%) rotate(2deg);
+    opacity: 0.5;
+  }
+}
+@keyframes cue {
+  0% {
+    transform: translateX(-50%) scaleY(0);
+    transform-origin: top;
+  }
+  50% {
+    transform: translateX(-50%) scaleY(1);
+    transform-origin: top;
+  }
+  51% {
+    transform-origin: bottom;
+  }
+  100% {
+    transform: translateX(-50%) scaleY(0);
+    transform-origin: bottom;
+  }
+}
+@media (max-width: 860px) {
+  .low {
+    left: 16px;
+  }
+  .high {
+    right: 16px;
+  }
+}

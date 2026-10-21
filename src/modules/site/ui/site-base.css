@@ -14,11 +14,51 @@
 .site-root .pin {
   position: relative;
 }
-.site-root .sticky {
-  position: sticky;
-  top: 0;
+/* A pinned scene is a stack of frames (photo + caption). Without script or with reduced motion each frame is a plain
+   100vh block; with both, the pin gets its scroll length (--pin), the frames overlap on one sticky screen and the
+   section script fades the later ones in. */
+.site-root .frame {
+  position: relative;
   height: 100vh;
   overflow: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .js .site-root .pin {
+    height: var(--pin);
+  }
+  .js .site-root .sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .js .site-root .frame {
+    display: contents;
+  }
+  .js .site-root .frame ~ .frame > :not(.cap) {
+    opacity: 0;
+  }
+}
+.site-root .shot {
+  z-index: 4;
+  will-change: transform, opacity;
+  -webkit-mask-image: linear-gradient(transparent, #000 12%, #000 80%, transparent);
+  mask-image: linear-gradient(transparent, #000 12%, #000 80%, transparent);
+}
+.site-root .shade {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-bg) 88%, transparent),
+      color-mix(in srgb, var(--color-bg) 40%, transparent) 45%,
+      transparent 62%,
+      color-mix(in srgb, var(--color-bg) 50%, transparent)
+    ),
+    linear-gradient(transparent 55%, color-mix(in srgb, var(--color-bg) 78%, transparent));
 }
 .site-root .full {
   position: absolute;
@@ -102,12 +142,41 @@
   transform: translateY(24px);
   transition: opacity 1s, transform 1.2s var(--ease);
 }
+.js .site-root .line + .line > span {
+  transition-delay: 0.12s;
+}
 .js .site-root .on .line > span {
   transform: none;
 }
 .js .site-root .on .fade {
   opacity: 1;
   transform: none;
+}
+
+@media (max-width: 860px) {
+  .site-root .big {
+    font-size: clamp(34px, 9.5vw, 44px);
+  }
+  .site-root .sub {
+    font-size: clamp(28px, 8vw, 36px);
+  }
+  .site-root .cap p {
+    max-width: 86vw;
+    font-size: 16px;
+  }
+  .site-root .pill {
+    padding: 11px 16px;
+    font-size: 13px;
+  }
+  .site-root .shade {
+    background: linear-gradient(
+      color-mix(in srgb, var(--color-bg) 88%, transparent),
+      color-mix(in srgb, var(--color-bg) 55%, transparent) 20%,
+      transparent 32%,
+      color-mix(in srgb, var(--color-bg) 72%, transparent) 50%,
+      color-mix(in srgb, var(--color-bg) 93%, transparent) 70%
+    );
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

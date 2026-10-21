@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 
-const clamp = (v: number) => Math.min(1, Math.max(0, v));
+export const clamp = (v: number) => Math.min(1, Math.max(0, v));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 export const prefersReducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -55,6 +55,18 @@ export function smoothedProgress(id: string, el: HTMLElement): number {
   const target = clamp(-el.getBoundingClientRect().top / (el.offsetHeight - innerHeight));
   if (prefersReducedMotion()) return target;
   return (smoothed[id] = lerp(smoothed[id] ?? target, target, 0.09));
+}
+
+/** Calls `frame` every animation frame with the smoothed progress through the pinned section #id, and fades its dip at the end. */
+export function usePin(id: string, frame: (progress: number, el: HTMLElement) => void) {
+  useScrollFrame(() => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const p = smoothedProgress(id, el);
+    frame(p, el);
+    const dip = el.querySelector<HTMLElement>(".dip");
+    if (dip) dip.style.opacity = String(clamp((p - 0.9) * 10) * 0.55);
+  });
 }
 
 /** Adds `on` to every [data-r] element the first time 15% of it is in view. */
