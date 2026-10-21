@@ -10,6 +10,9 @@ test("a live venue shows its content title and no preview bar", async ({ page })
   await expect(page).toHaveTitle(manorContent.seo.title);
   await expect(page.getByText(en["site.previewBar"])).toHaveCount(0);
   await expect(page.locator("footer#footer")).toBeVisible();
+  // overflow-x: hidden here would turn the wrapper into a scroll container and stop pinned sections from sticking.
+  const overflowY = await page.locator(".site-root").evaluate((el) => getComputedStyle(el).overflowY);
+  expect(overflowY).toBe("visible");
 });
 
 test("a venue in setup shows the preview bar and is not indexed", async ({ page }) => {
