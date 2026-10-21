@@ -75,7 +75,8 @@ Reserving runs in one transaction: first mark this hall's expired holds as `hold
 - Select policy: `is_platform_admin() or auth_has_perm(tenant_id, '<module>.view')`. Write policies use the edit key.
 - Public data (site config, catalogue, free/held/booked per date with no customer fields) is read through server-side views or functions, not open tables.
 - Token pages resolve on the server with the service role after hashing and checking the token; they return only that booking's fields.
-- `tenant_secrets`, `provider_events`, `audit_events` have no client policies at all.
+- `tenant_secrets` and `provider_events` have no client policies; `tenant_secrets` is also revoked from client roles. `audit_events` has a read-only policy for holders of `audit.view`; rows are added only through `record_audit()` and update/delete are blocked by trigger.
+- Owner protection: below the super admin, an owner membership cannot be deactivated, deleted, re-roled or have its overrides edited, and nobody can assign the owner role. Only the super admin changes owners (`supabase/migrations/20261020000700_owner_protection.sql`).
 - Negative tests: user of tenant A cannot select, update or delete any tenant B row in every table; a booking token cannot read another booking; a deactivated user gets nothing.
 
 ## Indexes
