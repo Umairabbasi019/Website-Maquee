@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { generate } from "otplib";
 import pg from "pg";
 import { en } from "../../src/ui/i18n/en";
@@ -24,12 +24,52 @@ async function signIn(page: Page, email: string, pass = password) {
   await page.getByRole("button", { name: en["login.submit"] }).click();
 }
 
+// The @supabase/ssr session cookie ("base64-" + base64url JSON), possibly split into .0, .1… chunks.
+async function sessionCookie(context: BrowserContext) {
+  const parts = (await context.cookies()).filter((c) => /^sb-.*-auth-token(\.\d+)?$/.test(c.name));
+  parts.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  const raw = parts.map((c) => c.value).join("");
+  const session = JSON.parse(Buffer.from(raw.replace(/^base64-/, ""), "base64url").toString());
+  return { parts, session: session as { expires_at: number; refresh_token: string } };
+}
+
+/** Marks the access token expired in the browser's cookie, so the next request must refresh it. */
+async function expireAccessToken(context: BrowserContext) {
+  const { parts, session } = await sessionCookie(context);
+  session.expires_at = Math.floor(Date.now() / 1000) - 60; // same digit count, so chunk lengths hold
+  let rest = "base64-" + Buffer.from(JSON.stringify(session)).toString("base64url");
+  await context.addCookies(
+    parts.map((c) => {
+      const value = c === parts.at(-1) ? rest : rest.slice(0, c.value.length);
+      rest = rest.slice(value.length);
+      return { ...c, value };
+    }),
+  );
+  return session.refresh_token;
+}
+
 async function shoot(page: Page, name: string) {
   for (const width of [1440, 375]) {
     await page.setViewportSize({ width, height: 900 });
     await page.screenshot({ path: `${SHOTS}/${name}-${width}.png`, fullPage: true });
   }
 }
+
+test("proxy refreshes an expired session and stores the rotated cookie", async ({ page, context }) => {
+  await signIn(page, "manager2@manor.test");
+  await expect(page).toHaveURL(`${BASE}/dashboard`);
+  const oldRefresh = await expireAccessToken(context);
+
+  await page.goto(`${BASE}/dashboard/bookings`);
+  await expect(page.getByRole("heading", { name: en["nav.bookings"] })).toBeVisible();
+  const { session } = await sessionCookie(context);
+  // Without the proxy refresh the browser would keep the spent refresh token and lose the session.
+  expect(session.refresh_token).not.toBe(oldRefresh);
+  expect(session.expires_at).toBeGreaterThan(Date.now() / 1000);
+
+  await page.goto(`${BASE}/dashboard/calendar`);
+  await expect(page.getByRole("heading", { name: en["nav.calendar"] })).toBeVisible();
+});
 
 test("wrong password shows one generic error", async ({ page }) => {
   await signIn(page, "manager1@manor.test", "not-the-password");
