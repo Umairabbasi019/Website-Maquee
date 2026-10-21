@@ -73,6 +73,7 @@ No adapter configured → the feature shows an honest "not connected" state.
 | A tenant setting field, default or its validation; the setup checklist; new-tenant templates | `src/modules/tenants/settings.ts`, `checklist.ts`; the "Standard marquee" template payload in `supabase/seed.sql`; creation function in `supabase/migrations/20261020000500_create_tenant_fn.sql` (fixed in `20261020000510_create_tenant_fn_fix.sql`) |
 | Which tenant a public host belongs to | `src/modules/tenants/server/resolve.ts`; header set in `src/proxy.ts` (public routes only) |
 | The signed-in user, `can()`, `requirePerm()`, audit writes; session refresh (`refreshSession`, called from `src/proxy.ts` on signed-in routes) | `src/modules/access/server/` (key rule in SQL `viewer_keys()`, `supabase/migrations/20261020000450_viewer_keys.sql`) |
+| Event types, packages and offers (tables, public read for the site; sample seed data) | `src/modules/catalogue/server/public.ts`; `supabase/migrations/20261022000200_catalogue.sql`; seed in `scripts/seed-site.ts` and `scripts/seed-data/` |
 | Who can read or write a table (RLS) | The module's RLS migration, e.g. `supabase/migrations/20261020000300_rls_tenants.sql`; negative tests in `tests/db/access.rls.test.ts` |
 | Connect the bank or a gateway | New file `src/providers/payments/<vendor>.ts` + keys in admin console |
 | Change WhatsApp provider | New file in `src/providers/messaging/` |

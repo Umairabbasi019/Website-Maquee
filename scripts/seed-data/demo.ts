@@ -1,4 +1,5 @@
 import type { SiteContent } from "@/modules/tenants";
+import type { SeedCatalogue } from "./types";
 
 // Neutral placeholder copy for new venues and the Demo Hall tenant: no real venue names or facts.
 // Media keys name the generated demo images.
@@ -85,4 +86,18 @@ export const demoContent: SiteContent = {
     map: { title: "Find us", place: "Sample address", facts: [], directionsCta: "Get directions" },
   },
   footer: { line: "Demo Hall", copyright: "© 2026 Demo Hall", mark: "Demo Hall" },
+};
+
+const demoPackages = (base: number) => [
+  { name: "Classic", rupees: base, minGuests: 100, items: ["Two main dishes", "Naan, raita, salad", "One dessert"] },
+  { name: "Premium", rupees: base + 1000, minGuests: 100, featured: true, items: ["Three main dishes", "Live grill station", "Two desserts", "Stage decor"] },
+];
+
+export const demoCatalogue: SeedCatalogue = {
+  events: [
+    { slug: "celebration", name: "Celebration", description: "Sample text for a family celebration.", mediaKey: "demo-room-1", packages: demoPackages(2500) },
+    { slug: "reception", name: "Reception", description: "Sample text for a reception.", mediaKey: "demo-room-2", packages: demoPackages(3000) },
+    { slug: "gathering", name: "Gathering", description: "Sample text for a business gathering.", mediaKey: "demo-room-3", packages: demoPackages(2000) },
+  ],
+  offers: [{ title: "Sample offer", body: "Replace this with your own offer" }],
 };

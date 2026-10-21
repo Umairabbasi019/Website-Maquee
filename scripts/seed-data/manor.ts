@@ -1,4 +1,5 @@
 import type { SiteContent, TenantSettings } from "@/modules/tenants";
+import type { SeedCatalogue } from "./types";
 
 // Copy is verbatim from the approved mockup. sample: true because the manager name and prices are placeholders.
 const mapsSearch = "https://www.google.com/maps/search/?api=1&query=The+Manor+Marquee+Islamabad";
@@ -132,4 +133,70 @@ export const manorTheme: TenantSettings["theme"] = {
   colors: { primary: "#d9bf8c", background: "#0b0405", text: "#f4ece0", muted: "#b3a597", deep: "#5b0f1a" },
   fonts: { heading: "Cormorant Garamond", body: "Inter" },
   logo: "logo",
+};
+
+// From the approved mockup (EV_TEXT, PKGS, offers). Seeded with sample: true; prices are placeholders.
+export const manorCatalogue: SeedCatalogue = {
+  events: [
+    {
+      slug: "mehndi",
+      name: "Mehndi",
+      description: "Marigold, dholki and colour. Floor seating, swing stage, live music welcome.",
+      mediaKey: "hall-floral",
+      packages: [
+        { name: "Silver", rupees: 2600, minGuests: 200, items: ["Chicken Biryani, Haleem", "Naan, Raita, Salad", "Gulab Jamun", "Marigold stage decor"] },
+        { name: "Gold", rupees: 3400, minGuests: 200, featured: true, items: ["Chicken Karahi, Biryani", "Chaat and gol gappa stall", "Two desserts", "Swing stage, floor seating"] },
+        { name: "Platinum", rupees: 4500, minGuests: 200, items: ["Everything in Gold", "Live BBQ station", "Live jalebi counter", "Dhol and full floral decor"] },
+      ],
+    },
+    {
+      slug: "barat",
+      name: "Barat",
+      description: "The big night. A grand floral stage, baraat welcome, full stage lighting.",
+      mediaKey: "stage-floral",
+      packages: [
+        { name: "Silver", rupees: 3200, minGuests: 300, items: ["Chicken Qorma, Biryani", "Naan, Raita, Salad", "Kheer", "Standard stage decor"] },
+        { name: "Gold", rupees: 4200, minGuests: 300, featured: true, items: ["Mutton Qorma, Karahi, Biryani", "Live BBQ station", "Two desserts and ice cream", "Floral stage and entrance"] },
+        { name: "Platinum", rupees: 5500, minGuests: 250, items: ["Everything in Gold", "Raan, Fish, Continental", "Live dessert counter", "Wisteria ceiling and host"] },
+      ],
+    },
+    {
+      slug: "valima",
+      name: "Valima",
+      description: "Calm and elegant. Velvet and crystal stage, family dining, photo corners.",
+      mediaKey: "g4",
+      packages: [
+        { name: "Silver", rupees: 3000, minGuests: 300, items: ["Chicken Qorma, Pulao", "Naan, Raita, Salad", "Firni", "Velvet stage decor"] },
+        { name: "Gold", rupees: 4000, minGuests: 300, featured: true, items: ["Mutton Qorma, Chicken Karahi, Pulao", "Live BBQ station", "Two desserts", "Crystal stage and entrance"] },
+        { name: "Platinum", rupees: 5200, minGuests: 250, items: ["Everything in Gold", "Fish, Continental corner", "Live dessert counter", "Photo corners and host"] },
+      ],
+    },
+    {
+      slug: "nikkah",
+      name: "Nikkah",
+      description: "Intimate ceremony setups by candle-light, day or evening.",
+      mediaKey: "candles",
+      packages: [
+        { name: "Hi-tea", rupees: 1800, minGuests: 100, items: ["Sandwiches, Samosa, Patties", "Chaat and fruit", "Two desserts", "Nikkah stage setup"] },
+        { name: "Lunch", rupees: 2800, minGuests: 100, featured: true, items: ["Chicken Qorma, Pulao", "Naan, Raita, Salad", "Kheer", "Candle-light setup"] },
+        { name: "Dinner", rupees: 3800, minGuests: 100, items: ["Mutton Qorma, Karahi, Pulao", "Live BBQ station", "Two desserts", "Floral setup and host"] },
+      ],
+    },
+    {
+      slug: "corporate",
+      name: "Corporate",
+      description: "Conferences, dinners and launches with projector, sound and stage.",
+      mediaKey: "dining",
+      packages: [
+        { name: "Hi-tea", rupees: 1500, minGuests: 50, items: ["Sandwiches, Samosa, Patties", "Tea and coffee", "One dessert", "Projector and sound"] },
+        { name: "Lunch", rupees: 2500, minGuests: 50, featured: true, items: ["Chicken Karahi, Pulao", "Naan, Raita, Salad", "One dessert", "Stage, projector, sound"] },
+        { name: "Dinner", rupees: 3500, minGuests: 50, items: ["Mutton Qorma, Chicken Karahi", "Live BBQ station", "Two desserts", "Stage, lighting, host"] },
+      ],
+    },
+  ],
+  offers: [
+    { title: "Weekday saver", body: "10% off Monday to Thursday" },
+    { title: "Book early", body: "Rs 200 off per guest, 90+ days ahead" },
+    { title: "Wedding bundle", body: "Mehndi, Barat, Valima: free Nikkah setup" },
+  ],
 };
