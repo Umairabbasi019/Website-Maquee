@@ -1,0 +1,41 @@
+.footer {
+  padding: 70px 8vw 40px;
+  overflow: hidden;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px 32px;
+  font-size: 14px;
+  color: var(--color-muted);
+  padding-bottom: 28px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+.row nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 22px;
+}
+.row a {
+  color: var(--color-muted);
+  text-decoration: none;
+}
+.row a:hover {
+  color: var(--color-text);
+}
+.mark {
+  font-family: var(--font-heading);
+  font-weight: 300;
+  font-size: 13.5vw;
+  line-height: 0.8;
+  letter-spacing: -0.03em;
+  color: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  white-space: nowrap;
+  margin-top: 40px;
+}
+@media (max-width: 860px) {
+  .footer {
+    padding: 60px 16px 40px;
+  }
+}

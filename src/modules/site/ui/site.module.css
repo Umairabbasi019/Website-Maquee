@@ -1,0 +1,265 @@
+/* Ported from the approved mockup. Mockup colours map to theme variables:
+   ink -> --color-bg, champ -> --color-accent, ivory -> --color-text, muted -> --color-muted, maroon -> --color-deep. */
+.site {
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  overflow-x: hidden;
+}
+.site * {
+  box-sizing: border-box;
+}
+
+/* Fixed overlays */
+.chrome {
+  position: relative;
+}
+.grain {
+  position: fixed;
+  inset: -50%;
+  z-index: 80;
+  pointer-events: none;
+  opacity: 0.08;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: gr 0.8s steps(4) infinite;
+}
+@keyframes gr {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-3%, 2%);
+  }
+  50% {
+    transform: translate(2%, -3%);
+  }
+  75% {
+    transform: translate(-2%, -1%);
+  }
+}
+.dust {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+}
+/* cinema letterbox: closes away on first scroll */
+.lb {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 5.5vh;
+  background: #000;
+  z-index: 90;
+  transition: height 2.2s var(--ease) 0.3s;
+  pointer-events: none;
+}
+.top {
+  top: 0;
+}
+.bottom {
+  bottom: 0;
+}
+.chrome[data-scrolled="true"] .lb {
+  height: 0;
+}
+.leak {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0;
+  background: radial-gradient(40% 60% at 95% 10%, color-mix(in srgb, var(--color-accent) 35%, transparent), transparent 70%);
+  animation: leak 11s ease-in-out infinite;
+}
+@keyframes leak {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.7;
+  }
+  60% {
+    opacity: 0.4;
+  }
+}
+
+/* Nav */
+.nav {
+  position: fixed;
+  top: 6vh;
+  left: 0;
+  right: 0;
+  z-index: 85;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 36px;
+  transition: top 1.2s var(--ease);
+}
+.chrome[data-scrolled="true"] .nav {
+  top: 18px;
+}
+.nav::before {
+  content: "";
+  position: absolute;
+  inset: -18px 0 -40px;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(color-mix(in srgb, var(--color-bg) 80%, transparent), transparent);
+  opacity: 0;
+  transition: opacity 0.6s;
+}
+.chrome[data-scrolled="true"] .nav::before {
+  opacity: 1;
+}
+.brand {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-heading);
+  font-weight: 300;
+  font-size: 18px;
+  letter-spacing: 0.32em;
+}
+.brand img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.links a {
+  color: inherit;
+  text-decoration: none;
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.pill {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 13px 24px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border: 1px solid var(--color-accent);
+  color: var(--color-bg);
+  background: var(--color-accent);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.4s var(--ease), background 0.3s;
+}
+.pill:hover {
+  transform: translateY(-2px);
+}
+.menuBtn {
+  display: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 50%, transparent);
+  background: color-mix(in srgb, var(--color-bg) 50%, transparent);
+  cursor: pointer;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.menuBtn i {
+  display: block;
+  width: 16px;
+  height: 1.5px;
+  background: var(--color-text);
+  transition: transform 0.4s;
+}
+.chrome[data-menu="true"] .menuBtn i:first-child {
+  transform: translateY(3.75px) rotate(45deg);
+}
+.chrome[data-menu="true"] .menuBtn i:last-child {
+  transform: translateY(-3.75px) rotate(-45deg);
+}
+
+.previewBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 95;
+  padding: 4px 12px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-accent);
+  color: var(--color-bg);
+  pointer-events: none;
+}
+
+@media (max-width: 860px) {
+  .nav {
+    padding: 0 16px;
+    gap: 8px;
+  }
+  .brand {
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    gap: 9px;
+  }
+  .brand img {
+    width: 26px;
+    height: 26px;
+  }
+  .pill {
+    padding: 11px 16px;
+    font-size: 13px;
+  }
+  /* Without JavaScript the menu button cannot work, so the links stay in the bar. */
+  .chrome[data-js="true"] .links {
+    display: none;
+  }
+  .chrome[data-js="true"] .menuBtn {
+    display: flex;
+  }
+  .chrome[data-js="true"][data-menu="true"] .links {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: center;
+    padding: 0 28px;
+    gap: 22px;
+    background: color-mix(in srgb, var(--color-bg) 96%, transparent);
+    font: 300 40px var(--font-heading);
+    color: var(--color-text);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site * {
+    animation: none !important;
+    transition: none !important;
+  }
+  .grain,
+  .leak,
+  .dust {
+    display: none;
+  }
+}

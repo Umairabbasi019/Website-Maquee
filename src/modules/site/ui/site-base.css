@@ -1,0 +1,119 @@
+/* Shared vocabulary for sections. Global names on purpose: the Lines component and section markup use them as plain classes. */
+.site-root .serif {
+  font-family: var(--font-heading);
+  font-weight: 300;
+}
+.site-root em {
+  color: var(--color-accent);
+  font-style: italic;
+}
+.site-root .melt {
+  -webkit-mask-image: radial-gradient(ellipse 72% 70% at 50% 48%, #000 38%, transparent 100%);
+  mask-image: radial-gradient(ellipse 72% 70% at 50% 48%, #000 38%, transparent 100%);
+}
+.site-root .pin {
+  position: relative;
+}
+.site-root .sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+.site-root .full {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background-size: cover;
+  background-position: center;
+}
+.site-root .dip {
+  position: absolute;
+  inset: 0;
+  background: var(--color-bg);
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+}
+.site-root .chap {
+  font-family: var(--font-heading);
+  font-style: italic;
+  font-size: 20px;
+  color: var(--color-accent);
+  margin-bottom: 10px;
+}
+.site-root .big {
+  font-size: clamp(38px, min(6vw, 10vh), 88px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+.site-root .sub {
+  font-size: clamp(30px, 3.4vw, 52px);
+}
+.site-root .cap {
+  position: absolute;
+  z-index: 10;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), 0 2px 28px rgba(0, 0, 0, 0.85);
+}
+.site-root .cap p {
+  color: color-mix(in srgb, var(--color-text) 93%, transparent);
+  margin-top: 18px;
+  max-width: 440px;
+  font-size: 17px;
+}
+.site-root .line {
+  display: block;
+  overflow: hidden;
+}
+.site-root .pill {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 13px 24px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border: 1px solid var(--color-accent);
+  color: var(--color-bg);
+  background: var(--color-accent);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.4s var(--ease), background 0.3s;
+}
+.site-root .pill:hover {
+  transform: translateY(-2px);
+}
+.site-root .pill.ghost {
+  background: transparent;
+  color: var(--color-accent);
+}
+
+/* Hidden until revealed: only when the inline script has set html.js. Without JavaScript everything shows. */
+.js .site-root .line > span {
+  display: block;
+  transform: translateY(105%);
+  transition: transform 1.3s var(--ease);
+}
+.js .site-root .fade {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 1s, transform 1.2s var(--ease);
+}
+.js .site-root .on .line > span {
+  transform: none;
+}
+.js .site-root .on .fade {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-root .line > span,
+  .site-root .fade {
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
