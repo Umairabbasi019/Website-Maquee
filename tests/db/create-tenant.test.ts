@@ -10,7 +10,7 @@ async function setup(c: Client) {
   const admin = await createTestUser(c, "admin@t6.test");
   await c.query("insert into platform_admins (user_id) values ($1)", [admin]);
   const acc = await c.query("insert into accounts (name) values ('Acme') returning id");
-  const tpl = await c.query("select id from tenant_templates where name = 'Standard marquee'");
+  const tpl = await c.query("select id from tenant_templates order by name limit 1");
   return { admin, account: acc.rows[0].id as string, template: tpl.rows[0].id as string };
 }
 

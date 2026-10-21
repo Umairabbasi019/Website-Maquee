@@ -98,3 +98,7 @@ begin
   );
   return v_tenant;
 end $$;
+
+-- The legacy template has no muted/deep colours or content, so tenants made from it fail the settings schema.
+-- Nothing references tenant_templates rows by foreign key. 'Standard marquee' (supabase/seed.sql) replaces it.
+delete from public.tenant_templates where name = 'Default marquee venue';

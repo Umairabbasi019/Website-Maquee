@@ -1,6 +1,6 @@
 import pg from "pg";
 import { afterAll, describe, expect, it } from "vitest";
-import { SiteContentSchema, TenantSettingsSchema } from "@/modules/tenants";
+import { SiteContentSchema, TenantSettingsSchema, ThemeSchema } from "@/modules/tenants";
 
 // Reads committed seed data (supabase/seed.sql + scripts/seed-users.ts), so run `npm run db:seed` first.
 const pool = new pg.Pool({
@@ -47,6 +47,15 @@ describe("seeded demo tenants", () => {
     const tpl = await pool.query(`select payload -> 'settings' -> 'content' as content from tenant_templates where name = 'Standard marquee'`);
     const parsed = SiteContentSchema.safeParse(tpl.rows[0].content);
     expect(parsed.success && parsed.data.sample).toBe(true);
+  });
+
+  it("keeps only templates whose theme and content parse", async () => {
+    const { rows } = await pool.query(`select name, payload -> 'settings' as settings from tenant_templates`);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(ThemeSchema.safeParse(r.settings.theme).success, `${r.name} theme`).toBe(true);
+      expect(SiteContentSchema.safeParse(r.settings.content).success, `${r.name} content`).toBe(true);
+    }
   });
 
   it("has domains, halls and the lunch and dinner slots", async () => {
