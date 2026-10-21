@@ -25,7 +25,7 @@ export function PackageTabs({ events, selected: initial, canChoose }: Props) {
 
   const onKeyDown = (e: KeyboardEvent) => {
     const step = STEP[e.key];
-    if (!step) return;
+    if (!step || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     e.preventDefault();
     const next = events[step(events.findIndex((ev) => ev.slug === selected), events.length)].slug;
     setSelected(next);
