@@ -1,4 +1,4 @@
-/* Ported from mockup v6 lines 113–153. Brand greens (WhatsApp, open dot) became the venue accent: sections use theme colours only. */
+/* Ported from mockup v6 lines 113–153. The WhatsApp button and open dot use the fixed --color-whatsapp brand green, not the theme. */
 .hero {
   min-height: 100vh;
   display: grid;
@@ -130,6 +130,11 @@
   flex-wrap: wrap;
   gap: 10px;
 }
+.acts a.wa {
+  border-color: var(--color-whatsapp);
+  background: var(--color-whatsapp);
+  color: var(--color-on-whatsapp);
+}
 .compare {
   color: var(--color-accent);
   text-decoration: underline;
@@ -172,7 +177,7 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--color-accent);
+  background: var(--color-whatsapp);
   animation: ping 2s infinite;
 }
 .closed i {
@@ -181,7 +186,7 @@
 }
 @keyframes ping {
   0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 60%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-whatsapp) 60%, transparent);
   }
   70% {
     box-shadow: 0 0 0 10px transparent;

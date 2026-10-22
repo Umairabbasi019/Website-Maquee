@@ -5,4 +5,7 @@
   --color-text: #2b2a28; /* charcoal */
   --color-muted: #8a857d; /* stone grey */
   --color-brand: #9c7a3c; /* brass */
+  /* Fixed WhatsApp brand colours, the same for every venue; not theme colours and never overridden. */
+  --color-whatsapp: #25d366;
+  --color-on-whatsapp: #062b13;
 }
