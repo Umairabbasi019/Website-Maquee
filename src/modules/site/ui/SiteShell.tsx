@@ -26,10 +26,10 @@ export function SiteShell({ site }: { site: SiteView }) {
         links={site.navLinks}
       />
       <main>
-        <EnquiryProvider>
+        <EnquiryProvider guests={site.content.contact.guests.default}>
           {site.sections.map((key) => {
             const Section = SECTION_COMPONENTS[key];
-            return Section && <Section key={key} site={site} />;
+            return <Section key={key} site={site} />;
           })}
         </EnquiryProvider>
       </main>

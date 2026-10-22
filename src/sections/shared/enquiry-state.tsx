@@ -1,38 +1,49 @@
 "use client";
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useReducer, type ReactNode } from "react";
 
 export type PackagePick = { eventSlug: string; name: string; pricePerGuestPaisa: number; minGuests: number };
 
-type Enquiry = {
+type State = {
   eventSlug: string | null;
   /** Belongs in the message only while `pick.eventSlug === eventSlug`, so changing the event later drops it. */
   pick: PackagePick | null;
-  guests: number | null;
+  /** The guest count the form shows; the form writes it back on every change. */
+  guests: number;
+};
+
+type Action = { type: "event"; slug: string } | { type: "package"; pick: PackagePick } | { type: "guests"; guests: number };
+
+export function enquiryReducer(s: State, a: Action): State {
+  switch (a.type) {
+    case "event":
+      return { ...s, eventSlug: a.slug };
+    case "package":
+      return { eventSlug: a.pick.eventSlug, pick: a.pick, guests: Math.max(s.guests, a.pick.minGuests) };
+    case "guests":
+      return { ...s, guests: a.guests };
+  }
+}
+
+type Enquiry = State & {
   chooseEvent: (slug: string) => void;
   choosePackage: (p: PackagePick) => void;
+  setGuests: (n: number) => void;
 };
 
 const EnquiryContext = createContext<Enquiry | null>(null);
 
-/** Shared enquiry choices: Events and Packages write them, the contact form reads them. */
-export function EnquiryProvider({ children }: { children: ReactNode }) {
-  const [eventSlug, chooseEvent] = useState<string | null>(null);
-  const [pick, setPick] = useState<PackagePick | null>(null);
-  const [guests, setGuests] = useState<number | null>(null);
+/** Shared enquiry choices: Events and Packages write them, the contact form reads and writes them. */
+export function EnquiryProvider({ guests, children }: { guests: number; children: ReactNode }) {
+  const [state, dispatch] = useReducer(enquiryReducer, { eventSlug: null, pick: null, guests });
 
   const value = useMemo<Enquiry>(
     () => ({
-      eventSlug,
-      pick,
-      guests,
-      chooseEvent,
-      choosePackage: (p) => {
-        chooseEvent(p.eventSlug);
-        setPick(p);
-        setGuests((g) => (g === null || g < p.minGuests ? p.minGuests : g));
-      },
+      ...state,
+      chooseEvent: (slug) => dispatch({ type: "event", slug }),
+      choosePackage: (pick) => dispatch({ type: "package", pick }),
+      setGuests: (n) => dispatch({ type: "guests", guests: n }),
     }),
-    [eventSlug, pick, guests],
+    [state],
   );
   return <EnquiryContext value={value}>{children}</EnquiryContext>;
 }
