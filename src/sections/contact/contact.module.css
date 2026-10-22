@@ -112,7 +112,7 @@
 }
 .preview {
   padding: 14px 16px;
-  border-left: 3px solid var(--color-accent);
+  border-left: 3px solid var(--color-whatsapp);
   border-radius: 14px 14px 14px 4px;
   background: color-mix(in srgb, var(--color-bg) 65%, transparent);
   color: var(--color-text);
