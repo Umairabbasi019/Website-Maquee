@@ -10,6 +10,11 @@ describe("themeStyle", () => {
     expect(vars(manorTheme)["--color-accent"]).toBe(manorTheme.colors.primary);
     expect(vars(manorTheme)["--color-bg"]).toBe(manorTheme.colors.background);
   });
+  it("sets the native colour scheme from the background", () => {
+    expect(themeStyle(manorTheme).colorScheme).toBe("dark");
+    const light = { ...manorTheme, colors: { ...manorTheme.colors, background: "#ece7df" } };
+    expect(themeStyle(light).colorScheme).toBe("light");
+  });
   it("uses the loaded font for known names", () => {
     expect(vars(manorTheme)["--font-heading"]).toContain("--f-cormorant");
     expect(vars(manorTheme)["--font-body"]).toContain("--f-inter");

@@ -7,9 +7,16 @@ const LOADED_FONTS: Record<string, string> = {
   Inter: "var(--f-inter), system-ui, sans-serif",
 };
 
+// Settings validate colours as #rrggbb, so slicing the hex is safe. Rough perceived brightness (0-255), midpoint 128.
+function colorSchemeFor(background: string): "dark" | "light" {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(background.slice(i, i + 2), 16));
+  return 0.299 * r + 0.587 * g + 0.114 * b < 128 ? "dark" : "light";
+}
+
 export function themeStyle(theme: TenantSettings["theme"]): CSSProperties {
   const { colors, fonts } = theme;
   return {
+    colorScheme: colorSchemeFor(colors.background),
     "--color-bg": colors.background,
     "--color-accent": colors.primary,
     "--color-text": colors.text,
