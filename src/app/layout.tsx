@@ -6,7 +6,8 @@ export const metadata: Metadata = { title: t("app.title") };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // SiteShell's inline script adds html.js before hydration; React must not flag that one attribute.
+    <html lang="en" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

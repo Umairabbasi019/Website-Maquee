@@ -58,6 +58,7 @@
 }
 .pkg {
   padding: 38px 32px;
+  overflow-wrap: anywhere;
   background: color-mix(in srgb, var(--color-bg) 72%, transparent);
 }
 .feat {
