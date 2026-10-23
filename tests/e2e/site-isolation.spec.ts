@@ -13,13 +13,16 @@ test.beforeAll(async () => {
 });
 test.afterAll(() => db.end());
 
-/** Every image URL the page uses: CSS background images, <img src> and the og:image meta. */
+/** Every image URL the page uses: CSS background images, <img src> and srcset candidates, and the og:image meta. */
 const imageUrls = (page: Page) =>
   page.evaluate(() => {
     const urls = [...document.querySelectorAll("*")].flatMap((el) =>
       [...getComputedStyle(el).backgroundImage.matchAll(/url\("?([^")]+)"?\)/g)].map((m) => m[1]),
     );
-    document.querySelectorAll("img").forEach((img) => urls.push(img.src));
+    document.querySelectorAll("img").forEach((img) => {
+      urls.push(img.getAttribute("src") ?? "");
+      urls.push(...img.srcset.split(",").map((c) => c.trim().split(" ")[0]));
+    });
     document.querySelectorAll('meta[property="og:image"]').forEach((m) => urls.push(m.getAttribute("content") ?? ""));
     // data: URIs (the film grain) are generated, not venue media.
     return urls.filter((u) => /^https?:/.test(u));

@@ -44,7 +44,9 @@ test("without WebGL the hero front shot and every caption show", async ({ page }
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(TENANT_BASE);
-  await expect(page.locator("#hero [role=img]").first()).toBeVisible();
+  const front = page.locator("#hero img").first();
+  await expect(front).toBeVisible();
+  await expect.poll(() => front.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
   const { hero } = manorContent;
   const caps = [hero.captions.arrival, hero.captions.doors, hero.captions.hall];
   for (const [i, progress] of [0, 0.3, 0.7].entries()) {

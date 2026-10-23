@@ -10,6 +10,18 @@ const DEFAULT_MANOR_DIR = ".superpowers/brainstorm/1089-1792319084/content";
 type Size = "s" | "m" | "l";
 type Asset = Omit<SeedMedia, "source"> & { source: string | null; files: Partial<Record<Size, string>> };
 
+/** [width, height] from a PNG or baseline/progressive JPEG header. */
+export function imageDims(buf: Buffer): [number, number] {
+  if (buf.readUInt32BE(0) === 0x89504e47) return [buf.readUInt32BE(16), buf.readUInt32BE(20)];
+  // shortcut: walks JPEG segments to the first SOF marker; enough for the files our tools write, use an image library if odd JPEGs arrive.
+  for (let i = 2; i + 9 < buf.length; i += 2 + buf.readUInt16BE(i + 2)) {
+    if (buf[i] !== 0xff) break;
+    const marker = buf[i + 1];
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) return [buf.readUInt16BE(i + 7), buf.readUInt16BE(i + 5)];
+  }
+  throw new Error("not a PNG or JPEG with a readable size");
+}
+
 function failIf(error: { message: string } | null, what: string) {
   if (error) throw new Error(`${what}: ${error.message}`);
 }
@@ -36,10 +48,13 @@ async function seedTenantMedia(admin: SupabaseClient, slug: string, dir: string,
     const present = Object.entries(a.files).filter(([, name]) => existsSync(join(dir, name)));
     if (!present.length) throw new Error(`${slug}/${a.key}: no image file found in ${dir}`);
     const ext = a.ext ?? "jpg";
+    const dims: Partial<Record<Size, [number, number]>> = {};
     for (const [size, name] of present) {
+      const file = readFileSync(join(dir, name));
+      dims[size as Size] = imageDims(file);
       const { error: upError } = await admin.storage
         .from(BUCKET)
-        .upload(`${tenantId}/${a.key}/${size}.${ext}`, readFileSync(join(dir, name)), {
+        .upload(`${tenantId}/${a.key}/${size}.${ext}`, file, {
           upsert: true,
           contentType: ext === "png" ? "image/png" : "image/jpeg",
           cacheControl: "31536000",
@@ -54,6 +69,7 @@ async function seedTenantMedia(admin: SupabaseClient, slug: string, dir: string,
       source: a.source,
       licence: LICENCE,
       sizes: present.map(([size]) => size),
+      dims,
       ext,
     });
   }

@@ -66,7 +66,7 @@ test("reduced motion: every caption shows on its own frame and no photo moves", 
     expect(await revealed(h)).toBe(true);
   }
   const transforms = await page
-    .locator("#hero [role=img], #inside [role=img], #stage [role=img]")
+    .locator("#hero img, #inside img, #stage img")
     .evaluateAll((els) => els.map((el) => getComputedStyle(el).transform));
   expect(transforms.length).toBeGreaterThan(0);
   expect(transforms.filter((t) => t !== "none")).toEqual([]);

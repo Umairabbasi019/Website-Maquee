@@ -1,29 +1,25 @@
-"use client";
-import { useSyncExternalStore, type ComponentProps } from "react";
+import type { ComponentProps } from "react";
 import type { MediaView } from "@/modules/media";
-import { pickImageSize, type ImageSize } from "./image";
+import { coverSizes, srcSet } from "./image";
 
-type Props = { media?: MediaView; focus?: string } & Omit<ComponentProps<"div">, "role" | "aria-label">;
+type Props = { media?: MediaView; focus?: string; priority?: boolean } & Omit<ComponentProps<"img">, "src" | "srcSet" | "alt">;
 
-const subscribe = (cb: () => void) => {
-  addEventListener("resize", cb);
-  return () => removeEventListener("resize", cb);
-};
-const viewport = () => `${Math.max(innerWidth, innerHeight)}@${devicePixelRatio || 1}`;
-// Server HTML (and hydration) assume a 1800 px long side at 1x, which picks the `m` size.
-const SERVER_VIEWPORT = "1800@1";
-
-/** Photo as a background. Server HTML uses the `m` size (or nearest); the browser then picks by screen size. */
-export function Shot({ media, focus, style, ...rest }: Props) {
-  const [longSide, dpr] = useSyncExternalStore(subscribe, viewport, () => SERVER_VIEWPORT).split("@").map(Number);
-  const sizes = Object.keys(media?.urls ?? {}) as ImageSize[];
-  if (!media || !sizes.length) return null;
-  const url = media.urls[pickImageSize(longSide, dpr, sizes)];
+/**
+ * Photo cover-fitted to its box (callers' CSS sets `object-fit: cover`). The browser picks one size from srcset by `sizes` × its pixel ratio.
+ * Default `sizes` fits a full-screen box; pass your own for other boxes. `priority` is for the LCP photo.
+ */
+export function Shot({ media, focus, priority, style, sizes, ...rest }: Props) {
+  const src = media && (media.urls.m ?? media.urls.s ?? media.urls.l);
+  if (!media || !src) return null;
   return (
-    <div
-      role="img"
-      aria-label={media.alt}
-      style={{ backgroundImage: `url("${url}")`, backgroundPosition: focus, ...style }}
+    // eslint-disable-next-line @next/next/no-img-element -- next/image is not set up for the venue storage URLs; the sizes are pre-made, so srcset is enough.
+    <img
+      src={src}
+      srcSet={srcSet(media)}
+      sizes={sizes ?? coverSizes(media.aspect)}
+      alt={media.alt}
+      {...(priority ? { fetchPriority: "high" } : { loading: "lazy", decoding: "async" })}
+      style={{ objectPosition: focus, ...style }}
       {...rest}
     />
   );

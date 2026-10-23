@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { t } from "@/ui/i18n";
 import { Lines } from "../shared/lines";
+import { coverSizes } from "../shared/image";
 import { Shot } from "../shared/Shot";
 import type { SectionProps } from "../types";
 import { GalleryMotion } from "./GalleryMotion";
@@ -11,9 +12,20 @@ export function Gallery({ site }: SectionProps) {
   const { chapter, lines, followLabel, tiles, rating } = site.content.gallery;
   const shown = tiles.filter((tile) => site.media[tile.key]);
   // Each row holds its tiles twice so the drift never shows an empty end; only the first copy is read out.
+  // Tile heights (34vh, 24vh up to 860px wide) are set in gallery.module.css `.row > *`; keep these in step.
+  const tileSizes = (tile: (typeof shown)[number]) => {
+    const { aspect } = site.media[tile.key];
+    return `(max-width: 860px) ${coverSizes(aspect, `${Math.ceil(tile.ratio * 24)}vh`, 24)}, ${coverSizes(aspect, `${Math.ceil(tile.ratio * 34)}vh`, 34)}`;
+  };
   const strip = (list: typeof shown, copy: number) =>
     list.map((tile, i) => (
-      <Shot key={`${copy}-${i}`} media={site.media[tile.key]} style={{ aspectRatio: tile.ratio }} aria-hidden={copy > 0 || undefined} />
+      <Shot
+        key={`${copy}-${i}`}
+        media={site.media[tile.key]}
+        sizes={tileSizes(tile)}
+        style={{ aspectRatio: tile.ratio }}
+        aria-hidden={copy > 0 || undefined}
+      />
     ));
 
   return (

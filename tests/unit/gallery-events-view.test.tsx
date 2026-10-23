@@ -22,7 +22,7 @@ const manor: Catalogue = {
   hasSample: true,
 };
 
-const asset = (key: string): Media[string] => ({ key, alt: `alt ${key}`, urls: { m: `/m/${key}.jpg` } });
+const asset = (key: string): Media[string] => ({ key, alt: `alt ${key}`, urls: { m: `/m/${key}.jpg` }, widths: { m: 2400 }, aspect: 1.5 });
 const mediaFor = (keys: string[]): Media => Object.fromEntries(keys.map((k) => [k, asset(k)]));
 
 const view = (over: Partial<Raw> = {}) =>
@@ -42,7 +42,7 @@ const view = (over: Partial<Raw> = {}) =>
   });
 
 const hide = (...hidden: string[]) => SECTION_KEYS.map((key) => ({ key, visible: !hidden.includes(key) }));
-const shots = (html: string) => (html.match(/aria-label="alt /g) ?? []).length; // the rating stars are also role="img"
+const shots = (html: string) => (html.match(/<img [^>]*alt="alt /g) ?? []).length;
 
 describe("Gallery with missing data", () => {
   const render = (over: Partial<Raw> = {}) => renderToStaticMarkup(<Gallery site={view(over)} />);

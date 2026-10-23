@@ -58,8 +58,7 @@
 .row > * {
   height: 34vh;
   flex: none;
-  background-size: cover;
-  background-position: center;
+  object-fit: cover;
   border-radius: 2px;
 }
 @media (max-width: 860px) {

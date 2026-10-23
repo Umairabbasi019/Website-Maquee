@@ -10,7 +10,7 @@ export function Hero({ site }: SectionProps) {
   const { front, hall, captions } = site.content.hero;
   const { arrival, doors } = captions;
   const frontShot = (className: string) => (
-    <Shot media={site.media[front.key]} focus={front.focus} className={className} style={{ transformOrigin: front.focus }} />
+    <Shot media={site.media[front.key]} focus={front.focus} className={className} style={{ transformOrigin: front.focus }} priority />
   );
 
   return (

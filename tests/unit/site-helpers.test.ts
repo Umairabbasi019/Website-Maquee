@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickImageSize } from "@/sections/shared/image";
+import { coverSizes, srcSet } from "@/sections/shared/image";
 import { openStatus, todayIn, addDays } from "@/sections/shared/hours";
 import { buildEnquiryMessage, waLink } from "@/sections/shared/enquiry";
 import { formatRs, lakhFrom, formatLocalPhone } from "@/sections/shared/format";
@@ -8,12 +8,16 @@ import { easeToward } from "@/sections/shared/motion";
 const TZ = "Asia/Karachi";
 const manor = [0, 1, 2, 3, 4, 5, 6].map((day) => ({ day, open: "11:00", close: "21:30" }));
 
-describe("pickImageSize", () => {
-  it("picks by long side times capped dpr", () => {
-    expect(pickImageSize(900, 2, ["s", "m", "l"])).toBe("m");
-    expect(pickImageSize(900, 3, ["s", "m", "l"])).toBe("l");
-    expect(pickImageSize(1400, 1, ["m", "l"])).toBe("m");
-    expect(pickImageSize(3000, 1, ["s"])).toBe("s");
+describe("srcSet and coverSizes", () => {
+  const media = { key: "k", alt: "a", urls: { s: "/s.jpg", m: "/m.jpg" }, widths: { s: 1280, m: 2400, l: 3200 } };
+  it("lists only sizes that have both a URL and a width", () => {
+    expect(srcSet(media)).toBe("/s.jpg 1280w, /m.jpg 2400w");
+    expect(srcSet({ ...media, widths: {} })).toBeUndefined();
+  });
+  it("sizes a wide picture by box height and falls back to the box width", () => {
+    expect(coverSizes(2.84)).toBe("max(100vw, 284vh)");
+    expect(coverSizes(0.8, "27vh", 34)).toBe("max(27vh, 28vh)");
+    expect(coverSizes(undefined)).toBe("100vw");
   });
 });
 
