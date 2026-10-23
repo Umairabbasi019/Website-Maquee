@@ -28,3 +28,13 @@ test("an unknown venue host shows the not-found page", async ({ page }) => {
   await expect(page.getByText("This page could not be found.")).toBeVisible();
   await expect(page.locator("footer#footer")).toHaveCount(0);
 });
+
+test("the arrival caption is server-rendered revealed so it paints without script", async ({ browser }) => {
+  // Script off: the class list is exactly what the server sent.
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  await page.goto(TENANT_BASE);
+  await expect(page.locator("#hero .cap[data-at='0']")).toHaveClass(/(^| )on( |$)/);
+  await expect(page.locator("#hero .cap[data-at='0.2']")).not.toHaveClass(/(^| )on( |$)/);
+  await context.close();
+});

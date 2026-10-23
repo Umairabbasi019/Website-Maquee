@@ -39,7 +39,15 @@
   height: 60px;
   background: linear-gradient(var(--color-accent), transparent);
 }
+/* The arrival caption is rendered already revealed (class "on" in Hero.tsx) so its text paints without waiting for script.
+   Its entrance is transform-only (opacity stays 1) and runs once; "backwards" keeps it from overriding the scroll-driven state later. */
 @media (prefers-reduced-motion: no-preference) {
+  .arrive :global(.line > span) {
+    animation: rise-line 1.3s var(--ease) backwards;
+  }
+  .arrive :global(.fade) {
+    animation: rise 1.2s var(--ease) backwards;
+  }
   .rays {
     animation: ray 9s ease-in-out infinite alternate;
   }
@@ -76,5 +84,15 @@
   }
   .high {
     right: 16px;
+  }
+}
+@keyframes rise-line {
+  from {
+    transform: translateY(105%);
+  }
+}
+@keyframes rise {
+  from {
+    transform: translateY(24px);
   }
 }

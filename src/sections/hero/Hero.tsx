@@ -20,7 +20,7 @@ export function Hero({ site }: SectionProps) {
           {frontShot("full shot")}
           <div className="shade" />
           <div className={styles.rays} />
-          <Caption caption={arrival} as="h1" className={styles.low} data-at="0">
+          <Caption caption={arrival} as="h1" className={`${styles.low} ${styles.arrive} on`} data-at="0">
             <div className={`fade ${styles.acts}`}>
               {site.sections.includes("contact") && (
                 <a className="pill" href="#contact">
