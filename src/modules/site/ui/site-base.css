@@ -39,6 +39,35 @@
     opacity: 0;
   }
 }
+/* Off-screen layout skip for the plain (unpinned) sections. Never add the pinned ones: their scroll-driven motion needs
+   real layout. "auto" remembers the real height once rendered; these are first-visit guesses measured on the Manor
+   seed (mobile / desktop), so the scrollbar and anchor jumps barely shift. */
+.site-root :is(#gallery, #packages, #contact, #footer) {
+  content-visibility: auto;
+}
+.site-root #gallery {
+  contain-intrinsic-size: auto 900px;
+}
+.site-root #packages {
+  contain-intrinsic-size: auto 2300px;
+}
+.site-root #contact {
+  contain-intrinsic-size: auto 2400px;
+}
+.site-root #footer {
+  contain-intrinsic-size: auto 340px;
+}
+@media (min-width: 861px) {
+  .site-root #gallery {
+    contain-intrinsic-size: auto 1100px;
+  }
+  .site-root #packages {
+    contain-intrinsic-size: auto 1300px;
+  }
+  .site-root #contact {
+    contain-intrinsic-size: auto 2100px;
+  }
+}
 .site-root .shot {
   z-index: 4;
   will-change: transform, opacity;

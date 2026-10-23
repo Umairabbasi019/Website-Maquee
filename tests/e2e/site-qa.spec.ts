@@ -61,3 +61,15 @@ test("without WebGL the hero front shot and every caption show", async ({ page }
       .toBe(true);
   }
 });
+
+// The menu link and the "Check a date" pill share #contact; last() is the pill, visible before and after hydration.
+// Off-screen sections skip layout until near the viewport (content-visibility: auto). A jump from the top must still land on the section.
+test("nav links land on their section at 375px", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  for (const id of ["contact", "packages"]) {
+    await page.goto(TENANT_BASE);
+    if (id !== "contact") await page.getByRole("button", { name: "Open menu" }).click();
+    await page.locator(`nav a[href="#${id}"]`).last().evaluate((a: HTMLElement) => a.click()); // DOM click: the full-screen menu is fixed and Playwright's scroll-into-view fights it
+    await expect.poll(() => page.evaluate((i) => Math.abs(document.getElementById(i)!.getBoundingClientRect().top), id), { timeout: 10_000 }).toBeLessThanOrEqual(2);
+  }
+});
