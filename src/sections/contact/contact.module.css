@@ -174,22 +174,37 @@
   font-size: 14px;
 }
 .hours i {
+  position: relative;
   width: 9px;
   height: 9px;
   border-radius: 50%;
   background: var(--color-whatsapp);
+}
+/* The ping is a scaled copy of the dot (9px grown by 10px each side) instead of an animated box-shadow, so it stays on the compositor. */
+.hours i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-whatsapp) 60%, transparent);
+  opacity: 0;
   animation: ping 2s infinite;
 }
 .closed i {
   background: var(--color-muted);
+}
+.closed i::after {
   animation: none;
 }
 @keyframes ping {
   0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-whatsapp) 60%, transparent);
+    transform: scale(1);
+    opacity: 1;
   }
-  70% {
-    box-shadow: 0 0 0 10px transparent;
+  70%,
+  100% {
+    transform: scale(3.2);
+    opacity: 0;
   }
 }
 .map {
@@ -338,7 +353,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hours i,
+  .hours i::after,
   .pinmark::after {
     animation: none;
   }

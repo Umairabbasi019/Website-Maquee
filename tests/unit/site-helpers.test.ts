@@ -3,6 +3,7 @@ import { pickImageSize } from "@/sections/shared/image";
 import { openStatus, todayIn, addDays } from "@/sections/shared/hours";
 import { buildEnquiryMessage, waLink } from "@/sections/shared/enquiry";
 import { formatRs, lakhFrom, formatLocalPhone } from "@/sections/shared/format";
+import { easeToward } from "@/sections/shared/motion";
 
 const TZ = "Asia/Karachi";
 const manor = [0, 1, 2, 3, 4, 5, 6].map((day) => ({ day, open: "11:00", close: "21:30" }));
@@ -69,5 +70,22 @@ describe("format", () => {
     expect(lakhFrom(320000, 300)).toBe("9.6");
     expect(formatLocalPhone("+923085021418")).toBe("0308 502 1418");
     expect(formatLocalPhone("+14155550123")).toBe("+14155550123");
+  });
+});
+
+describe("easeToward", () => {
+  it("eases part of the way, then settles exactly on the target and stays there", () => {
+    const first = easeToward(0, 1);
+    expect(first).toBeGreaterThan(0);
+    expect(first).toBeLessThan(0.2);
+    let p = 0;
+    let steps = 0;
+    while (p !== 1 && steps < 500) {
+      p = easeToward(p, 1);
+      steps++;
+    }
+    expect(p).toBe(1);
+    expect(steps).toBeLessThan(200);
+    expect(easeToward(p, 1)).toBe(1);
   });
 });

@@ -25,3 +25,4 @@ playwright-report/
 .seed/
 # e2e screenshots
 e2e-shots/
+qa-artifacts/

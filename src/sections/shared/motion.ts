@@ -48,21 +48,47 @@ export function useScrollFrame(cb: (dt: number) => void) {
   }, []);
 }
 
+/** One easing step from `from` toward `target`. Snaps onto the target once close, so a settled pin repeats the exact same value. */
+export function easeToward(from: number, target: number): number {
+  const next = lerp(from, target, 0.09);
+  return Math.abs(target - next) < 1e-4 ? target : next;
+}
+
 const smoothed: Record<string, number> = {};
 
 /** 0..1 progress through a pinned section, eased toward the scroll position for the heavy camera feel. */
 export function smoothedProgress(id: string, el: HTMLElement): number {
   const target = clamp(-el.getBoundingClientRect().top / (el.offsetHeight - innerHeight));
   if (prefersReducedMotion()) return target;
-  return (smoothed[id] = lerp(smoothed[id] ?? target, target, 0.09));
+  return (smoothed[id] = easeToward(smoothed[id] ?? target, target));
 }
 
-/** Calls `frame` every animation frame with the smoothed progress through the pinned section #id, and fades its dip at the end. */
-export function usePin(id: string, frame: (progress: number, el: HTMLElement) => void) {
-  useScrollFrame(() => {
+/** A ref that is true while #id is within one viewport height of the screen. */
+function useNearViewport(id: string) {
+  const near = useRef(false);
+  useEffect(() => {
     const el = document.getElementById(id);
     if (!el) return;
+    const io = new IntersectionObserver(([e]) => (near.current = e.isIntersecting), { rootMargin: "100% 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [id]);
+  return near;
+}
+
+/**
+ * Calls `frame` with the smoothed progress through the pinned section #id, and fades its dip at the end.
+ * Does nothing while the section is far off screen, and writes nothing once the progress has settled.
+ */
+export function usePin(id: string, frame: (progress: number, el: HTMLElement) => void) {
+  const near = useNearViewport(id);
+  const drawn = useRef<number>(undefined);
+  useScrollFrame(() => {
+    const el = near.current && document.getElementById(id);
+    if (!el) return;
     const p = smoothedProgress(id, el);
+    if (p === drawn.current) return;
+    drawn.current = p;
     frame(p, el);
     const dip = el.querySelector<HTMLElement>(".dip");
     if (dip) dip.style.opacity = String(clamp((p - 0.9) * 10) * 0.55);
