@@ -64,7 +64,7 @@ export function smoothedProgress(id: string, el: HTMLElement): number {
 }
 
 /** A ref that is true while #id is within one viewport height of the screen. */
-function useNearViewport(id: string) {
+export function useNearViewport(id: string) {
   const near = useRef(false);
   useEffect(() => {
     const el = document.getElementById(id);

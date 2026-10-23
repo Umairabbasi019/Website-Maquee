@@ -25,7 +25,7 @@ export const manorContent: SiteContent = {
     ],
   },
   hero: {
-    mode: "photos",
+    mode: "depth",
     front: { key: "ext-night", focus: "50% 58%" },
     hall: { key: "wide" },
     captions: {

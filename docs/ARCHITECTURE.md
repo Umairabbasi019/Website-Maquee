@@ -67,6 +67,7 @@ No adapter configured → the feature shows an honest "not connected" state.
 | Reminder timings, hold length, caps, summary time | Tenant settings (no code) |
 | How one public section looks or moves | `src/sections/<section>/` |
 | Pinned scroll scenes (pin length, frames, how they stack with reduced motion or no JS), shared caption/shade/shot styles | `src/modules/site/ui/site-base.css` (`.pin .sticky .frame .shot .shade`); `usePin` in `src/sections/shared/motion.ts`; `src/sections/shared/Caption.tsx` |
+| Hero depth parallax: when it runs (device gate), the WebGL2 layer and shader, depth maps | Gate `src/sections/hero/depth/shouldUseDepth.ts` (probe and lazy load in `src/sections/hero/HeroMotion.tsx`); layer `depth/DepthLayer.tsx`, shader and strength `depth/shader.ts`; turned on per venue by `content.hero.mode: "depth"`; maps made offline by `tools/depth.py` (model in git-ignored `.tools/depth/`) into the media folder as `e-<key>-depth.png`, uploaded by `scripts/seed-media.ts` |
 | Add a new public section | New folder in `src/sections/` + register in `src/modules/site/sections.ts` |
 | What a "Check a date" or "Choose <package>" click carries into the enquiry (event, package, guests) | `src/sections/shared/enquiry-state.tsx` (`EnquiryProvider`, `useEnquiry`; provider wraps sections in `src/modules/site/ui/SiteShell.tsx`) |
 | How prices are calculated | `src/modules/pricing/` (tests in the same folder) |

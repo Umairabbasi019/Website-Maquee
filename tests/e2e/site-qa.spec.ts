@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { manorContent } from "../../scripts/seed-data/manor";
-import { TENANT_BASE } from "./helpers";
+import { noWebGL, TENANT_BASE } from "./helpers";
 
 const VENUES = [TENANT_BASE, "http://demo.localhost:3000"];
 
@@ -36,12 +36,7 @@ for (const base of VENUES) {
 }
 
 test("without WebGL the hero front shot and every caption show", async ({ page }) => {
-  await page.addInitScript(() => {
-    const getContext = HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
-      return type === "webgl2" || type === "webgl" ? null : getContext.call(this, type as "2d", ...(rest as []));
-    } as typeof getContext;
-  });
+  await page.addInitScript(noWebGL);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(TENANT_BASE);
   const front = page.locator("#hero img").first();

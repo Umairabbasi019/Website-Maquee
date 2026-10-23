@@ -1,4 +1,5 @@
-// Media seeded for each venue. A Manor key is also the processed file stem in MANOR_MEDIA_DIR (e-<key>[-s|-l].jpg).
+// Media seeded for each venue. A Manor key is also the processed file stem in MANOR_MEDIA_DIR (e-<key>[-s|-l].jpg),
+// plus e-<key>-depth.png where tools/depth.py made a depth map for the hero's depth layer.
 // source/licence come from references/venue/manifest.csv where the stem has a row there.
 export type SeedMedia = {
   key: string;

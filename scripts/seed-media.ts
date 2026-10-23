@@ -7,7 +7,7 @@ const BUCKET = "venue-media";
 const DEMO_DIR = join(import.meta.dirname, "seed-data", "demo-media");
 const DEFAULT_MANOR_DIR = ".superpowers/brainstorm/1089-1792319084/content";
 
-type Size = "s" | "m" | "l";
+type Size = "s" | "m" | "l" | "depth";
 type Asset = Omit<SeedMedia, "source"> & { source: string | null; files: Partial<Record<Size, string>> };
 
 /** [width, height] from a PNG or baseline/progressive JPEG header. */
@@ -30,7 +30,7 @@ function manorAssets(): Asset[] {
   return manorMedia.map((m) =>
     m.ext === "png"
       ? { ...m, files: { m: `${m.key}.png` } }
-      : { ...m, files: { s: `e-${m.key}-s.jpg`, m: `e-${m.key}.jpg`, l: `e-${m.key}-l.jpg` } },
+      : { ...m, files: { s: `e-${m.key}-s.jpg`, m: `e-${m.key}.jpg`, l: `e-${m.key}-l.jpg`, depth: `e-${m.key}-depth.png` } },
   );
 }
 
@@ -52,11 +52,13 @@ async function seedTenantMedia(admin: SupabaseClient, slug: string, dir: string,
     for (const [size, name] of present) {
       const file = readFileSync(join(dir, name));
       dims[size as Size] = imageDims(file);
+      // Depth maps from tools/depth.py are PNG whatever the photo's format.
+      const fileExt = size === "depth" ? "png" : ext;
       const { error: upError } = await admin.storage
         .from(BUCKET)
-        .upload(`${tenantId}/${a.key}/${size}.${ext}`, file, {
+        .upload(`${tenantId}/${a.key}/${size}.${fileExt}`, file, {
           upsert: true,
-          contentType: ext === "png" ? "image/png" : "image/jpeg",
+          contentType: fileExt === "png" ? "image/png" : "image/jpeg",
           cacheControl: "31536000",
         });
       failIf(upError, `upload ${slug}/${a.key}/${size}`);

@@ -93,3 +93,16 @@
     transform: translateY(24px);
   }
 }
+/* Depth canvas (depth/DepthLayer.tsx): hidden until its first frame is drawn, then fades in over the photo. */
+.depth {
+  visibility: hidden;
+}
+.depth[data-ready] {
+  visibility: visible;
+  animation: depth-in 0.6s ease backwards;
+}
+@keyframes depth-in {
+  from {
+    opacity: 0;
+  }
+}

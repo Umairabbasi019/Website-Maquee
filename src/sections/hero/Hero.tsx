@@ -3,12 +3,23 @@ import { Caption } from "../shared/Caption";
 import { Shot } from "../shared/Shot";
 import type { SectionProps } from "../types";
 import styles from "./hero.module.css";
-import { HeroMotion } from "./HeroMotion";
+import { HeroMotion, type DepthShot } from "./HeroMotion";
 
 /** Arrival: push in on the front photo, cross into the hall, captions at 0 / .2 / .58 of the pin. */
 export function Hero({ site }: SectionProps) {
   const { front, hall, captions } = site.content.hero;
   const { arrival, doors } = captions;
+  // Frames 0 and 2 hold the front and hall photos; frame 1 is the stacked doors copy, hidden while pinned.
+  const depth: DepthShot[] =
+    site.content.hero.mode === "depth"
+      ? [
+          { ref: front, frame: 0 },
+          { ref: hall, frame: 2 },
+        ].flatMap(({ ref, frame }) => {
+          const media = site.media[ref.key];
+          return media?.depthUrl ? [{ media, focus: ref.focus, frame }] : [];
+        })
+      : [];
   const frontShot = (className: string) => (
     <Shot media={site.media[front.key]} focus={front.focus} className={className} style={{ transformOrigin: front.focus }} priority />
   );
@@ -49,7 +60,7 @@ export function Hero({ site }: SectionProps) {
         </div>
         <div className="dip" />
       </div>
-      <HeroMotion />
+      <HeroMotion depth={depth} />
     </div>
   );
 }
