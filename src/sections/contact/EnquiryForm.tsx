@@ -1,9 +1,10 @@
 "use client";
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import { t } from "@/ui/i18n";
 import { buildEnquiryMessage, waLink } from "../shared/enquiry";
 import { useEnquiry } from "../shared/enquiry-state";
 import { addDays, todayIn } from "../shared/hours";
+import { useAfterIdle } from "../shared/useAfterIdle";
 import styles from "./contact.module.css";
 
 type Props = {
@@ -23,13 +24,12 @@ type Props = {
 
 // Value of the "Other" event chip; catalogue slugs are never empty.
 const OTHER = "";
-const noSubscribe = () => () => {};
 
 /** The visitor picks date, event, time and guests; the message preview and the WhatsApp link follow every change. */
 export function EnquiryForm({ className, events, defaultEvent, otherEvent, slots, guests: range, greeting, timeZone, whatsapp, sendCta, call, compare }: Props) {
   const { eventSlug, pick, guests, chooseEvent, setGuests } = useEnquiry();
-  // Server HTML has no min or default date (the server clock and zone would not match hydration); the browser fills them in.
-  const today = useSyncExternalStore(noSubscribe, () => todayIn(timeZone, new Date()), () => "");
+  // Server HTML has no min or default date (the server clock and zone would not match hydration); the browser fills them in once idle, after hydration.
+  const today = useAfterIdle(() => todayIn(timeZone, new Date())) ?? "";
   const [date, setDate] = useState<string | null>(null);
   const [slot, setSlot] = useState(slots.at(-1) ?? "");
   const [name, setName] = useState("");

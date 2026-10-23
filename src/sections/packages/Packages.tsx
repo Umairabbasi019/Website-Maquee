@@ -1,3 +1,4 @@
+import { formatRs, lakhFrom } from "../shared/format";
 import { Lines } from "../shared/lines";
 import { Shot } from "../shared/Shot";
 import type { SectionProps } from "../types";
@@ -7,7 +8,13 @@ import styles from "./packages.module.css";
 /** One tab per event that has packages; every panel is server-rendered so prices are in the page without JavaScript. */
 export function Packages({ site }: SectionProps) {
   const { chapter, lines, lead, fine, background, defaultEvent } = site.content.packages;
-  const events = site.catalogue.events.filter((e) => e.packages.length > 0);
+  // Prices are formatted here, on the server: the first Intl call in the browser costs hundreds of ms and must not land in hydration.
+  const events = site.catalogue.events
+    .filter((e) => e.packages.length > 0)
+    .map((e) => ({
+      ...e,
+      packages: e.packages.map((p) => ({ ...p, priceText: formatRs(p.pricePerGuestPaisa), lakh: lakhFrom(p.pricePerGuestPaisa, p.minGuests) })),
+    }));
   if (!events.length) return null;
   const selected = events.some((e) => e.slug === defaultEvent) ? defaultEvent! : events[0].slug;
   const { offers } = site.catalogue;

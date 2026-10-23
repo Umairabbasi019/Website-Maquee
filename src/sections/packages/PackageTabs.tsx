@@ -3,10 +3,10 @@ import { useState, type KeyboardEvent } from "react";
 import type { PublicCatalogue } from "@/modules/catalogue";
 import { t } from "@/ui/i18n";
 import { useEnquiry } from "../shared/enquiry-state";
-import { formatRs, lakhFrom } from "../shared/format";
 import styles from "./packages.module.css";
 
-type Props = { events: PublicCatalogue["events"]; selected: string; canChoose: boolean };
+type Pkg = PublicCatalogue["events"][number]["packages"][number] & { priceText: string; lakh: string };
+type Props = { events: (Omit<PublicCatalogue["events"][number], "packages"> & { packages: Pkg[] })[]; selected: string; canChoose: boolean };
 
 export const packageTabId = (slug: string) => `packages-tab-${slug}`;
 const panelId = (slug: string) => `packages-panel-${slug}`;
@@ -64,10 +64,10 @@ export function PackageTabs({ events, selected: initial, canChoose }: Props) {
             <div key={p.name} className={p.featured ? `${styles.pkg} ${styles.feat}` : styles.pkg}>
               <h3>{p.name}</h3>
               <div className={styles.price}>
-                {formatRs(p.pricePerGuestPaisa)} <small>{t("packages.perGuestMin", { min: p.minGuests })}</small>
+                {p.priceText} <small>{t("packages.perGuestMin", { min: p.minGuests })}</small>
               </div>
               <div className={styles.total}>
-                {t("packages.from", { lakh: lakhFrom(p.pricePerGuestPaisa, p.minGuests), guests: p.minGuests })}
+                {t("packages.from", { lakh: p.lakh, guests: p.minGuests })}
               </div>
               <ul>
                 {p.items.map((item, i) => (
