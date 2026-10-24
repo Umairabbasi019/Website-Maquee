@@ -30,22 +30,23 @@ function sync() {
   }
 }
 
+/** Joins the shared loop; returns the leave function. The visibility listener is shared too, so only the last one out removes it. */
+export function subscribeFrame(run: (dt: number) => void) {
+  subscribers.add(run);
+  if (subscribers.size === 1) document.addEventListener("visibilitychange", sync);
+  sync();
+  return () => {
+    if (subscribers.delete(run) && subscribers.size === 0) document.removeEventListener("visibilitychange", sync);
+    sync();
+  };
+}
+
 export function useScrollFrame(cb: (dt: number) => void) {
   const latest = useRef(cb);
   useEffect(() => {
     latest.current = cb;
   });
-  useEffect(() => {
-    const run = (dt: number) => latest.current(dt);
-    subscribers.add(run);
-    document.addEventListener("visibilitychange", sync);
-    sync();
-    return () => {
-      subscribers.delete(run);
-      document.removeEventListener("visibilitychange", sync);
-      sync();
-    };
-  }, []);
+  useEffect(() => subscribeFrame((dt) => latest.current(dt)), []);
 }
 
 /** One easing step from `from` toward `target`. Snaps onto the target once close, so a settled pin repeats the exact same value. */

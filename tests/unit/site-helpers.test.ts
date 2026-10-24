@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { coverSizes, srcSet } from "@/sections/shared/image";
 import { openStatus, todayIn, addDays } from "@/sections/shared/hours";
 import { buildEnquiryMessage, waLink } from "@/sections/shared/enquiry";
 import { formatRs, lakhFrom, formatLocalPhone } from "@/sections/shared/format";
-import { easeToward } from "@/sections/shared/motion";
+import { easeToward, subscribeFrame } from "@/sections/shared/motion";
 
 const TZ = "Asia/Karachi";
 const manor = [0, 1, 2, 3, 4, 5, 6].map((day) => ({ day, open: "11:00", close: "21:30" }));
@@ -91,5 +91,27 @@ describe("easeToward", () => {
     expect(p).toBe(1);
     expect(steps).toBeLessThan(200);
     expect(easeToward(p, 1)).toBe(1);
+  });
+});
+
+describe("subscribeFrame", () => {
+  it("keeps the shared visibility listener while any subscriber is left", () => {
+    const doc = Object.assign(new EventTarget(), { hidden: true });
+    const raf = vi.fn(() => 1);
+    vi.stubGlobal("document", doc);
+    vi.stubGlobal("requestAnimationFrame", raf);
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    try {
+      const leaveA = subscribeFrame(() => {});
+      const leaveB = subscribeFrame(() => {});
+      leaveB(); // e.g. the depth layer failing in a background tab
+      expect(raf).not.toHaveBeenCalled();
+      doc.hidden = false;
+      doc.dispatchEvent(new Event("visibilitychange"));
+      expect(raf).toHaveBeenCalledTimes(1);
+      leaveA();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
