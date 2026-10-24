@@ -42,7 +42,8 @@ const view = (over: Partial<Raw> = {}) =>
   });
 
 const hide = (...hidden: string[]) => SECTION_KEYS.map((key) => ({ key, visible: !hidden.includes(key) }));
-const shots = (html: string) => (html.match(/<img [^>]*alt="alt /g) ?? []).length;
+const shots = (html: string) => (html.match(/<img /g) ?? []).length;
+const decorative = (html: string) => (html.match(/<img [^>]*alt=""[^>]*aria-hidden="true"/g) ?? []).length;
 
 describe("Gallery with missing data", () => {
   const render = (over: Partial<Raw> = {}) => renderToStaticMarkup(<Gallery site={view(over)} />);
@@ -66,6 +67,8 @@ describe("Gallery with missing data", () => {
     const all = render({ media: mediaFor(tiles.map((t) => t.key)) });
     const missing = render({ media: mediaFor(tiles.slice(1).map((t) => t.key)) });
     expect(shots(all)).toBe(tiles.length * 4);
+    // Each tile is read out once; its drift copies are decorative.
+    expect(shots(all) - decorative(all)).toBe(tiles.length);
     expect(shots(missing)).toBe((tiles.length - 1) * 4);
     expect(missing).not.toContain(`alt ${tiles[0].key}"`);
   });
@@ -92,7 +95,9 @@ describe("Events with missing data", () => {
     const html = render({ ...only(first), media: {} });
     expect(shots(html)).toBe(0);
     expect(html).toContain(first.description);
-    expect(shots(render({ ...only(first), media: mediaFor([first.mediaKey!]) }))).toBe(1);
+    const withBg = render({ ...only(first), media: mediaFor([first.mediaKey!]) });
+    expect(shots(withBg)).toBe(1);
+    expect(decorative(withBg)).toBe(1);
   });
 
   it("renders an event with no packages, without a See packages button", () => {

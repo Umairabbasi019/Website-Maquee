@@ -20,15 +20,22 @@ export function Hero({ site }: SectionProps) {
           return media?.depthUrl ? [{ media, focus: ref.focus, frame }] : [];
         })
       : [];
-  const frontShot = (className: string) => (
-    <Shot media={site.media[front.key]} focus={front.focus} className={className} style={{ transformOrigin: front.focus }} priority />
+  const frontShot = (className: string, first: boolean) => (
+    <Shot
+      media={site.media[front.key]}
+      focus={front.focus}
+      className={className}
+      style={{ transformOrigin: front.focus }}
+      priority={first}
+      decorative={!first}
+    />
   );
 
   return (
     <div id="hero" className="pin" style={{ "--pin": "340vh" } as CSSProperties}>
       <div className="sticky">
         <div className="frame">
-          {frontShot("full shot")}
+          {frontShot("full shot", true)}
           <div className="shade" />
           <div className={styles.rays} />
           <Caption caption={arrival} as="h1" className={`${styles.low} ${styles.arrive} on`} data-at="0">
@@ -49,7 +56,7 @@ export function Hero({ site }: SectionProps) {
         </div>
         {/* The doors caption gets its own frame of the front photo when scenes are stacked; pinned, this copy stays hidden. */}
         <div className="frame">
-          {frontShot("full")}
+          {frontShot("full", false)}
           <div className="shade" />
           <Caption caption={doors} as="h2" className={styles.high} data-at="0.2" />
         </div>

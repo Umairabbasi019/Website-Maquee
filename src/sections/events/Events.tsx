@@ -19,7 +19,7 @@ export function Events({ site }: SectionProps) {
       <div className="sticky">
         {events.map((ev) => (
           <div className="frame" key={ev.slug}>
-            {ev.mediaKey && <Shot media={site.media[ev.mediaKey]} className={`full melt ${styles.bg}`} />}
+            {ev.mediaKey && <Shot media={site.media[ev.mediaKey]} className={`full melt ${styles.bg}`} decorative />}
             <div className={styles.shade} />
             <div className={`cap ${styles.note}`}>
               <div className="chap fade">{chapter}</div>

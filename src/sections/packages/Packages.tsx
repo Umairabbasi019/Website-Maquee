@@ -22,7 +22,7 @@ export function Packages({ site }: SectionProps) {
   return (
     <section id="packages" className={styles.block}>
       {/* shortcut: default sizes assume a viewport-tall box, but this section can be taller; fine while the photo is blurred, size by section height if it ever is not. */}
-      <Shot media={site.media[background.key]} focus={background.focus} className={`full melt ${styles.bg}`} />
+      <Shot media={site.media[background.key]} focus={background.focus} className={`full melt ${styles.bg}`} decorative />
       <div className={styles.rel} data-r>
         <div className="chap fade">{chapter}</div>
         <Lines lines={lines} as="h2" className={`title serif ${styles.title}`} />

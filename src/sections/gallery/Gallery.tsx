@@ -24,7 +24,7 @@ export function Gallery({ site }: SectionProps) {
         media={site.media[tile.key]}
         sizes={tileSizes(tile)}
         style={{ aspectRatio: tile.ratio }}
-        aria-hidden={copy > 0 || undefined}
+        decorative={copy > 0}
       />
     ));
 

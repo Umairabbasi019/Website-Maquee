@@ -12,7 +12,7 @@ export function Stage({ site }: SectionProps) {
     <div id="stage" className="pin" style={{ "--pin": "280vh" } as CSSProperties}>
       <div className="sticky">
         <div className="frame">
-          <Shot media={site.media[background.key]} focus={background.focus} className={`full ${styles.bg}`} />
+          <Shot media={site.media[background.key]} focus={background.focus} className={`full ${styles.bg}`} decorative />
           <Shot media={site.media[reveal.key]} focus={reveal.focus} className={`full ${styles.reveal}`} />
           <div className={`full ${styles.scrim}`} />
           <Caption caption={caption} as="h2" className={styles.cap} />
