@@ -61,18 +61,20 @@ describe("Packages", () => {
     expect(render(manor)).toMatch(/aria-selected="true"[^>]*>Mehndi</);
   });
 
-  it("server-renders every panel with prices, hiding the unselected ones", () => {
+  it("server-renders every panel with its event name and prices, none hidden by attribute", () => {
     const html = render(manor, "barat");
-    const gold = /id="packages-panel-barat"[^>]*>.*?<h3>Gold<\/h3>(.*?)<\/a>/.exec(html)?.[1] ?? "";
+    const gold = /id="packages-panel-barat"[^>]*>.*?<h4>Gold<\/h4>(.*?)<\/a>/.exec(html)?.[1] ?? "";
     expect(gold).toContain("Rs 4,200");
     expect(gold).toContain("From Rs 12.6 lakh for 300 guests");
-    expect(html).toMatch(/id="packages-panel-mehndi"[^>]*hidden/);
+    expect(html).not.toMatch(/ hidden[ =>]/);
+    expect(html).toContain("Rs 2,600");
+    expect(html).toMatch(/id="packages-panel-mehndi"[^>]*>\s*<h3[^>]*>Mehndi<\/h3>/);
     expect(html).toContain("Weekday saver");
   });
   it("wraps a long package name and a 3-line caption instead of widening the page", () => {
     const name = "N".repeat(60);
     const catalogue = { ...manor, events: manor.events.map((e, i) => (i ? e : { ...e, packages: [{ ...e.packages[0], name }] })) };
-    expect(render(catalogue)).toContain(`<h3>${name}</h3>`);
+    expect(render(catalogue)).toContain(`<h4>${name}</h4>`);
     const caption = renderToStaticMarkup(<Caption caption={{ chapter: "C", lines: ["One", "Two", "Three"], body: "B".repeat(60) }} as="h2" />);
     expect(caption).toMatch(/^<div class="cap /);
     // CSS is not applied in this render, so check the rules the card and caption classes carry.

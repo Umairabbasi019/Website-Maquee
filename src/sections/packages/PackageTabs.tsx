@@ -18,7 +18,7 @@ const STEP: Record<string, (i: number, n: number) => number> = {
   End: (_, n) => n - 1,
 };
 
-/** WAI-ARIA tabs with automatic activation: arrows wrap, Home/End jump, only the selected tab is in the tab order. */
+/** Without JavaScript every panel shows under its event name and the tablist is hidden; html.js (set by the shell) turns on the tabs. WAI-ARIA tabs with automatic activation: arrows wrap, Home/End jump, only the selected tab is in the tab order. */
 export function PackageTabs({ events, selected: initial, canChoose }: Props) {
   const [selected, setSelected] = useState(initial);
   const { choosePackage } = useEnquiry();
@@ -55,14 +55,14 @@ export function PackageTabs({ events, selected: initial, canChoose }: Props) {
         <div
           key={ev.slug}
           id={panelId(ev.slug)}
-          hidden={ev.slug !== selected}
           role="tabpanel"
           aria-labelledby={packageTabId(ev.slug)}
-          className={`fade ${styles.pkgs}`}
+          className={`fade ${styles.pkgs} ${ev.slug === selected ? "" : styles.off}`}
         >
+          <h3 className={styles.event}>{ev.name}</h3>
           {ev.packages.map((p) => (
             <div key={p.name} className={p.featured ? `${styles.pkg} ${styles.feat}` : styles.pkg}>
-              <h3>{p.name}</h3>
+              <h4>{p.name}</h4>
               <div className={styles.price}>
                 {p.priceText} <small>{t("packages.perGuestMin", { min: p.minGuests })}</small>
               </div>
