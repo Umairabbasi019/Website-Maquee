@@ -1,5 +1,6 @@
 import { t } from "@/ui/i18n";
 import { formatLocalPhone } from "../shared/format";
+import { coverSizes } from "../shared/image";
 import { Lines } from "../shared/lines";
 import { Shot } from "../shared/Shot";
 import type { SectionProps } from "../types";
@@ -19,12 +20,15 @@ export function Contact({ site }: SectionProps) {
     : address && `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
   const logoUrls = site.theme.logo ? site.media[site.theme.logo]?.urls : undefined;
   const logo = logoUrls && (logoUrls.s ?? logoUrls.m ?? logoUrls.l);
+  const photo = site.media[c.media.key];
+  // Matches contact.module.css: full width x 55vh up to 860px, else the 1.1fr of 1.1fr 1fr columns (52.4vw) x 100vh.
+  const photoSizes = `(max-width: 860px) ${coverSizes(photo?.aspect, "100vw", 55)}, ${coverSizes(photo?.aspect, "53vw", 100)}`;
 
   return (
     <section id="contact">
       <div className={styles.hero}>
         <div className={styles.pic}>
-          <Shot media={site.media[c.media.key]} focus={c.media.focus} className="full" />
+          <Shot media={photo} focus={c.media.focus} sizes={photoSizes} className="full" />
         </div>
         <div className={styles.side} data-r>
           {hours.length > 0 && <LiveHours hours={hours} timeZone={timeZone} openText={c.openText} closedText={c.closedText} />}
