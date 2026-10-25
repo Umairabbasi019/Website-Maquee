@@ -68,4 +68,18 @@ describe("media_assets RLS", () => {
       const s = await seed(c);
       await expect(c.query(ASSET, [s.A, "bad", "{xl}"])).rejects.toThrow(/check constraint/);
     }));
+
+  it.each(["../b-venue/x", "a/b", "..", "Front", "-front", ""])("key %j is rejected", (key) =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      await expect(c.query(ASSET, [s.A, key, "{s}"])).rejects.toThrow(/media_assets_key_format/);
+    }));
+
+  it.each(["gif", "jpg/../x", "svg"])("ext %j is rejected", (ext) =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      await expect(
+        c.query("insert into media_assets (tenant_id, key, alt, category, sizes, ext) values ($1, 'odd', 'alt', 'hero', '{s}', $2)", [s.A, ext]),
+      ).rejects.toThrow(/media_assets_ext_known/);
+    }));
 });
