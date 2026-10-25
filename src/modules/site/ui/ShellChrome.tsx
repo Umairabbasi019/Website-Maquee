@@ -13,6 +13,9 @@ const MOTE_AREA = 1440 * 900;
 // The dust drifts slowly, so 30 redraws a second look the same as 60 at half the main-thread cost.
 const DUST_FRAME_MS = 1000 / 30;
 const noSubscription = () => () => {};
+// Keep in step with the menu breakpoint in site.module.css.
+const PHONE_MENU = "(max-width: 860px)";
+const MENU_ID = "site-menu";
 
 /** Fixed overlays (letterbox, grain, light leak, dust) and the top nav. Client-only behaviour: scroll state, menu, dust. */
 export function ShellChrome({ brand, cta, logo, links }: Props) {
@@ -21,6 +24,8 @@ export function ShellChrome({ brand, cta, logo, links }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const drawDust = useRef<(steps: number) => void>(undefined);
   const sinceDraw = useRef(0);
+  const linksBox = useRef<HTMLDivElement>(null);
+  const menuBtn = useRef<HTMLButtonElement>(null);
 
   // False in server HTML, true once hydrated: the menu button and its collapsed links only apply when JavaScript runs.
   const hydrated = useSyncExternalStore(noSubscription, () => true, () => false);
@@ -33,6 +38,29 @@ export function ShellChrome({ brand, cta, logo, links }: Props) {
     addEventListener("scroll", onScroll, { passive: true });
     return () => removeEventListener("scroll", onScroll);
   }, []);
+
+  // The open phone menu covers the page: focus moves into it, the page behind is inert, Escape closes it and returns focus
+  // to the button. Widening past the breakpoint closes it, since CSS no longer shows it there.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const page = document.querySelector("main");
+    if (page) page.inert = true;
+    linksBox.current?.querySelector("a")?.focus();
+    const close = () => setMenuOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      close();
+      menuBtn.current?.focus();
+    };
+    const phone = matchMedia(PHONE_MENU);
+    addEventListener("keydown", onKey);
+    phone.addEventListener("change", close);
+    return () => {
+      if (page) page.inert = false;
+      removeEventListener("keydown", onKey);
+      phone.removeEventListener("change", close);
+    };
+  }, [menuOpen]);
 
   // The motes live inside this effect and are moved in place each draw, so drawing allocates nothing.
   useEffect(() => {
@@ -95,7 +123,7 @@ export function ShellChrome({ brand, cta, logo, links }: Props) {
           {logo && <img src={logo.url} alt="" width={30} height={30} />}
           {brand}
         </div>
-        <div className={styles.links}>
+        <div ref={linksBox} id={MENU_ID} className={styles.links}>
           {links.map((l) => (
             <a key={l.href} href={l.href} onClick={() => setMenuOpen(false)}>
               {l.label}
@@ -109,8 +137,10 @@ export function ShellChrome({ brand, cta, logo, links }: Props) {
             </a>
           )}
           <button
+            ref={menuBtn}
             type="button"
             className={styles.menuBtn}
+            aria-controls={MENU_ID}
             aria-label={t(menuOpen ? "site.menuClose" : "site.menuOpen")}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((o) => !o)}

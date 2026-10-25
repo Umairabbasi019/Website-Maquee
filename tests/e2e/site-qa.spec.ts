@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+﻿import { expect, test, type Page } from "@playwright/test";
 import { manorContent } from "../../scripts/seed-data/manor";
 import { noWebGL, TENANT_BASE } from "./helpers";
 
@@ -55,6 +55,19 @@ test("without WebGL the hero front shot and every caption show", async ({ page }
       .poll(() => h.evaluate((el) => [...el.querySelectorAll(".line > span")].every((s) => Math.abs(new DOMMatrix(getComputedStyle(s).transform).f) < 1)), { timeout: 15_000 })
       .toBe(true);
   }
+});
+
+test("the phone menu takes focus, makes the page inert and closes on Escape", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto(TENANT_BASE);
+  const button = page.getByRole("button", { name: "Open menu" });
+  await button.click();
+  await expect(page.locator("#site-menu a").first()).toBeFocused();
+  expect(await page.locator("main").evaluate((m) => m.hasAttribute("inert"))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Open menu" })).toBeFocused();
+  await expect(button).toHaveAttribute("aria-expanded", "false");
+  expect(await page.locator("main").evaluate((m) => m.hasAttribute("inert"))).toBe(false);
 });
 
 // The menu link and the "Check a date" pill share #contact; last() is the pill, visible before and after hydration.
