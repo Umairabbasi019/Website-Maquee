@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { ForbiddenError } from "@/modules/access";
 import { DraftError, getDraft, mediaUsage, saveDraftChange } from "@/modules/editor";
-import { deleteMedia, replaceMedia, setAlt, uploadMedia, type UploadState } from "@/modules/media";
+import { deleteMedia, replaceMedia, setAlt, uploadDepth, uploadMedia, type UploadState } from "@/modules/media";
 import type { TranslationKey } from "@/ui/i18n";
 import { getDashboard } from "../context";
 import { mediaUsedIn } from "./usage";
@@ -17,6 +17,7 @@ const ERRORS = {
   alt: "media.error.alt",
   category: "media.error.category",
   notFound: "media.error.notFound",
+  aspect: "media.error.aspect",
 } as const satisfies Record<string, TranslationKey>;
 
 const fileOf = (fd: FormData) => {
@@ -94,5 +95,17 @@ export async function removePhoto(_prev: ItemState, fd: FormData): Promise<ItemS
     }
     changed();
     return null;
+  });
+}
+
+/** Super admin: a depth map PNG for one photo (the module checks tenant.settings.edit and the photo's shape). */
+export async function uploadDepthMap(_prev: ItemState, fd: FormData): Promise<ItemState> {
+  const file = fileOf(fd);
+  if (!file) return { error: "media.error.file" };
+  return inVenue(async (tenantId) => {
+    const result = await uploadDepth(tenantId, text(fd, "key"), file);
+    if ("error" in result) return { error: ERRORS[result.error] };
+    changed();
+    return { ok: "media.depthSaved" };
   });
 }

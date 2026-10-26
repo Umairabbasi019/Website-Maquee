@@ -44,7 +44,7 @@ type TextProps = {
   /** Set when the viewer may not change this field: it is then read-only and says why. */
   reason?: string;
   multiline?: boolean;
-  type?: "text" | "date";
+  type?: "text" | "date" | "time" | "number";
   inputMode?: "decimal" | "numeric";
 };
 
@@ -122,14 +122,28 @@ export function SelectField<V extends string>({
   );
 }
 
-const move = <T,>(list: T[], from: number, to: number) => {
+export const move = <T,>(list: T[], from: number, to: number) => {
   const next = [...list];
   next.splice(to, 0, ...next.splice(from, 1));
   return next;
 };
 
-/** Up, down and remove buttons for item `i` of `count`, labelled with that item's own label. */
-function ItemButtons({ label, i, count, onMove, onRemove, disabled }: { label: string; i: number; count: number; onMove: (to: number) => void; onRemove: () => void; disabled?: boolean }) {
+/** Up, down and (when `onRemove` is given) remove buttons for item `i` of `count`, labelled with that item's own label. */
+export function ItemButtons({
+  label,
+  i,
+  count,
+  onMove,
+  onRemove,
+  disabled,
+}: {
+  label: string;
+  i: number;
+  count: number;
+  onMove: (to: number) => void;
+  onRemove?: () => void;
+  disabled?: boolean;
+}) {
   return (
     <span className="flex shrink-0 gap-1">
       <button type="button" className={smallButton} disabled={disabled || i === 0} aria-label={t("list.up", { label })} onClick={() => onMove(i - 1)}>
@@ -138,9 +152,11 @@ function ItemButtons({ label, i, count, onMove, onRemove, disabled }: { label: s
       <button type="button" className={smallButton} disabled={disabled || i === count - 1} aria-label={t("list.down", { label })} onClick={() => onMove(i + 1)}>
         ↓
       </button>
-      <button type="button" className={smallButton} disabled={disabled} aria-label={t("list.remove", { label })} onClick={onRemove}>
-        ✕
-      </button>
+      {onRemove && (
+        <button type="button" className={smallButton} disabled={disabled} aria-label={t("list.remove", { label })} onClick={onRemove}>
+          ✕
+        </button>
+      )}
     </span>
   );
 }
@@ -358,5 +374,6 @@ function issueMessage(iss: z.core.$ZodIssue): string {
     return t("editor.error.max", { max });
   }
   if (iss.code === "invalid_type") return t("editor.error.required");
+  if (iss.code === "invalid_format" && iss.format === "url") return t("editor.error.https");
   return iss.message;
 }

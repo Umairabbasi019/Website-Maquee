@@ -10,7 +10,7 @@ const NEEDS_EVERY_KEY = /^(package-new:|addon-new$|stage-theme-new$)/;
 export function targetKeys(target: EditTarget): readonly PermissionKey[] {
   if (target.startsWith("venue:")) return ["venue.info.edit"];
   if (target === "gallery:tiles") return ["catalogue.edit"];
-  if (target.startsWith("section:")) return ["tenant.settings.edit"];
+  if (target.startsWith("section:") || target.startsWith("settings:")) return ["tenant.settings.edit"];
   // A new event or offer needs only catalogue.edit (an offer's discount is optional).
   if (target === "event-new" || target === "offer-new") return ["catalogue.edit"];
   return CATALOGUE_OR_PRICES;

@@ -93,7 +93,7 @@ test("a manager changes the Gold Barat price and menu, previews it on a phone an
   expect(ld).not.toContain("450000");
 
   // Phone preview: the draft at 375 px in a frame.
-  await bar.getByRole("button", { name: en["editor.view.phone"] }).click();
+  await bar.getByRole("button", { name: en["editor.view.phone"], exact: true }).click();
   const frame = page.locator(`iframe[title="${en["editor.previewTitle"]}"]`);
   await expect(frame).toBeVisible();
   expect((await frame.boundingBox())?.width).toBe(375);

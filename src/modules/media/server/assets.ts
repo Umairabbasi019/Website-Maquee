@@ -43,7 +43,9 @@ export async function getPublicMedia(tenantId: string): Promise<Record<string, M
         widths: Object.fromEntries(known.map(([s, [w]]) => [s, w])),
       };
       if (known.length) view.aspect = known[0][1][0] / known[0][1][1];
-      if (r.sizes.includes("depth")) view.depthUrl = `${base}/${r.key}/depth.png`;
+      // depth.png is overwritten in place when a map is corrected; the version makes the URL new, so year-long caches don't keep the old map.
+      const version = typeof r.dims.depthVersion === "number" ? `?v=${r.dims.depthVersion}` : "";
+      if (r.sizes.includes("depth")) view.depthUrl = `${base}/${r.key}/depth.png${version}`;
       return [r.key, view];
     }),
   );

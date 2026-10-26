@@ -9,3 +9,4 @@ export { publishDraft, type PublishResult } from "./server/publish";
 export { getDraftView } from "./server/view";
 export { EditorBar } from "./ui/EditorBar";
 export { EditOverlay } from "./ui/EditOverlay";
+export { FieldsForm } from "./ui/FieldsForm";

@@ -17,6 +17,9 @@ export type EditTarget =
   | "venue:address"
   | "venue:manager"
   | "gallery:tiles"
+  | "settings:theme"
+  | "settings:sections"
+  | "settings:venue"
   | `section:${SectionKey}`;
 
 /** Marker the on-page editor looks for; empty on the public site, so its HTML is unchanged. */

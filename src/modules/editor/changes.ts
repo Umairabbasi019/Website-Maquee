@@ -15,7 +15,7 @@ const rowChange = <K extends RowKind, S extends z.ZodType>(kind: K, value: S) =>
 
 const MediaKey = z.string().min(1);
 
-/** One editor save. A row `value` of null removes the row; settings `path` points inside the part. */
+/** One editor save. A row `value` of null removes the row; settings `path` points inside the part (empty: the whole part). */
 export const DraftChangeSchema = z.discriminatedUnion("kind", [
   rowChange("event", ROW_VALUE_SCHEMAS.event),
   rowChange("package", ROW_VALUE_SCHEMAS.package),
@@ -25,7 +25,7 @@ export const DraftChangeSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("settings"),
     part: z.enum(SETTINGS_PARTS),
-    path: z.array(z.string().regex(/^[A-Za-z0-9]+$/)).min(1).max(4),
+    path: z.array(z.string().regex(/^[A-Za-z0-9]+$/)).max(4),
     value: z.unknown(),
   }),
   z.object({ kind: z.literal("swapMedia"), from: MediaKey, to: MediaKey }),
@@ -113,6 +113,11 @@ function childSchema(schema: z.ZodType, seg: string): z.ZodType | undefined {
 }
 
 function setSetting(draft: SiteDraft, part: SettingsPart, path: string[], value: unknown) {
+  // The whole part, e.g. the sections list, whose order cannot change one item at a time without a duplicate in between.
+  if (path.length === 0) {
+    (draft as Record<SettingsPart, unknown>)[part] = value;
+    return;
+  }
   let schema: z.ZodType = SiteDraftSchema.shape[part];
   let holder: unknown = draft[part];
   path.forEach((seg, i) => {

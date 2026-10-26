@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { buttonClass } from "@/ui/form-styles";
+import type { EditTarget } from "@/sections/shared/edit";
 import { t, type TranslationKey } from "@/ui/i18n";
 import type { sampleReport } from "../check";
 import type { ActionResult } from "./RowPanel";
@@ -17,6 +18,18 @@ const SAMPLE_LABELS: Record<Exclude<keyof ReturnType<typeof sampleReport>, "cont
   stageThemes: "editor.sample.stageThemes",
 };
 
+// Menu markers: EditOverlay fills in the ones this viewer may open. Venue info is here too, since an empty phone
+// list, address or hours leave nothing on the page to click.
+const MENU: [EditTarget, TranslationKey][] = [
+  ["venue:phones", "edit.phones"],
+  ["venue:hours", "edit.hours"],
+  ["venue:address", "edit.address"],
+  ["venue:manager", "edit.manager"],
+  ["settings:theme", "edit.theme"],
+  ["settings:sections", "edit.sectionsOrder"],
+  ["settings:venue", "edit.venue"],
+];
+
 const PHONE_WIDTH = 375;
 
 const toggleClass =
@@ -25,7 +38,8 @@ const toggleClass =
 /**
  * The bar above the draft: unpublished change count, what is still sample, Laptop/Phone width, Discard and Publish.
  * Publish and Discard send the revision this page was rendered with, so a draft changed since is never applied blind.
- * `children` is the laptop canvas; Phone swaps it for the draft at 375 px in a frame.
+ * `children` is the laptop canvas; Phone swaps it for the draft at 375 px in a frame. `markReal` is given only to
+ * the super admin, and its button shows while the site text is still sample.
  */
 export function EditorBar({
   revision,
@@ -33,6 +47,7 @@ export function EditorBar({
   sample,
   publish,
   discard,
+  markReal,
   children,
 }: {
   revision: number | null;
@@ -40,6 +55,7 @@ export function EditorBar({
   sample: ReturnType<typeof sampleReport>;
   publish: Revisioned;
   discard: Revisioned;
+  markReal?: () => Promise<ActionResult>;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -92,6 +108,21 @@ export function EditorBar({
               {pending ? t("editor.working") : t("editor.publish")}
             </button>
           </div>
+        </div>
+        <div role="group" aria-label={t("editor.menu")} className="flex flex-wrap gap-2">
+          {MENU.map(([target, label]) => (
+            <span key={target} data-edit={target} data-edit-label={t(label)} data-edit-menu="" />
+          ))}
+          {markReal && sample.content && (
+            <button
+              type="button"
+              disabled={pending}
+              className="rounded-md border border-muted/60 px-3 py-1.5 text-sm font-medium hover:bg-accent/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text disabled:opacity-60"
+              onClick={() => run(markReal, "editor.markedReal")}
+            >
+              {t("editor.markReal")}
+            </button>
+          )}
         </div>
         {outcome && "ok" in outcome && <p role="status">{outcome.ok}</p>}
         {outcome && "error" in outcome && (

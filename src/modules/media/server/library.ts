@@ -215,13 +215,13 @@ export async function uploadDepth(
   const db = createServiceClient();
   const data = await sharp(bytes, { limitInputPixels: MAX_PIXELS }).png().toBuffer();
   const path = filePath(tenantId, old, "depth");
-  // shortcut: a second depth map for the same photo overwrites depth.png, and caches may keep the old one for up to a year; version the depth file name if maps ever get corrected often.
   const up = await db.storage.from(BUCKET).upload(path, data, { contentType: CONTENT_TYPE.png, cacheControl: CACHE, upsert: true });
   if (up.error) throw new Error(`upload ${path}: ${up.error.message}`);
   const sizes = old.sizes.includes("depth") ? old.sizes : [...old.sizes, "depth"];
   const { error } = await db
     .from("media_assets")
-    .update({ sizes, dims: { ...old.dims, depth: [width, height] } })
+    // depthVersion goes into the public URL (assets.ts), so an overwritten depth.png is fetched fresh.
+    .update({ sizes, dims: { ...old.dims, depth: [width, height], depthVersion: Date.now() } })
     .eq("id", old.id);
   if (error) throw new Error(`media_assets: ${error.message}`);
   await recordAudit({ tenantId, action: "media.depth", entity: "media_asset", entityId: old.id, after: { key, dims: [width, height] } });

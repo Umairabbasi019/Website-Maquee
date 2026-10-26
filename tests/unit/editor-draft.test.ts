@@ -101,6 +101,13 @@ describe("applyChange", () => {
     expect(withDefault.content.packages.defaultEvent).toBe("mehndi");
   });
 
+  it("replaces a whole part when the path is empty, so sections can be reordered in one save", () => {
+    const reversed = siteDraft().sections.toReversed();
+    const next = applyChange(siteDraft(), { kind: "settings", part: "sections", path: [], value: reversed });
+    expect(next.sections).toEqual(reversed);
+    expect(itemKey({ kind: "settings", part: "sections", path: [], value: reversed })).toBe("settings:sections");
+  });
+
   it("refuses settings paths that are not part of the shape", () => {
     const at = (part: "content" | "sections", path: string[]) => () => applyChange(siteDraft(), { kind: "settings", part, path, value: 1 });
     expect(at("content", ["contact", "nope"])).toThrow(DraftError);

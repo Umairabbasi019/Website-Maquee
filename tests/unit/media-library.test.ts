@@ -156,7 +156,7 @@ describe("uploadDepth", () => {
   it("stores depth.png and adds depth to sizes and dims", async () => {
     expect(await uploadDepth(TENANT, "wide", await png(320, 180))).toEqual({ ok: true });
     expect(calls.uploads.map((u) => u.path)).toEqual([`${TENANT}/wide/depth.png`]);
-    expect(calls.updates[0]).toEqual({ sizes: ["s", "m", "depth"], dims: { s: [1280, 720], m: [1920, 1080], depth: [320, 180] } });
+    expect(calls.updates[0]).toEqual({ sizes: ["s", "m", "depth"], dims: { s: [1280, 720], m: [1920, 1080], depth: [320, 180], depthVersion: expect.any(Number) } });
     expect(calls.audits.map((a) => a.action)).toEqual(["media.depth"]);
   });
 });

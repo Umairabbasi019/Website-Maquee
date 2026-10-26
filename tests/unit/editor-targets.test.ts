@@ -30,6 +30,7 @@ describe("visibleTargets", () => {
       expect(sees(target), target).toBe(true);
     }
     expect(sees("section:hero")).toBe(false);
+    expect(sees("settings:theme")).toBe(false);
   });
 
   it("shows accounts nothing", () => {
@@ -46,8 +47,9 @@ describe("visibleTargets", () => {
     expect(sees("addon-new")).toBe(false);
   });
 
-  it("gives section copy to tenant.settings.edit only", () => {
+  it("gives section copy and the theme, sections and venue menus to tenant.settings.edit only", () => {
     expect(targetKeys("section:hero")).toEqual(["tenant.settings.edit"]);
+    expect(targetKeys("settings:venue")).toEqual(["tenant.settings.edit"]);
     expect(visibleTargets(["tenant.settings.edit"])("section:hero")).toBe(true);
   });
 });

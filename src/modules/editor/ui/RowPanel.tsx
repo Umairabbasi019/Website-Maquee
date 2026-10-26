@@ -30,6 +30,16 @@ const NEEDS: Partial<Record<PermissionKey, TranslationKey>> = {
   "tenant.settings.edit": "editor.needs.settings",
 };
 
+/** Who changed this item last, and when. */
+export function LastChange({ change }: { change?: DraftChanges[string] }) {
+  if (!change) return null;
+  return (
+    <p className="text-sm text-muted">
+      {t("editor.lastChange", { name: change.name, time: new Date(change.at).toLocaleString("en-PK", { dateStyle: "medium", timeStyle: "short" }) })}
+    </p>
+  );
+}
+
 export type FormApi<F> = {
   form: F;
   set: <K extends keyof F>(field: K, value: F[K]) => void;
@@ -95,14 +105,7 @@ export function RowPanel<F extends object>({
         onSave();
       }}
     >
-      {p.change && (
-        <p className="text-sm text-muted">
-          {t("editor.lastChange", {
-            name: p.change.name,
-            time: new Date(p.change.at).toLocaleString("en-PK", { dateStyle: "medium", timeStyle: "short" }),
-          })}
-        </p>
-      )}
+      <LastChange change={p.change} />
       {children({ form, set, errors, reason })}
       {message && (
         <p role="alert" className="font-medium text-red-800">

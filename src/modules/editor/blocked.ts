@@ -1,5 +1,5 @@
 import type { PermissionKey } from "@/modules/access";
-import { ROW_TABLES, type RowKind, type SiteDraft } from "./draft";
+import { ROW_TABLES, type RowKind, type SettingsPart, type SiteDraft } from "./draft";
 import { requiredKeys } from "./keys";
 import { mediaRefs } from "./media-usage";
 
@@ -18,6 +18,14 @@ function put(root: object, path: Path, value: unknown) {
   else obj[last] = structuredClone(value);
 }
 
+const SETTINGS_LABELS: Record<SettingsPart, string> = {
+  identity: "Venue",
+  theme: "Theme",
+  sections: "Sections",
+  messaging: "Messaging",
+  content: "Site text",
+};
+
 const ROW_LABELS: Record<RowKind, string> = {
   event: "Event",
   package: "Package",
@@ -34,7 +42,8 @@ function probe(published: SiteDraft, draft: SiteDraft, key: string): { site: Sit
   if (kind === "settings") {
     const path = rest.split(".");
     put(site, path, get(draft, path));
-    return { site, label: `Settings: ${rest}` };
+    const [part, ...inside] = path as [SettingsPart, ...string[]];
+    return { site, label: inside.length ? `${SETTINGS_LABELS[part]}: ${inside.join(".")}` : SETTINGS_LABELS[part] };
   }
   if (kind === "media") {
     const refs = mediaRefs(published).filter((r) => r.key === rest);

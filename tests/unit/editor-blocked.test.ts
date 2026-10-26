@@ -27,7 +27,7 @@ describe("blockedItems", () => {
     const held = (k: string) => k === "catalogue.edit" || k === "venue.info.edit";
     expect(blockedItems(published, draft, CHANGES.map(itemKey), held)).toEqual([
       "Package: Gold (Barat)",
-      "Settings: theme.colors.primary",
+      "Theme: colors.primary",
       "Inside: Entrance, Barat background",
     ]);
   });
