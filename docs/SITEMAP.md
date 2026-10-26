@@ -34,12 +34,12 @@ Each screen appears only if the user has its permission.
 | `/dashboard/payments` | Receipts to verify, ledger | `payments.view` |
 | `/dashboard/events/[id]/run-sheet` | Run sheet | own event or `bookings.view` |
 | `/dashboard/schedule` | Duty schedule | `schedule.view_own` |
-| `/dashboard/catalogue/*` | Menus, packages, add-ons, stage themes, offers | `catalogue.edit` |
 | `/dashboard/marketing` | Campaigns and results | `marketing.send` |
 | `/dashboard/reports` | Charts and exports | `reports.view` |
+| `/dashboard/site` | Edit site: catalogue, prices, venue info, theme | any of `catalogue.edit`, `prices.edit`, `venue.info.edit`, `tenant.settings.edit` |
 | `/dashboard/media` | Media library | `media.manage` |
 | `/dashboard/users` | Users and permissions | `users.manage` |
-| `/dashboard/settings/*` | Venue settings | `tenant.settings.edit` |
+| `/dashboard/settings/*` | Venue settings | any of `tenant.settings.edit`, `calendar.manage`, `prices.edit` |
 | `/dashboard/audit` | Audit log | `audit.view` |
 
 ## Super admin console (platform domain only, noindex) under `/admin`

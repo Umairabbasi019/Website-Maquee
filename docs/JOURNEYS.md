@@ -55,6 +55,7 @@ Keys are checked on the server and in RLS. S = super admin, O = venue owner, M =
 | `calendar.manage` (block, hold, date pricing) | ✓ | ✓ | ✓ | – | – |
 | `catalogue.edit` (menus, packages, add-ons, stage themes, offers) | ✓ | ✓ | ✓ | – | – |
 | `prices.edit` | ✓ | ✓ | ✓ | – | – |
+| `venue.info.edit` (phones, opening hours, address, manager card) | ✓ | ✓ | ✓ | – | – |
 | `media.manage` | ✓ | ✓ | ✓ | – | – |
 | `payments.view` | ✓ | ✓ | ✓ | ✓ | – |
 | `payments.verify` (manual receipts, refunds) | ✓ | ✓ | ✓ | ✓ | – |

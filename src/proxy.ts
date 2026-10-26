@@ -11,6 +11,9 @@ const SESSION_PREFIXES = ["/dashboard", "/admin", "/mfa", "/login", "/auth"];
 // Routes that never get a host tenant: the signed-in ones take it from memberships, the API from its own checks.
 const NO_TENANT_PREFIXES = [...SESSION_PREFIXES, "/api"];
 
+// Only the admin console link (same-origin) or a typed address (none) may pick a venue; a missing header is refused too.
+const TRUSTED_FETCH_SITES = new Set(["same-origin", "none"]);
+
 const under = (path: string, prefixes: string[]) => prefixes.some((p) => path === p || path.startsWith(`${p}/`));
 
 export async function proxy(request: NextRequest) {
@@ -27,7 +30,9 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.search = "";
     const response = NextResponse.redirect(url);
-    response.cookies.set(VENUE_COOKIE, choice, venueCookieOptions);
+    if (TRUSTED_FETCH_SITES.has(request.headers.get("sec-fetch-site") ?? "")) {
+      response.cookies.set(VENUE_COOKIE, choice, venueCookieOptions);
+    }
     return response;
   }
 

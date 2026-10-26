@@ -25,7 +25,7 @@ export const en = {
   "nav.enquiries": "Enquiries",
   "nav.payments": "Payments",
   "nav.schedule": "Schedule",
-  "nav.catalogue": "Catalogue",
+  "nav.site": "Edit site",
   "nav.marketing": "Marketing",
   "nav.reports": "Reports",
   "nav.media": "Media",

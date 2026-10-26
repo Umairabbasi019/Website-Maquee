@@ -24,6 +24,7 @@ const ALL_KEYS = [
   "schedule.manage",
   "schedule.view_own",
   "audit.view",
+  "venue.info.edit",
 ];
 
 /** Back to the test superuser (bypasses RLS) for setup. */
@@ -182,6 +183,15 @@ describe("access RLS", () => {
       expect(await hasPerm(c, s.A, "prices.edit")).toBe(true);
       expect(await hasPerm(c, s.A, "users.manage")).toBe(false);
       expect(await hasPerm(c, s.B, "prices.edit")).toBe(false);
+    }));
+
+  it("venueInfoEdit_isGrantedOnlyToOwnerAndManager", () =>
+    withDb(async (c) => {
+      const r = await c.query(
+        `select r.name from public.role_permissions rp join public.roles r on r.id = rp.role_id
+         where r.tenant_id is null and rp.permission_key = 'venue.info.edit' order by r.name`,
+      );
+      expect(r.rows.map((row) => row.name)).toEqual(["manager", "owner"]);
     }));
 
   it("override_removesKey", () =>
