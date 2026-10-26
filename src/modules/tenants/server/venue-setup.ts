@@ -1,17 +1,15 @@
 import "server-only";
 import { z } from "zod";
 import { createServerClient, createServiceClient, recordAudit, requirePerm } from "@/modules/access";
-import { MoneyRulesSchema, type TenantSettings } from "../settings";
+import { MoneyRulesSchema, TimeSchema, type TenantSettings } from "../settings";
 
-// Halls and slots save on the user's session: RLS, the column-permission trigger and the audit trigger
-// (supabase/migrations/20261026000300_settings_m3.sql) do the checks. Money rules go through the service client.
+// Halls and slots save on the user's session after a requirePerm check here; RLS, the column-permission trigger and
+// the audit trigger (supabase/migrations/20261026000300_settings_m3.sql) check again. Money rules go through the service client.
 
 export type SetupResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" };
 
 /** Postgres insufficient_privilege: RLS on insert, or the column-permission trigger. */
 const INSUFFICIENT_PRIVILEGE = "42501";
-
-const Time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 const HallSchema = z
   .object({
@@ -28,8 +26,8 @@ export type Hall = z.infer<typeof HallSchema> & { id: string };
 const SlotSchema = z.object({
   id: z.uuid().optional(),
   name: z.string().trim().min(1).max(60),
-  start: Time,
-  end: Time,
+  start: TimeSchema,
+  end: TimeSchema,
   bufferMinutes: z.int().min(0),
 });
 export type Slot = z.infer<typeof SlotSchema> & { id: string };
@@ -67,6 +65,16 @@ export async function saveHall(tenantId: string, input: unknown): Promise<SetupR
   const parsed = HallSchema.safeParse(input);
   if (!parsed.success) return { error: "invalid" };
   const { id, name, capacityMin, capacityMax, isActive, hirePricePaisa } = parsed.data;
+  // Mirrors halls_column_perms: the hire price needs prices.edit, every other field (and a new hall) tenant.settings.edit.
+  const stored = id ? (await listHalls(tenantId)).find((h) => h.id === id) : undefined;
+  if (id && !stored) return { error: "notFound" };
+  const restChanged =
+    !stored || name !== stored.name || capacityMin !== stored.capacityMin || capacityMax !== stored.capacityMax || isActive !== stored.isActive;
+  const priceChanged = stored ? hirePricePaisa !== stored.hirePricePaisa : hirePricePaisa !== null;
+  if (restChanged) await requirePerm(tenantId, "tenant.settings.edit");
+  if (priceChanged) await requirePerm(tenantId, "prices.edit");
+  // An unchanged save still needs one of the two keys, as the update policy does.
+  if (!restChanged && !priceChanged) await requirePerm(tenantId, "tenant.settings.edit").catch(() => requirePerm(tenantId, "prices.edit"));
   const row = { name, capacity_min: capacityMin, capacity_max: capacityMax, is_active: isActive, hire_price_paisa: hirePricePaisa };
   const db = (await createServerClient()).from("halls");
   const r = id
@@ -93,6 +101,7 @@ export async function listSlots(tenantId: string): Promise<Slot[]> {
 }
 
 export async function saveSlot(tenantId: string, input: unknown): Promise<SetupResult> {
+  await requirePerm(tenantId, "tenant.settings.edit");
   const parsed = SlotSchema.safeParse(input);
   if (!parsed.success) return { error: "invalid" };
   const { id, name, start, end, bufferMinutes } = parsed.data;
@@ -105,6 +114,7 @@ export async function saveSlot(tenantId: string, input: unknown): Promise<SetupR
 }
 
 export async function deleteSlot(tenantId: string, id: string): Promise<SetupResult> {
+  await requirePerm(tenantId, "tenant.settings.edit");
   if (!z.uuid().safeParse(id).success) return { error: "invalid" };
   const r = await (await createServerClient()).from("slots").delete().eq("tenant_id", tenantId).eq("id", id).select("id");
   return result(r, "slots");

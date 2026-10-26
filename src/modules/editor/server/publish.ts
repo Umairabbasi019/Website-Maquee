@@ -14,6 +14,8 @@ export type PublishResult =
 const SITE_CHANGED = "40001";
 const NO_KEY = "42501";
 const DATE_PRICES = /^event has date prices: (.+)$/;
+// publish_site refuses a venue rename unless a platform admin publishes it; the TS keys cannot see that rule.
+const VENUE_NAME = "venue name needs a platform admin";
 
 /** Puts the draft the viewer saw (at `revision`) live, in one transaction run as the viewer (publish_site). */
 export async function publishDraft(tenantId: string, revision: number): Promise<PublishResult> {
@@ -47,7 +49,8 @@ export async function publishDraft(tenantId: string, revision: number): Promise<
   if (failed.code === SITE_CHANGED) return { error: "siteChanged" };
   if (failed.code === NO_KEY) {
     const event = DATE_PRICES.exec(failed.message)?.[1];
-    return event ? { error: "eventHasDatePrices", items: [event] } : { error: "blocked" };
+    if (event) return { error: "eventHasDatePrices", items: [event] };
+    return { error: "blocked", items: failed.message === VENUE_NAME ? ["Venue: name"] : undefined };
   }
   throw new Error(`publish_site: ${failed.message}`);
 }

@@ -18,6 +18,8 @@ export const FIELD_PERMISSIONS: FieldPermission[] = [
   { part: "offers", field: "title", column: "title", key: "catalogue.edit" },
   { part: "offers", field: "discountKind", column: "discount_kind", key: "prices.edit" },
   { part: "offers", field: "discountValue", column: "discount_value", key: "prices.edit" },
+  { part: "offers", field: "startsOn", column: "starts_on", key: "prices.edit" },
+  { part: "offers", field: "endsOn", column: "ends_on", key: "prices.edit" },
   { part: "addons", field: "name", column: "name", key: "catalogue.edit" },
   { part: "addons", field: "pricePaisa", column: "price_paisa", key: "prices.edit" },
   { part: "stageThemes", field: "name", column: "name", key: "catalogue.edit" },

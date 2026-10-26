@@ -155,7 +155,7 @@ export function EditOverlay({
             </>
           ) : (
             <button type="button" aria-label={s.label} className={editButton} onClick={(e) => show(parse(s.target, s.label), e)}>
-              ✎ edit
+              ✎ {t("editor.editButton")}
             </button>
           ),
           s.host,

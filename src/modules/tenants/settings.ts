@@ -5,7 +5,7 @@ export const SlugSchema = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "lowercas
 const Hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "must be #rrggbb");
 // Public links and images: https only, so a stored value can never become a javascript: or plain-http link.
 const Url = z.url({ protocol: /^https$/ });
-const Time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "must be HH:MM");
+export const TimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "must be HH:MM");
 
 export const IdentitySchema = z.object({
   name: z.string().min(1),
@@ -14,7 +14,7 @@ export const IdentitySchema = z.object({
   phones: z.array(z.string().min(1)),
   address: z.string().optional(),
   mapLocation: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).optional(),
-  openingHours: z.array(z.object({ day: z.number().int().min(0).max(6), open: Time, close: Time })),
+  openingHours: z.array(z.object({ day: z.number().int().min(0).max(6), open: TimeSchema, close: TimeSchema })),
   social: z.object({ instagram: Url.optional(), facebook: Url.optional() }),
   googleReviewUrl: Url.optional(),
 });
@@ -47,7 +47,7 @@ export const MoneyRulesSchema = z.object({
 export const MessagingSchema = z.object({
   whatsappNumber: z.string().optional(),
   reminderDays: z.array(z.number().int().positive()),
-  morningSummaryTime: Time,
+  morningSummaryTime: TimeSchema,
   marketingCapPerMonth: z.number().int().min(0),
 });
 

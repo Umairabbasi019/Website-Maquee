@@ -5,11 +5,16 @@ import { getPublicMedia } from "@/modules/media";
 import { buildSiteView } from "@/modules/site";
 import { MoneyRulesSchema } from "@/modules/tenants";
 import type { SiteView } from "@/sections/types";
-import { getDraft } from "./draft";
+import type { SiteDraft } from "../draft";
+import { getDraft, requireEditor } from "./draft";
 
-/** The site as the draft would show it, with edit markers. Only for site editors (getDraft checks). */
-export async function getDraftView(tenantId: string): Promise<SiteView> {
-  const { draft } = await getDraft(tenantId);
+/**
+ * The site as the draft would show it, with edit markers. Only for site editors. Pass the draft a caller already
+ * read with getDraft, so the view and that read's revision are the same draft.
+ */
+export async function getDraftView(tenantId: string, read?: SiteDraft): Promise<SiteView> {
+  await requireEditor(tenantId);
+  const draft = read ?? (await getDraft(tenantId)).draft;
   // Service client: a prices-only editor cannot read tenant_settings, and only money rules and slots come from it.
   const db = createServiceClient();
   const [tenant, settings, slots, media] = await Promise.all([

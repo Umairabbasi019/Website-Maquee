@@ -38,7 +38,7 @@ Staff open today's run sheet on their phone: timings, hall, guests, menu, stage 
 Console → New tenant → choose template → enter name, domain, numbers → upload logo and photos → set halls, events, packages, prices, payment accounts → invite the owner and managers → setup checklist all green → set Live.
 
 ### J10 Super admin changes another tenant
-Console → open tenant (banner shows which tenant) → edit menu prices → save. Audit log for that tenant records the super admin's name.
+Console → open tenant (banner shows which tenant) → Dashboard → Edit site → change package prices → save to draft → Publish. Audit log for that tenant records the super admin's name.
 
 ### J11 Manager edits the site
 Dashboard → Edit site. The page shows with a ✎ on every editable part. Manager taps ✎ on a package, changes the price (rupees), saves; the change goes to the draft, and the editor bar counts it. Phone view shows how it looks on a phone. Publish checks the draft and applies it in one step; the public site shows the new price. Discard returns the draft to the published site. A change that needs a key the manager lacks (for example a theme change saved by the super admin) stays in the draft and blocks Publish, listing the item.

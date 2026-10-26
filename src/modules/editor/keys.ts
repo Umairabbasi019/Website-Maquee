@@ -2,7 +2,7 @@ import type { PermissionKey } from "@/modules/access";
 import { SETTINGS_PARTS, type SettingsPart, type SiteDraft } from "./draft";
 
 // TS mirror of the SQL triggers. Keep in step with check_settings_write (20261026000300_settings_m3.sql), the
-// check_column_perms arguments (20261026000200_catalogue_m3.sql) and its sample rule (20261026000250_sample_flag_free.sql); tests/fixtures/field-permissions.ts tests both.
+// check_column_perms arguments (20261026000200_catalogue_m3.sql, offers in 20261026000700_offer_dates_prices.sql) and its sample rule (20261026000250_sample_flag_free.sql); tests/fixtures/field-permissions.ts tests both.
 const SETTINGS_FIELDS: { part: SettingsPart; path: string[]; key: PermissionKey }[] = [
   { part: "identity", path: ["phones"], key: "venue.info.edit" },
   { part: "identity", path: ["address"], key: "venue.info.edit" },
@@ -17,7 +17,7 @@ const ROW_KEY: PermissionKey = "catalogue.edit";
 const COLUMN_KEYS: Record<"events" | "packages" | "offers" | "addons" | "stageThemes", Record<string, PermissionKey>> = {
   events: { mediaKey: "tenant.settings.edit" },
   packages: { pricePerGuestPaisa: "prices.edit" },
-  offers: { discountKind: "prices.edit", discountValue: "prices.edit" },
+  offers: { discountKind: "prices.edit", discountValue: "prices.edit", startsOn: "prices.edit", endsOn: "prices.edit" },
   addons: { pricePaisa: "prices.edit" },
   stageThemes: { pricePaisa: "prices.edit" },
 };

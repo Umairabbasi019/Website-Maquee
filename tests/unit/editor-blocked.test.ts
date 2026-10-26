@@ -12,7 +12,7 @@ const newOffer = "00000000-0000-4000-8000-000000000077";
 const CHANGES: DraftChange[] = [
   { kind: "package", id: ids.gold, value: { ...gold, pricePerGuestPaisa: 450_000 } },
   { kind: "offer", id: ids.offer, value: { ...offer, title: "Winter saver" } },
-  { kind: "offer", id: newOffer, value: { ...offer, discountKind: null, discountValue: null, title: "New" } },
+  { kind: "offer", id: newOffer, value: { ...offer, discountKind: null, discountValue: null, startsOn: null, endsOn: null, title: "New" } },
   { kind: "package", id: ids.platinum, value: null },
   { kind: "settings", part: "theme", path: ["colors", "primary"], value: "#000000" },
   { kind: "settings", part: "identity", path: ["phones", "0"], value: "+920000000001" },

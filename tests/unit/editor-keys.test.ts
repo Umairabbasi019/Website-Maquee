@@ -51,7 +51,7 @@ describe("requiredKeys", () => {
     expect(requiredKeys(before, added)).toEqual(new Set(["catalogue.edit", "prices.edit"]));
 
     const noDiscount = siteDraft();
-    noDiscount.offers.push({ ...noDiscount.offers[0], id: "00000000-0000-4000-8000-000000000098", discountKind: null, discountValue: null });
+    noDiscount.offers.push({ ...noDiscount.offers[0], id: "00000000-0000-4000-8000-000000000098", discountKind: null, discountValue: null, startsOn: null, endsOn: null });
     expect(requiredKeys(before, noDiscount)).toEqual(new Set(["catalogue.edit"]));
 
     const removed = siteDraft();

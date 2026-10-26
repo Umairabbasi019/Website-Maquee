@@ -16,6 +16,8 @@ type Row = {
 
 /** Postgres exclusion_violation: the date_prices_no_overlap constraint. */
 const EXCLUSION_VIOLATION = "23P01";
+/** Postgres foreign_key_violation: an event type id that is not this venue's. */
+const FOREIGN_KEY_VIOLATION = "23503";
 
 /** Date prices of one tenant, earliest first. Needs bookings.view (RLS). */
 export async function listDatePrices(tenantId: string): Promise<DatePrice[]> {
@@ -47,6 +49,7 @@ export async function saveDatePrice(tenantId: string, input: DatePrice): Promise
     .from("date_prices")
     .upsert({ id, tenant_id: tenantId, starts_on: startsOn, ends_on: endsOn, event_type_id: eventTypeId, kind, value, label });
   if (error?.code === EXCLUSION_VIOLATION) return { error: "overlap" };
+  if (error?.code === FOREIGN_KEY_VIOLATION) return { error: "invalid" };
   if (error) throw new Error(`date_prices: ${error.message}`);
   return { ok: true };
 }

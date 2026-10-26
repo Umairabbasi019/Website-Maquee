@@ -87,7 +87,8 @@ Not built yet: audit log screen, users and permissions UI, deactivation screens 
 Known limits:
 - Uploads pass through the Next server (16 MB body limit); Vercel caps bodies at 4.5 MB, so switch to signed direct uploads before deploying there.
 - `require_publishing()` trusts `app.publishing`; a session with raw SQL as `authenticated` could set it (see `DECISIONS.md`).
-- Opening hours keep one window per day; a second window stored by hand is dropped when the hours panel saves.
+- The hours panel edits one window per day; a second window stored by hand is kept and noted, but cannot be edited there, and goes when the day is marked closed.
+- Venue and theme panels save each changed value as its own draft change; if one fails mid-way, earlier values stay in the draft (never live; Publish is atomic). One batched save action would fix it.
 - A photo with no stored size counts as square in the gallery panel.
 - A date-price check-then-save race still throws instead of returning a message.
 - Lighthouse mobile performance from M2 is unchanged: about 45-51 on Manor and 70-76 on the demo venue locally, against a target of 80. Recheck with PageSpeed Insights after the first deploy.

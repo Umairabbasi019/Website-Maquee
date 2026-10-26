@@ -16,7 +16,9 @@ export default async function EditSitePage() {
   const { viewer, venue } = await getDashboard();
   if (!venue) return null;
   if (!canAny(viewer, venue.id, SCREEN.perm)) return <Forbidden />;
-  const [{ draft, revision, changes }, site] = await Promise.all([getDraft(venue.id), getDraftView(venue.id)]);
+  // One draft read: the canvas and the revision Publish sends must be the same draft.
+  const { draft, revision, changes } = await getDraft(venue.id);
+  const site = await getDraftView(venue.id, draft);
   const keys = PERMISSIONS.filter((k) => can(viewer, venue.id, k));
   const superAdmin = keys.includes("tenant.settings.edit");
 

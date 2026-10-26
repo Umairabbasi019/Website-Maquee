@@ -11,9 +11,12 @@ const dayName = (day: number) => new Intl.DateTimeFormat("en-GB", { weekday: "lo
 
 /** Opening hours per weekday: closed, or open and close times. A close earlier than the open runs past midnight. */
 export function HoursPanel(p: SettingsProps) {
-  // shortcut: one opening window per day; a second window a day (stored by hand) is dropped on save. Make each day a list if a venue needs split hours.
+  // shortcut: only a day's first window is editable; later windows (stored by hand) are kept as they are, and
+  // dropped only when the day is marked closed. Make each day a list if a venue needs split hours.
+  const hours = p.draft.identity.openingHours;
+  const extra = hours.filter((h, i) => hours.findIndex((x) => x.day === h.day) !== i);
   const initial: Day[] = [0, 1, 2, 3, 4, 5, 6].map((day) => {
-    const h = p.draft.identity.openingHours.find((x) => x.day === day);
+    const h = hours.find((x) => x.day === day);
     return h ? { closed: false, open: h.open, close: h.close } : { closed: true, open: "", close: "" };
   });
   return (
@@ -27,7 +30,7 @@ export function HoursPanel(p: SettingsProps) {
           if (!TIME.test(d.open)) errors[`hours.${i}.open`] = t("editor.error.required");
           if (!TIME.test(d.close)) errors[`hours.${i}.close`] = t("editor.error.required");
         });
-        const value = days.flatMap((d, day) => (d.closed ? [] : [{ day, open: d.open, close: d.close }]));
+        const value = days.flatMap((d, day) => (d.closed ? [] : [{ day, open: d.open, close: d.close }, ...extra.filter((x) => x.day === day)]));
         return { changes: [{ part: "identity", path: ["openingHours"], value }], errors };
       }}
     >
@@ -44,6 +47,7 @@ export function HoursPanel(p: SettingsProps) {
                   <TextField label={t("field.closes")} type="time" value={d.close} onChange={(close) => set({ close })} error={errors[`hours.${i}.close`]} />
                 </div>
               )}
+              {!d.closed && extra.some((x) => x.day === i) && <p className="text-sm text-muted">{t("field.hoursExtra")}</p>}
               {!d.closed && TIME.test(d.open) && TIME.test(d.close) && d.close <= d.open && <p className="text-sm text-muted">{t("field.hoursHint")}</p>}
             </fieldset>
           );

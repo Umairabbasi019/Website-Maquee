@@ -31,6 +31,8 @@ const NEW_VALUE: Record<string, unknown> = {
   price_paisa: 999,
   discount_kind: "fixed",
   discount_value: 20,
+  starts_on: "2026-12-01",
+  ends_on: "2026-12-31",
 };
 
 const CATALOGUE = FIELD_PERMISSIONS.filter((r): r is typeof r & { part: CataloguePart; column: string } =>
