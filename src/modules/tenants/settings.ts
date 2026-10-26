@@ -56,7 +56,7 @@ export const LimitsSchema = z.object({
   managerLimit: z.number().int().positive(),
 });
 
-export const HERO_MODES = ["photos", "depth", "sequence"] as const;
+export const HERO_MODES = ["photos", "depth"] as const;
 
 const Text = z.string().min(1);
 // 1 to 3 display lines; `*word*` marks the accent italic.

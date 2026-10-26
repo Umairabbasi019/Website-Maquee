@@ -1,5 +1,4 @@
-export { buildSiteView, getPublicSite, type RawSite } from "./server/load";
-export { SECTION_COMPONENTS } from "./sections";
+export { buildSiteView, getPublicSite } from "./server/load";
 export { eventVenueJsonLd, siteMetadata } from "./seo";
 export { themeStyle } from "./theme";
 export { SiteShell } from "./ui/SiteShell";
