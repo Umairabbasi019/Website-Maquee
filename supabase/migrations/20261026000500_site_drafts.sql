@@ -1,9 +1,15 @@
 -- M3 draft and Publish: one draft per venue (the whole site as SiteDraftSchema JSON), applied by publish_site()
 -- in one transaction. The server writes drafts with the service role; clients only read and (through publish) delete them.
 
+-- Global and never reused, so a client holding an old revision can never publish a newer draft that happens to
+-- carry the same number. The server sets revision = nextval(...) on every draft update.
+create sequence public.site_draft_revision_seq as bigint;
+revoke all on sequence public.site_draft_revision_seq from public, anon, authenticated;
+grant usage on sequence public.site_draft_revision_seq to service_role;
+
 create table site_drafts (
   tenant_id uuid primary key references tenants (id) on delete cascade,
-  revision int not null default 1,
+  revision bigint not null default nextval('public.site_draft_revision_seq'),
   payload jsonb not null,
   changes jsonb not null default '{}', -- itemKey -> { by uuid, name text, at timestamptz }
   updated_at timestamptz default now()
@@ -11,20 +17,34 @@ create table site_drafts (
 
 alter table site_drafts enable row level security;
 
-create policy site_drafts_read on site_drafts for select to authenticated
-  using (public.auth_has_perm(tenant_id, 'catalogue.edit') or public.auth_has_perm(tenant_id, 'prices.edit')
-         or public.auth_has_perm(tenant_id, 'venue.info.edit') or public.auth_has_perm(tenant_id, 'tenant.settings.edit')
-         or public.auth_has_perm(tenant_id, 'media.manage'));
-create policy site_drafts_delete on site_drafts for delete to authenticated
-  using (public.auth_has_perm(tenant_id, 'catalogue.edit') or public.auth_has_perm(tenant_id, 'prices.edit')
-         or public.auth_has_perm(tenant_id, 'venue.info.edit') or public.auth_has_perm(tenant_id, 'tenant.settings.edit')
-         or public.auth_has_perm(tenant_id, 'media.manage'));
+-- Holds any key that edits part of the site, so may see the draft and the live site it is based on.
+create function public.is_site_editor(p_tenant uuid) returns boolean
+language sql stable set search_path = '' as $$
+  select public.auth_has_perm(p_tenant, 'catalogue.edit') or public.auth_has_perm(p_tenant, 'prices.edit')
+    or public.auth_has_perm(p_tenant, 'venue.info.edit') or public.auth_has_perm(p_tenant, 'tenant.settings.edit')
+    or public.auth_has_perm(p_tenant, 'media.manage');
+$$;
+
+-- Clients (authenticated/anon) must be site editors of the tenant; server sessions are trusted.
+create function public.require_site_editor(p_tenant uuid) returns void
+language plpgsql stable set search_path = '' as $$
+begin
+  if current_setting('role') in ('authenticated', 'anon') and not public.is_site_editor(p_tenant) then
+    raise exception 'needs a site editing key' using errcode = '42501';
+  end if;
+end $$;
+
+create policy site_drafts_read on site_drafts for select to authenticated using (public.is_site_editor(tenant_id));
+create policy site_drafts_delete on site_drafts for delete to authenticated using (public.is_site_editor(tenant_id));
 
 -- The published site in the editor's shape (src/modules/editor/draft.ts SiteDraftSchema; camelCase row keys).
--- Invoker, so a client sees only what RLS lets it read.
+-- Definer: a key holder must see the whole live site even where RLS would hide part of it (a prices.edit-only
+-- member cannot read tenant_settings), or publish would diff against a partial snapshot.
 create function public.site_snapshot(p_tenant uuid) returns jsonb
-language sql stable security invoker set search_path = '' as $$
-  select jsonb_build_object(
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform public.require_site_editor(p_tenant);
+  return (select jsonb_build_object(
     'identity', s.identity, 'theme', s.theme, 'sections', s.sections, 'messaging', s.messaging, 'content', s.content,
     'events', coalesce((select jsonb_agg(jsonb_build_object(
         'id', e.id, 'slug', e.slug, 'name', e.name, 'description', e.description, 'mediaKey', e.media_key,
@@ -49,8 +69,20 @@ language sql stable security invoker set search_path = '' as $$
         'mediaKeys', to_jsonb(t.media_keys), 'active', t.active, 'sort', t.sort, 'sample', t.sample) order by t.sort, t.id)
       from public.stage_themes t where t.tenant_id = p_tenant), '[]')
   )
-  from public.tenant_settings s where s.tenant_id = p_tenant;
-$$;
+  from public.tenant_settings s where s.tenant_id = p_tenant);
+end $$;
+
+-- Name of an event in p_events that still has date prices (deleting it would cascade them away unaudited), else null.
+-- Definer so date prices hidden from the caller by RLS still count.
+create function public.event_with_date_prices(p_tenant uuid, p_events uuid[]) returns text
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform public.require_site_editor(p_tenant);
+  return (select e.name from public.event_types e
+          where e.tenant_id = p_tenant and e.id = any(p_events)
+            and exists (select 1 from public.date_prices d where d.tenant_id = p_tenant and d.event_type_id = e.id)
+          order by e.name limit 1);
+end $$;
 
 -- What changed between two snapshots: settings parts by top-level key (a non-object part whole),
 -- catalogue parts by row id (rows added, removed or changed). Equal inputs give { before: {}, after: {} }.
@@ -102,7 +134,7 @@ end $$;
 -- triggers check each changed key (a draft holding a change the caller has no key for fails as a whole).
 -- Only differing rows and parts are written, so unchanged ones need no key. Any error rolls back everything,
 -- the draft delete included.
-create function public.publish_site(p_tenant uuid, p_revision int) returns jsonb
+create function public.publish_site(p_tenant uuid, p_revision bigint) returns jsonb
 language plpgsql volatile security invoker set search_path = '' as $$
 declare
   v_tables constant jsonb := '{"events": "event_types", "packages": "packages", "offers": "offers",
@@ -115,6 +147,7 @@ declare
   v_row jsonb;
   v_cols text;
   v_gone uuid[];
+  v_event text;
 begin
   perform set_config('app.publishing', 'on', true);
 
@@ -157,6 +190,12 @@ begin
       from jsonb_array_elements(coalesce(v_diff #> array['before', v_part], '[]')) o (r)
       where not exists (select 1 from jsonb_array_elements(v_diff #> array['after', v_part]) n (r) where n.r ->> 'id' = o.r ->> 'id');
     continue when v_gone is null;
+    if v_part = 'events' then
+      v_event := public.event_with_date_prices(p_tenant, v_gone);
+      if v_event is not null then
+        raise exception 'event has date prices: %', v_event using errcode = '42501';
+      end if;
+    end if;
     execute format('delete from public.%I where tenant_id = $1 and id = any($2)', v_tables ->> v_part) using p_tenant, v_gone;
   end loop;
 
@@ -183,10 +222,14 @@ begin
   end if;
 
   perform public.record_audit(p_tenant, 'site.publish', 'site', p_tenant, v_diff -> 'before', v_diff -> 'after', null);
+  -- Later statements in the caller's transaction write as clients again.
+  perform set_config('app.publishing', 'off', true);
   return v_diff;
 end $$;
 
-revoke execute on function public.site_snapshot(uuid), public.site_diff(jsonb, jsonb), public.publish_site(uuid, int)
+revoke execute on function public.is_site_editor(uuid), public.require_site_editor(uuid), public.site_snapshot(uuid),
+  public.event_with_date_prices(uuid, uuid[]), public.site_diff(jsonb, jsonb), public.publish_site(uuid, bigint)
   from public, anon;
-grant execute on function public.site_snapshot(uuid), public.site_diff(jsonb, jsonb), public.publish_site(uuid, int)
+grant execute on function public.is_site_editor(uuid), public.require_site_editor(uuid), public.site_snapshot(uuid),
+  public.event_with_date_prices(uuid, uuid[]), public.site_diff(jsonb, jsonb), public.publish_site(uuid, bigint)
   to authenticated, service_role;

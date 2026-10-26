@@ -25,7 +25,7 @@ async function expectReject(c: Client, sql: string, params: unknown[], re: RegEx
 
 const PUBLISH = "select public.publish_site($1, $2) as diff";
 
-const ids = { manor: "", manager: "", accounts: "", admin: "", membership: "", gold: "", barat: "" };
+const ids = { manor: "", demo: "", manager: "", demoManager: "", accounts: "", staff: "", admin: "", membership: "", gold: "", barat: "" };
 
 beforeAll(async () => {
   const c = new pg.Client({ connectionString: url });
@@ -34,7 +34,10 @@ beforeAll(async () => {
     ids.manor = await one(c, "select id from tenants where slug = 'manor'");
     const user = (email: string) => one(c, "select id from auth.users where email = $1", [email]);
     ids.manager = await user("manager1@manor.test");
+    ids.demo = await one(c, "select id from tenants where slug = 'demo-hall'");
+    ids.demoManager = await user("manager1@demo-hall.test");
     ids.accounts = await user("accounts@manor.test");
+    ids.staff = await user("staff@manor.test");
     ids.admin = await user("super@demo.test");
     ids.membership = await one(c, "select id from memberships where tenant_id = $1 and user_id = $2", [ids.manor, ids.manager]);
     ids.barat = await one(c, "select id from event_types where tenant_id = $1 and slug = 'barat'", [ids.manor]);
@@ -52,9 +55,13 @@ const setInRow = (part: string, id: string, path: string, value: string) =>
 const GOLD_PRICE = () => setInRow("packages", ids.gold, "pricePerGuestPaisa", "450000");
 
 /** Saves a draft the way the server does (service side), from the live snapshot `s` edited by `edit`. */
-async function saveDraft(c: Client | pg.Client, edit: string, tenant = ids.manor) {
+async function saveDraft(c: Client | pg.Client, edit: string, tenant = ids.manor): Promise<string> {
   await c.query("reset role");
-  await c.query(`insert into site_drafts (tenant_id, payload) select $1, ${edit} from (select public.site_snapshot($1) as s) x`, [tenant]);
+  return one(
+    c,
+    `insert into site_drafts (tenant_id, payload) select $1, ${edit} from (select public.site_snapshot($1) as s) x returning revision`,
+    [tenant],
+  );
 }
 
 const goldPrice = (c: Client) => one<number>(c, "select price_per_guest_paisa from packages where id = $1", [ids.gold]);
@@ -69,7 +76,40 @@ async function override(c: Client, key: string, granted: boolean) {
   );
 }
 
+/** Overrides every tenant key of the Manor manager so that only `keys` are held. */
+async function onlyKeys(c: Client, keys: string[]) {
+  await c.query("reset role");
+  await c.query(
+    `insert into membership_overrides (membership_id, permission_key, granted)
+     select $1, key, key = any($2) from permissions where key not like 'platform.%'
+     on conflict (membership_id, permission_key) do update set granted = excluded.granted`,
+    [ids.membership, keys],
+  );
+}
+
+const WITHOUT_BARAT = () =>
+  `jsonb_set(jsonb_set(s #- '{content,packages,defaultEvent}',
+     '{events}', (select jsonb_agg(r) from jsonb_array_elements(s -> 'events') r where r ->> 'id' <> '${ids.barat}')),
+     '{packages}', coalesce((select jsonb_agg(r) from jsonb_array_elements(s -> 'packages') r where r ->> 'eventTypeId' <> '${ids.barat}'), '[]'))`;
+
 describe("site_snapshot", () => {
+  it.each(["manor", "demo-hall"])("round-trips SiteDraftSchema unchanged for %s", (slug) =>
+    withDb(async (c) => {
+      const snap = await one(c, "select public.site_snapshot(id) from tenants where slug = $1", [slug]);
+      expect(SiteDraftSchema.parse(snap)).toEqual(snap);
+    }));
+
+  it("is readable with media.manage alone, but not by another tenant's manager", () =>
+    withDb(async (c) => {
+      await onlyKeys(c, ["media.manage"]);
+      await asUser(c, ids.manager);
+      expect(await one(c, "select public.site_snapshot($1) -> 'identity' ->> 'name'", [ids.manor])).toBeTruthy();
+      await asUser(c, ids.demoManager);
+      await c.query("savepoint other");
+      await expect(c.query("select public.site_snapshot($1)", [ids.manor])).rejects.toMatchObject({ code: "42501" });
+      await c.query("rollback to savepoint other");
+    }));
+
   it("returns the shape SiteDraftSchema parses, for the manager", () =>
     withDb(async (c) => {
       await asUser(c, ids.manager);
@@ -92,14 +132,15 @@ describe("publish_site", () => {
   it("publishes a Gold price change: that package only, draft gone, one audit row with only that package", () =>
     withDb(async (c) => {
       const before = (await c.query("select id, price_per_guest_paisa from packages where tenant_id = $1 order by id", [ids.manor])).rows;
-      await saveDraft(c, GOLD_PRICE());
+      const rev = await saveDraft(c, GOLD_PRICE());
       await asUser(c, ids.manager);
-      const diff = await one<{ before: Record<string, unknown>; after: Record<string, unknown> }>(c, PUBLISH, [ids.manor, 1]);
+      const diff = await one<{ before: Record<string, unknown>; after: Record<string, unknown> }>(c, PUBLISH, [ids.manor, rev]);
       await c.query("reset role");
 
       const after = (await c.query("select id, price_per_guest_paisa from packages where tenant_id = $1 order by id", [ids.manor])).rows;
       expect(after).toEqual(before.map((p) => (p.id === ids.gold ? { ...p, price_per_guest_paisa: 450000 } : p)));
       expect(await draftCount(c)).toBe(0);
+      expect(await one(c, "select current_setting('app.publishing')")).toBe("off");
 
       expect(Object.keys(diff.before)).toEqual(["packages"]);
       expect(Object.keys(diff.after)).toEqual(["packages"]);
@@ -111,12 +152,66 @@ describe("publish_site", () => {
       expect(audit.rows[0]).toMatchObject({ before: diff.before, after: diff.after, actor_user_id: ids.manager, entity: "site" });
     }));
 
+  it("publishes with only prices.edit and bookings.view", () =>
+    withDb(async (c) => {
+      const rev = await saveDraft(c, GOLD_PRICE());
+      await onlyKeys(c, ["prices.edit", "bookings.view"]);
+      await asUser(c, ids.manager);
+      const diff = await one<{ after: Record<string, unknown> }>(c, PUBLISH, [ids.manor, rev]);
+      expect(Object.keys(diff.after)).toEqual(["packages"]);
+      await c.query("reset role");
+      expect(await goldPrice(c)).toBe(450000);
+    }));
+
+  it("never reuses a revision: an old one cannot publish a newer draft", () =>
+    withDb(async (c) => {
+      const old = await saveDraft(c, GOLD_PRICE());
+      await asUser(c, ids.manager);
+      await c.query(PUBLISH, [ids.manor, old]);
+      const rev = await saveDraft(c, setInRow("packages", ids.gold, "pricePerGuestPaisa", "460000"));
+      expect(rev).not.toBe(old);
+      await asUser(c, ids.manager);
+      await expectReject(c, PUBLISH, [ids.manor, old], /site_changed/);
+      await c.query("reset role");
+      expect(await goldPrice(c)).toBe(450000);
+      expect(await draftCount(c)).toBe(1);
+    }));
+
+  it("refuses removing an event that has date prices", () =>
+    withDb(async (c) => {
+      await c.query(
+        "insert into date_prices (tenant_id, event_type_id, starts_on, ends_on, kind, value, label) values ($1, $2, '2030-01-01', '2030-01-02', 'percent', 10, 'Test')",
+        [ids.manor, ids.barat],
+      );
+      const rev = await saveDraft(c, WITHOUT_BARAT());
+      await asUser(c, ids.manager);
+      await expectReject(c, PUBLISH, [ids.manor, rev], /event has date prices: Barat/);
+      await c.query("reset role");
+      expect(await one<number>(c, "select count(*)::int from packages where event_type_id = $1", [ids.barat])).toBeGreaterThan(0);
+      expect(await one<number>(c, "select count(*)::int from date_prices where event_type_id = $1", [ids.barat])).toBe(1);
+      expect(await draftCount(c)).toBe(1);
+    }));
+
+  it("refuses another tenant's manager, accounts and staff with site_changed, and anon cannot call it", () =>
+    withDb(async (c) => {
+      const rev = await saveDraft(c, GOLD_PRICE());
+      for (const user of [ids.demoManager, ids.accounts, ids.staff]) {
+        await asUser(c, user);
+        await expectReject(c, PUBLISH, [ids.manor, rev], /site_changed/);
+      }
+      await asUser(c, null);
+      await expectReject(c, PUBLISH, [ids.manor, rev], /permission denied for function publish_site/);
+      await c.query("reset role");
+      expect(await goldPrice(c)).toBe(420000);
+      expect(await draftCount(c)).toBe(1);
+    }));
+
   it("refuses a stale revision with site_changed and changes nothing", () =>
     withDb(async (c) => {
-      await saveDraft(c, GOLD_PRICE());
+      const rev = await saveDraft(c, GOLD_PRICE());
       await asUser(c, ids.manager);
       await c.query("savepoint stale");
-      await expect(c.query(PUBLISH, [ids.manor, 2])).rejects.toMatchObject({ code: "40001", message: expect.stringMatching(/site_changed/) });
+      await expect(c.query(PUBLISH, [ids.manor, Number(rev) + 1])).rejects.toMatchObject({ code: "40001", message: expect.stringMatching(/site_changed/) });
       await c.query("rollback to savepoint stale");
       await c.query("reset role");
       expect(await goldPrice(c)).toBe(420000);
@@ -126,9 +221,9 @@ describe("publish_site", () => {
   it("refuses a manager's draft holding a theme change, applies nothing and keeps the draft", () =>
     withDb(async (c) => {
       const theme = await one(c, "select theme from tenant_settings where tenant_id = $1", [ids.manor]);
-      await saveDraft(c, `jsonb_set(${GOLD_PRICE()}, '{theme,colors,primary}', '"#123456"')`);
+      const rev = await saveDraft(c, `jsonb_set(${GOLD_PRICE()}, '{theme,colors,primary}', '"#123456"')`);
       await asUser(c, ids.manager);
-      await expectReject(c, PUBLISH, [ids.manor, 1], /needs tenant\.settings\.edit/);
+      await expectReject(c, PUBLISH, [ids.manor, rev], /needs tenant\.settings\.edit/);
       await c.query("reset role");
       expect(await goldPrice(c)).toBe(420000);
       expect(await one(c, "select theme from tenant_settings where tenant_id = $1", [ids.manor])).toEqual(theme);
@@ -137,10 +232,10 @@ describe("publish_site", () => {
 
   it("refuses a price change after prices.edit is revoked, keeping the draft", () =>
     withDb(async (c) => {
-      await saveDraft(c, GOLD_PRICE());
+      const rev = await saveDraft(c, GOLD_PRICE());
       await override(c, "prices.edit", false);
       await asUser(c, ids.manager);
-      await expectReject(c, PUBLISH, [ids.manor, 1], /needs prices\.edit/);
+      await expectReject(c, PUBLISH, [ids.manor, rev], /needs prices\.edit/);
       await c.query("reset role");
       expect(await goldPrice(c)).toBe(420000);
       expect(await draftCount(c)).toBe(1);
@@ -148,14 +243,9 @@ describe("publish_site", () => {
 
   it("publishes a draft without the Barat event, its packages and defaultEvent", () =>
     withDb(async (c) => {
-      await saveDraft(
-        c,
-        `jsonb_set(jsonb_set(s #- '{content,packages,defaultEvent}',
-           '{events}', (select jsonb_agg(r) from jsonb_array_elements(s -> 'events') r where r ->> 'id' <> '${ids.barat}')),
-           '{packages}', coalesce((select jsonb_agg(r) from jsonb_array_elements(s -> 'packages') r where r ->> 'eventTypeId' <> '${ids.barat}'), '[]'))`,
-      );
+      const rev = await saveDraft(c, WITHOUT_BARAT());
       await asUser(c, ids.manager);
-      await c.query(PUBLISH, [ids.manor, 1]);
+      await c.query(PUBLISH, [ids.manor, rev]);
       await c.query("reset role");
       expect(await one<number>(c, "select count(*)::int from event_types where tenant_id = $1 and slug = 'barat'", [ids.manor])).toBe(0);
       expect(await one<number>(c, "select count(*)::int from packages where event_type_id = $1", [ids.barat])).toBe(0);
@@ -165,12 +255,12 @@ describe("publish_site", () => {
 
   it("refuses a draft that removes an event but keeps its packages, since the cascade would drop them", () =>
     withDb(async (c) => {
-      await saveDraft(
+      const rev = await saveDraft(
         c,
         `jsonb_set(s, '{events}', (select jsonb_agg(r) from jsonb_array_elements(s -> 'events') r where r ->> 'id' <> '${ids.barat}'))`,
       );
       await asUser(c, ids.manager);
-      await expectReject(c, PUBLISH, [ids.manor, 1], /publish could not apply the whole draft/);
+      await expectReject(c, PUBLISH, [ids.manor, rev], /publish could not apply the whole draft/);
       await c.query("reset role");
       expect(await one<number>(c, "select count(*)::int from packages where event_type_id = $1", [ids.barat])).toBeGreaterThan(0);
       expect(await draftCount(c)).toBe(1);
@@ -178,9 +268,9 @@ describe("publish_site", () => {
 
   it("lets a platform admin change the venue name, which also renames the tenant", () =>
     withDb(async (c) => {
-      await saveDraft(c, `jsonb_set(s, '{identity,name}', '"Manor Renamed"')`);
+      const rev = await saveDraft(c, `jsonb_set(s, '{identity,name}', '"Manor Renamed"')`);
       await asUser(c, ids.admin, "aal2");
-      await c.query(PUBLISH, [ids.manor, 1]);
+      await c.query(PUBLISH, [ids.manor, rev]);
       await c.query("reset role");
       expect(await one(c, "select name from tenants where id = $1", [ids.manor])).toBe("Manor Renamed");
       expect(await one(c, "select identity ->> 'name' from tenant_settings where tenant_id = $1", [ids.manor])).toBe("Manor Renamed");
@@ -188,12 +278,12 @@ describe("publish_site", () => {
 
   it("refuses a venue name change by a manager, even with tenant.settings.edit", () =>
     withDb(async (c) => {
-      await saveDraft(c, `jsonb_set(s, '{identity,name}', '"Manor Renamed"')`);
+      const rev = await saveDraft(c, `jsonb_set(s, '{identity,name}', '"Manor Renamed"')`);
       await asUser(c, ids.manager);
-      await expectReject(c, PUBLISH, [ids.manor, 1], /needs tenant\.settings\.edit/);
+      await expectReject(c, PUBLISH, [ids.manor, rev], /needs tenant\.settings\.edit/);
       await override(c, "tenant.settings.edit", true);
       await asUser(c, ids.manager);
-      await expectReject(c, PUBLISH, [ids.manor, 1], /venue name needs a platform admin/);
+      await expectReject(c, PUBLISH, [ids.manor, rev], /venue name needs a platform admin/);
       await c.query("reset role");
       expect(await one(c, "select identity ->> 'name' from tenant_settings where tenant_id = $1", [ids.manor])).not.toBe("Manor Renamed");
       expect(await draftCount(c)).toBe(1);
@@ -207,12 +297,12 @@ describe("publish_site", () => {
     try {
       await setup.query("insert into accounts (id, name) values ($1, 'Race')", [t.account]);
       await setup.query("insert into tenants (id, account_id, slug, name) values ($1, $2, $3, 'Race')", [t.tenant, t.account, `race-${t.tenant}`]);
-      await saveDraft(setup, `jsonb_set(s, '{theme}', '{"race": 1}')`, t.tenant);
+      const rev = await saveDraft(setup, `jsonb_set(s, '{theme}', '{"race": 1}')`, t.tenant);
 
       await a.query("begin");
       await b.query("begin");
-      await a.query(PUBLISH, [t.tenant, 1]); // holds the draft row lock
-      const bPublish = b.query(PUBLISH, [t.tenant, 1]).then(
+      await a.query(PUBLISH, [t.tenant, rev]); // holds the draft row lock
+      const bPublish = b.query(PUBLISH, [t.tenant, rev]).then(
         () => "ok",
         (e: Error) => e.message,
       );
@@ -255,7 +345,9 @@ describe("site_drafts", () => {
   it("anon and accounts read no drafts; the manager cannot insert but reads the saved one", () =>
     withDb(async (c) => {
       await asUser(c, ids.manager);
-      await expectReject(c, "insert into site_drafts (tenant_id, payload) values ($1, '{}')", [ids.manor], /row-level security/);
+      await expectReject(c, "insert into site_drafts (tenant_id, payload) values ($1, '{}')", [ids.manor], /permission denied for sequence/);
+      // With an explicit revision the sequence is not used, so RLS is what refuses it.
+      await expectReject(c, "insert into site_drafts (tenant_id, revision, payload) values ($1, 1, '{}')", [ids.manor], /row-level security/);
       await saveDraft(c, "s");
       await asUser(c, null);
       expect(await draftCount(c)).toBe(0);
