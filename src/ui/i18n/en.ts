@@ -162,6 +162,14 @@ export const en = {
   "edit.address": "Edit address",
   "edit.manager": "Edit manager",
   "edit.galleryTiles": "Edit gallery photos",
+  "editor.siteChanged": "The site changed while you were editing. Review it and publish again.",
+  "editor.blocked": "Some changes need a permission you don't have:",
+  "editor.invalid": "Fix these before publishing:",
+  "editor.eventHasDatePrices": "Remove this event's date prices in Settings first:",
+  "editor.forbidden": "You don't have permission to make this change.",
+  "editor.badChange": "This change could not be saved. Check the values and try again.",
+  "editor.busy": "Others are saving changes right now. Try again in a moment.",
+  "editor.noVenue": "Choose a venue first.",
 } as const;
 
 export type TranslationKey = keyof typeof en;

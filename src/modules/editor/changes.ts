@@ -4,7 +4,7 @@ import { ROW_TABLES, SETTINGS_PARTS, SiteDraftSchema, type RowKind, type Setting
 import { mediaRefs } from "./media-usage";
 
 export class DraftError extends Error {
-  constructor(readonly code: "unknownItem" | "badPath") {
+  constructor(readonly code: "unknownItem" | "badPath" | "busy") {
     super(code);
     this.name = "DraftError";
   }
