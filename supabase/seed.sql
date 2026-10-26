@@ -7,7 +7,7 @@ insert into tenant_templates (name, payload) values ('Standard marquee', $json$
   "settings": {
     "identity": { "name": "", "phones": [], "openingHours": [], "social": {} },
     "theme": {
-      "colors": { "primary": "#c2a878", "background": "#ece7df", "text": "#2b2a28", "muted": "#8a857d", "deep": "#9c7a3c" },
+      "colors": { "primary": "#785e2c", "background": "#ece7df", "text": "#2b2a28", "muted": "#5c574f", "deep": "#d9cdb7" },
       "fonts": { "heading": "Cormorant Garamond", "body": "Inter" }
     },
     "sections": [
