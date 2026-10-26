@@ -23,7 +23,6 @@ export function siteMetadata(view: SiteView, primaryHost: string): Metadata {
 
 export function eventVenueJsonLd(view: SiteView, primaryHost: string) {
   const { phone, address, map } = view.contact;
-  const rating = view.content.gallery.rating;
   const image = imageUrl(view);
   return {
     "@context": "https://schema.org",
@@ -34,6 +33,5 @@ export function eventVenueJsonLd(view: SiteView, primaryHost: string) {
     ...(phone && { telephone: phone }),
     ...(address && { address: { "@type": "PostalAddress", streetAddress: address } }),
     ...(map && { geo: { "@type": "GeoCoordinates", latitude: map.lat, longitude: map.lng } }),
-    ...(rating && { aggregateRating: { "@type": "AggregateRating", ratingValue: rating.value, reviewCount: rating.count } }),
   };
 }

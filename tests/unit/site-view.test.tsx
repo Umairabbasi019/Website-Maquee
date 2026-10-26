@@ -73,15 +73,11 @@ describe("siteMetadata", () => {
 });
 
 describe("eventVenueJsonLd", () => {
-  it("omits aggregateRating when the gallery has no rating", () => {
-    const content = { ...manorContent, gallery: { ...manorContent.gallery, rating: undefined } };
-    const ld = eventVenueJsonLd(buildSiteView(raw({ content })), "manor.test");
+  // A venue's own rating is self-serving review markup, which Google ignores for local businesses.
+  it("never marks up the venue's own rating, but includes address and geo when present", () => {
+    const ld = eventVenueJsonLd(buildSiteView(raw()), "manor.test");
     expect(ld["@type"]).toBe("EventVenue");
     expect(ld).not.toHaveProperty("aggregateRating");
-  });
-  it("includes the rating, address and geo when present", () => {
-    const ld = eventVenueJsonLd(buildSiteView(raw()), "manor.test");
-    expect(ld.aggregateRating).toMatchObject({ ratingValue: 4.5, reviewCount: 829 });
     expect(ld.geo).toMatchObject({ latitude: 33.6476537 });
     expect(ld.telephone).toBe("+923085021418");
   });
