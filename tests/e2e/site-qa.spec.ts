@@ -97,3 +97,14 @@ test("nav links land on their section at 375px", async ({ page }) => {
     await expect.poll(() => page.evaluate((i) => Math.abs(document.getElementById(i)!.getBoundingClientRect().top), id), { timeout: 10_000 }).toBeLessThanOrEqual(2);
   }
 });
+
+// Without JavaScript the phone nav keeps every link in the bar, so it must not sit over the section a link jumps to.
+test("without JavaScript the phone nav does not cover the packages heading", async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 375, height: 667 } });
+  const page = await context.newPage();
+  await page.goto(`${TENANT_BASE}/#packages`);
+  const navBottom = await page.locator("nav").first().evaluate((n) => n.getBoundingClientRect().bottom);
+  const titleTop = await page.locator("#packages .chap").evaluate((h) => h.getBoundingClientRect().top);
+  expect(navBottom).toBeLessThanOrEqual(titleTop);
+  await context.close();
+});

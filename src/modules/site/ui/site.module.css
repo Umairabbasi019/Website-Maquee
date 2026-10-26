@@ -229,7 +229,17 @@
     padding: 11px 16px;
     font-size: 13px;
   }
-  /* Without JavaScript the menu button cannot work, so the links stay in the bar. */
+  /* Without JavaScript the menu button cannot work, so the links stay in the bar, on their own row.
+     The bar then scrolls away with the page instead of covering the section a link jumps to. */
+  .chrome[data-js="false"] .nav {
+    position: absolute;
+    flex-wrap: wrap;
+    row-gap: 14px;
+  }
+  .chrome[data-js="false"] .links {
+    order: 1;
+    width: 100%;
+  }
   .chrome[data-js="true"] .links {
     display: none;
   }
