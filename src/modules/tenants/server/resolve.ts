@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createServiceClient } from "@/modules/access";
 
 export type ResolvedTenant = { tenantId: string; status: "setup" | "live" | "paused" };
@@ -52,3 +53,18 @@ function toResolved(row: unknown): ResolvedTenant {
   const t = (Array.isArray(row) ? row[0] : row) as { id: string; status: ResolvedTenant["status"] };
   return { tenantId: t.id, status: t.status };
 }
+
+/**
+ * The tenant's primary verified host, for canonical links. Read with the tenant ID the proxy set, never a browser value.
+ * Cached per request, since page metadata and the page body both ask.
+ */
+export const getPrimaryHost = cache(async (tenantId: string): Promise<string | null> => {
+  const { data, error } = await createServiceClient()
+    .from("tenant_domains")
+    .select("host")
+    .eq("tenant_id", tenantId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  if (error) throw new Error(`getPrimaryHost: ${error.message}`);
+  return data?.host ?? null;
+});

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { eventVenueJsonLd, getPublicSite, siteMetadata, SiteShell } from "@/modules/site";
-import { isPlatformHost, normalizeHost } from "@/modules/tenants";
+import { getPrimaryHost, isPlatformHost, normalizeHost } from "@/modules/tenants";
 import { t } from "@/ui/i18n";
 
 // Allowed to block: the page renders whole per request with no Suspense boundary, because React outlines a large
@@ -18,12 +18,16 @@ async function request() {
   return { tenantId, status: h.get("x-tenant-status"), host: normalizeHost(host) };
 }
 
+// Canonical host: the primary domain from the database. The request host is only a fallback for a tenant with no
+// primary set yet (reached via <slug>.<PLATFORM_HOST>), and it already resolved to this tenant in the proxy.
+const canonicalHost = async (tenantId: string, requestHost: string) => (await getPrimaryHost(tenantId)) ?? requestHost;
+
 export async function generateMetadata(): Promise<Metadata> {
   const { tenantId, status, host } = await request();
   if (!tenantId) return {};
   if (status === "paused") return { robots: { index: false } };
   const site = await getPublicSite(tenantId);
-  return site ? siteMetadata(site, host) : {};
+  return site ? siteMetadata(site, await canonicalHost(tenantId, host)) : {};
 }
 
 export default async function HomePage() {
@@ -50,7 +54,7 @@ export default async function HomePage() {
       <script
         type="application/ld+json"
         // "<" is escaped so venue text can never close the script tag.
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(eventVenueJsonLd(site, host)).replace(/</g, "\\u003c") }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(eventVenueJsonLd(site, await canonicalHost(tenantId, host))).replace(/</g, "\\u003c") }}
       />
       <SiteShell site={site} />
     </>

@@ -58,7 +58,7 @@ begin
     insert into tenant_features (tenant_id, feature_key, enabled)
     select v_tenant, f.key, f.value::text::boolean from jsonb_each(v_template -> 'features') f;
 
-    insert into tenant_domains (tenant_id, host, verified_at) values (v_tenant, v_def.host, now());
+    insert into tenant_domains (tenant_id, host, verified_at, is_primary) values (v_tenant, v_def.host, now(), true);
     insert into halls (tenant_id, name, capacity_min, capacity_max) values (v_tenant, 'Main hall', 100, 500);
     insert into slots (tenant_id, name, start_time, end_time) values
       (v_tenant, 'Lunch', '12:00', '16:00'),

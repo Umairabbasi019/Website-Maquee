@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { resolveTenantByHost } from "@/modules/tenants";
+import { getPrimaryHost, resolveTenantByHost } from "@/modules/tenants";
 
 // resolveTenantByHost goes through PostgREST, so rows must be committed (not rolled back).
 const pool = new pg.Pool({
@@ -54,6 +54,12 @@ describe("resolveTenantByHost", () => {
 
   it("does not resolve an unverified custom domain", async () => {
     expect(await resolveTenantByHost(unverifiedHost)).toBeNull();
+  });
+
+  it("gives the primary domain, or null before one is set", async () => {
+    expect(await getPrimaryHost(tenantId)).toBeNull();
+    await pool.query("update tenant_domains set is_primary = true where host = $1", [verifiedHost]);
+    expect(await getPrimaryHost(tenantId)).toBe(verifiedHost);
   });
 
   it("does not treat the platform host itself or nested labels as a slug", async () => {

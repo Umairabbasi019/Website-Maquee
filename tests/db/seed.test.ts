@@ -60,7 +60,7 @@ describe("seeded demo tenants", () => {
 
   it("has domains, halls and the lunch and dinner slots", async () => {
     const { rows } = await pool.query(
-      `select t.slug, d.host,
+      `select t.slug, d.host, d.is_primary,
               (select count(*)::int from halls h where h.tenant_id = t.id) as halls,
               (select string_agg(s.name || ' ' || s.start_time || '-' || s.end_time, ', ' order by s.start_time)
                  from slots s where s.tenant_id = t.id) as slots
@@ -68,7 +68,7 @@ describe("seeded demo tenants", () => {
        where t.slug = any($1) order by t.slug`,
       [slugs],
     );
-    expect(rows.map((r) => [r.slug, r.host])).toEqual([["demo-hall", "demo.localhost"], ["manor", "manor.localhost"]]);
+    expect(rows.map((r) => [r.slug, r.host, r.is_primary])).toEqual([["demo-hall", "demo.localhost", true], ["manor", "manor.localhost", true]]);
     for (const r of rows) {
       expect(r.halls).toBeGreaterThan(0);
       expect(r.slots).toBe("Lunch 12:00:00-16:00:00, Dinner 19:00:00-23:00:00");

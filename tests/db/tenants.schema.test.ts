@@ -45,6 +45,20 @@ describe("tenants schema", () => {
       ).rejects.toThrow(/duplicate key/);
     }));
 
+  it("allows one verified primary domain per tenant", () =>
+    withDb(async (c) => {
+      const id = await newTenant(c);
+      await c.query("savepoint s");
+      await expect(
+        c.query("insert into tenant_domains (tenant_id, host, is_primary) values ($1, $2, true)", [id, "unverified.pk"]),
+      ).rejects.toThrow(/tenant_domains_primary_verified/);
+      await c.query("rollback to savepoint s");
+      await c.query("insert into tenant_domains (tenant_id, host, verified_at, is_primary) values ($1, $2, now(), true)", [id, "one.pk"]);
+      await expect(
+        c.query("insert into tenant_domains (tenant_id, host, verified_at, is_primary) values ($1, $2, now(), true)", [id, "two.pk"]),
+      ).rejects.toThrow(/tenant_domains_one_primary/);
+    }));
+
   it("creates a tenant_settings row automatically", () =>
     withDb(async (c) => {
       const id = await newTenant(c);
