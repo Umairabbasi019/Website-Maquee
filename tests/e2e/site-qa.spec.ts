@@ -22,6 +22,17 @@ for (const base of VENUES) {
       await scrollThrough(page);
       const [scrollWidth, viewWidth] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
       expect(scrollWidth).toBeLessThanOrEqual(viewWidth);
+      // .site clips overflow-x, so scrollWidth alone cannot catch text pushed past the edge; check the text itself.
+      const overflowing = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>("h1, h2, h3, h4, p, a, button, label, li, output")]
+          .filter((el) => !el.closest('#gallery [class*="reel"]')) // the gallery reel rows drift sideways by design
+          .filter((el) => {
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0 && el.checkVisibility() && r.right > innerWidth + 1;
+          })
+          .map((el) => `${el.tagName.toLowerCase()}${el.className ? `.${String(el.className).split(" ").join(".")}` : ""} "${el.textContent?.trim().slice(0, 40)}"`),
+      );
+      expect(overflowing).toEqual([]);
     });
   }
 
