@@ -12,13 +12,13 @@ Postgres. Every tenant-owned table has `tenant_id uuid not null` (the venue's te
 - `tenant_features` (tenant_id, feature_key, enabled) pk (tenant_id, feature_key)
 - `tenant_secrets` (tenant_id, kind, ciphertext, updated_by, updated_at) — never readable by clients
 - `tenant_templates` (id, name, payload jsonb)
-- `halls` (id, tenant_id, name, capacity_min, capacity_max, is_active)
+- `halls` (id, tenant_id, name, capacity_min, capacity_max, is_active, `hire_price_paisa` int null; M3) — writes audited by trigger, hire price needs `prices.edit`
 - `slots` (id, tenant_id, name `lunch|dinner|…`, start_time, end_time, buffer_minutes)
 
 ### access
 - `profiles` (user_id pk → auth users, full_name, phone)
 - `platform_admins` (user_id pk)
-- `permissions` (key pk, description) — seeded list from `JOURNEYS.md`
+- `permissions` (key pk, description) — seeded list from `JOURNEYS.md` (`venue.info.edit` added in M3)
 - `roles` (id, tenant_id null for built-in, name)
 - `role_permissions` (role_id, permission_key)
 - `memberships` (id, tenant_id, user_id, role_id, is_active, deactivated_at) unique (tenant_id, user_id)
@@ -26,11 +26,13 @@ Postgres. Every tenant-owned table has `tenant_id uuid not null` (the venue's te
 - `audit_events` (id, tenant_id null for platform, actor_user_id, actor_kind `user|provider|system`, action, entity, entity_id, before jsonb, after jsonb, reason, created_at) — insert-only
 
 ### catalogue
-- `event_types`, `packages` (per_guest_paisa, min_guests, event_type_id), `menu_categories`, `menu_items`, `package_items`, `add_ons`, `stage_themes` (price_paisa, media ids, is_illustration), `offers`
+- Built: `event_types`, `packages` (per_guest_paisa, min_guests, event_type_id), `offers`, and in M3 `addons` (name, `price_paisa`, `basis` `flat|per_guest`, active, sort, sample) and `stage_themes` (name, description, `price_paisa`, `media_keys` text[], active, sort, sample). `offers` gained `discount_kind` (`percent|fixed`), `discount_value`, `starts_on`, `ends_on`, all null for a text-only offer.
+- Not built: `menu_categories`, `menu_items`, `package_items` (menus stay as the package's item list).
+- Writes on every catalogue table: RLS plus a column trigger that checks the permission key per column (price columns need `prices.edit`), and a publish-only trigger (see `DECISIONS.md`).
 
 ### calendar
 - `date_blocks` (id, tenant_id, hall_id, during tstzrange, reason)
-- `date_prices` (id, tenant_id, hall_id null = all, date, kind `peak|season|discount|special`, adjustment jsonb)
+- `date_prices` (id, tenant_id, starts_on, ends_on inclusive, event_type_id null = all events, kind `percent|per_guest`, value int non-zero, label; M3). `percent` is -90..300; `per_guest` is paisa per guest. An exclusion constraint refuses overlap within one scope (all events, or one event type). Read with `bookings.view`, write with `calendar.manage`, writes audited by trigger. The pricing service applies them in M4.
 
 ### booking
 - `customers` (id, tenant_id, name, phone_e164, whatsapp_consent_at, marketing_consent_at, opted_out_at)
@@ -57,7 +59,8 @@ Postgres. Every tenant-owned table has `tenant_id uuid not null` (the venue's te
 ### invites, operations, media
 - `invites` (id, tenant_id, booking_id, content jsonb, expires_at) · `rsvps` (invite_id, name, guests, created_at)
 - `duty_shifts` (id, tenant_id, user_id, booking_id null, starts_at, ends_at, role_label)
-- `media_assets` (id, tenant_id, storage_path, kind, category, alt_text, caption, sort_order, is_hero, is_published, source, license, attribution, width, height, variants jsonb, uploaded_by)
+- `media_assets` as built: (id, tenant_id, key, alt, category `hero|room|stage|gallery|event|logo|seo`, source, licence, sizes text[] of `s|m|l|depth`, ext, `dims` jsonb with pixel sizes per size, unique (tenant_id, key)). Files sit in the `venue-media` bucket at `<tenant_id>/<key>/<size>.<ext>`.
+- `site_drafts` (tenant_id pk, revision bigint from the global sequence `site_draft_revision_seq`, payload jsonb in the shape of `site_snapshot()`, changes jsonb itemKey → who and when, updated_at; M3). One draft per venue. Clients can read and delete it if they hold a site-editing key; only `save_site_draft()` (service role) writes it; `publish_site()` applies it.
 
 ## Double-booking rule
 
@@ -77,6 +80,7 @@ Reserving runs in one transaction: first mark this hall's expired holds as `hold
 - Token pages resolve on the server with the service role after hashing and checking the token; they return only that booking's fields.
 - `tenant_secrets` and `provider_events` have no client policies; `tenant_secrets` is also revoked from client roles. `audit_events` has a read-only policy for holders of `audit.view`; rows are added only through `record_audit()` and update/delete are blocked by trigger.
 - Owner protection: below the super admin, an owner membership cannot be deactivated, deleted, re-roled or have its overrides edited, and nobody can assign the owner role. Only the super admin changes owners (`supabase/migrations/20261020000700_owner_protection.sql`).
+- Published site content (event types, packages, offers, add-ons, stage themes, `tenant_settings`) cannot be written by a client outside Publish: a trigger refuses it unless `publish_site()` set `app.publishing`. Hall, slot and date price writes are direct but audited by trigger.
 - Negative tests: user of tenant A cannot select, update or delete any tenant B row in every table; a booking token cannot read another booking; a deactivated user gets nothing.
 
 ## Indexes

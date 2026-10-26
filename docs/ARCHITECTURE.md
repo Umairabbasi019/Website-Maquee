@@ -25,7 +25,7 @@
 
 ## Feature modules
 
-Each module lives in `src/modules/<name>/` and owns its server actions, queries, UI pieces, SQL migrations and tests. Other code imports only from `src/modules/<name>/index.ts`. A lint rule blocks imports of a module's internals. A module whose pure code a client component needs also has `client.ts`, a second public entry that must never import `server-only` code, directly or through another module's `index.ts` (it uses their `client.ts`); `index.ts` stays the server entry. Today: `tenants`, `catalogue`, `media`, `editor`.
+Each module lives in `src/modules/<name>/` and owns its server actions, queries, UI pieces, SQL migrations and tests. Other code imports only from `src/modules/<name>/index.ts`. A lint rule blocks imports of a module's internals. A module whose pure code a client component needs also has `client.ts`, a second public entry that must never import `server-only` code, directly or through another module's `index.ts` (it uses their `client.ts`); `index.ts` stays the server entry. Today: `tenants`, `catalogue`, `media`, `editor`, `calendar`.
 
 | Module | Owns |
 |---|---|
@@ -33,7 +33,7 @@ Each module lives in `src/modules/<name>/` and owns its server actions, queries,
 | `access` | Users, memberships, roles, permission keys, `can()` checks, deactivation, audit writer |
 | `site` | Building the public page from tenant config, theme tokens, section order |
 | `catalogue` | Event types, packages, menus, add-ons, stage themes, offers |
-| `calendar` | Availability, blocks, date pricing, public date calendar |
+| `calendar` | Availability, blocks, date pricing, public date calendar (built so far: date prices) |
 | `pricing` | The pricing service and quote snapshots |
 | `booking` | Enquiries, holds, state machine, booking tokens, shareable quotes |
 | `payments` | Ledger, manual receipts, provider interface, webhook handling, refunds |
@@ -43,6 +43,7 @@ Each module lives in `src/modules/<name>/` and owns its server actions, queries,
 | `operations` | Run sheets, duty schedule, enquiry timer |
 | `reports` | Charts, exports |
 | `media` | Uploads, size variants, manifest, alt text, provenance |
+| `editor` | Site draft, change rules, field-to-key table, publish checks, on-page editor UI |
 
 ## Provider adapters
 
@@ -61,7 +62,7 @@ No adapter configured → the feature shows an honest "not connected" state.
 
 | I want to change… | Go to |
 |---|---|
-| A price, menu, package, offer, stage theme | Dashboard → Catalogue (no code) |
+| A price, menu, package, offer, add-on, stage theme, venue phone or opening hours | Dashboard → Edit site (no code; saved to a draft, live after Publish) |
 | A tenant's colours, logo, photos, captions, section order | Admin console → tenant settings (no code) |
 | Turn a feature on/off for a tenant | Admin console → Features (no code) |
 | Reminder timings, hold length, caps, summary time | Tenant settings (no code) |
@@ -86,6 +87,7 @@ No adapter configured → the feature shows an honest "not connected" state.
 | Media library and uploads: size plan (s/m/l = 1280/1920/2880 px on the long side, never upscaled, next size only when the photo is longer than the previous target), new keys from the file name, Storage paths (`<tenant_id>/<key>/<size>.<ext>`, depth always `depth.png`, overwritten on a new map, its URL carrying `?v=<dims.depthVersion>` so caches fetch the new one, every write and delete through `objectPath`), upload checks (15 MB, magic bytes then sharp header: JPEG/PNG/WebP only, 40 MP, no animation; PNG kept only with transparency, else JPEG q82 mozjpeg; EXIF rotated then stripped), categories (hero/logo/seo need `tenant.settings.edit`), alt text, delete only when unused (published site or draft), depth maps (`tenant.settings.edit`, PNG, shape within 1 % of the photo), the picker | `src/modules/media/variants.ts` (plan, key, path), `src/modules/media/server/library.ts` (checks, upload, replace, alt, delete, depth; audit `media.*`), depth URL in `server/assets.ts`, `src/modules/media/ui/UploadForm.tsx` and `ui/MediaPicker.tsx`; the screen `src/app/dashboard/media/` (`page.tsx`, `media-grid.tsx`, `actions.ts`; `usage.ts` asks the editor where a photo is used). Replace rule: a new asset with the old alt text and category, then the action saves `swapMedia` in the draft (only when the draft uses the old key; a refused swap deletes the new asset); the old photo stays until it is unused and deleted. The media module never imports the editor (the editor imports media). Body limits in `next.config.ts` (`serverActions.bodySizeLimit`, `proxyClientMaxBodySize`) |
 | The public site: loading a venue's view, theme, fonts, SEO and JSON-LD, shell (nav, overlays, preview bar), page wiring | `src/modules/site/` (`server/load.ts`, `theme.ts`, `fonts.ts`, `seo.ts`, `ui/SiteShell.tsx`); `src/app/page.tsx` (renders the site; also the paused-tenant holding notice and the platform-host 404); shared section types in `src/sections/types.ts`; motion, and `Shot` with its `srcset`/`sizes` helpers (`image.ts`) in `src/sections/shared/` |
 | The site editor's draft: its shape, what one save may change (slug rules, removing an event, swapping a photo), which keys a change needs (TS mirror of the SQL permission triggers), publish checks, where a photo is used, what is still sample; saving, publishing and discarding the draft | `src/modules/editor/` (`draft.ts`, `changes.ts`, `keys.ts`, `check.ts`, `media-usage.ts`, `blocked.ts` names the items a viewer may not publish; `server/draft.ts` reads and saves the draft (optimistic revision, server ids for new rows, key check per save), `server/publish.ts`, `server/view.ts` the draft as a `SiteView`); the Server Actions in `src/app/dashboard/site/actions.ts`; draft writes go through `save_site_draft()` (`supabase/migrations/20261026000600_save_site_draft.sql`); the key table is tested against `tests/fixtures/field-permissions.ts`, as the SQL triggers are; rupee input parsing in `parseRupees` (`src/sections/shared/format.ts`); the draft table and Publish in SQL (`site_drafts`, `site_snapshot()`, `site_diff()`, atomic audited `publish_site()`) in `supabase/migrations/20261026000500_site_drafts.sql` |
+| Which key a field needs (field-level permissions): catalogue columns and parts of `tenant_settings` (phones, hours, address, manager card need `venue.info.edit`; gallery tiles and default event `catalogue.edit`; every price column `prices.edit`; the rest of settings `tenant.settings.edit`); the sample-flag rule | One table of rules, tested from both sides: `tests/fixtures/field-permissions.ts`. SQL: `check_column_perms()` arguments per table (`supabase/migrations/20261026000200_catalogue_m3.sql`, sample rule in `20261026000250_sample_flag_free.sql`) and `check_settings_write()` (`20261026000300_settings_m3.sql`); TS mirror `src/modules/editor/keys.ts`. Change all three together. Tests `tests/db/column-perms.test.ts`, `settings-perms.test.ts`, `direct-api.test.ts` |
 | Who can read or write a table (RLS) | The module's RLS migration, e.g. `supabase/migrations/20261020000300_rls_tenants.sql`; negative tests in `tests/db/access.rls.test.ts` |
 | Connect the bank or a gateway | New file `src/providers/payments/<vendor>.ts` + keys in admin console |
 | Change WhatsApp provider | New file in `src/providers/messaging/` |

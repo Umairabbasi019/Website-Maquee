@@ -40,6 +40,15 @@ Console → New tenant → choose template → enter name, domain, numbers → u
 ### J10 Super admin changes another tenant
 Console → open tenant (banner shows which tenant) → edit menu prices → save. Audit log for that tenant records the super admin's name.
 
+### J11 Manager edits the site
+Dashboard → Edit site. The page shows with a ✎ on every editable part. Manager taps ✎ on a package, changes the price (rupees), saves; the change goes to the draft, and the editor bar counts it. Phone view shows how it looks on a phone. Publish checks the draft and applies it in one step; the public site shows the new price. Discard returns the draft to the published site. A change that needs a key the manager lacks (for example a theme change saved by the super admin) stays in the draft and blocks Publish, listing the item.
+
+### J12 Manager adds a photo
+Dashboard → Media → Upload (JPEG, PNG or WebP, up to 15 MB) with alt text and a category. The server makes the sizes. Photos in use cannot be deleted. Replace uploads a new photo and swaps it into the draft; the old one can be deleted once unused. The photo shows on the site after Publish.
+
+### J13 Seasonal price
+Dashboard → Settings → Date prices: a date range, all events or one event type, percent or rupees per guest, a label. Overlap in the same scope is refused. The pricing service uses these from M4.
+
 ## Permission matrix
 
 Keys are checked on the server and in RLS. S = super admin, O = venue owner, M = manager, A = accounts, St = staff. ✓ = granted by default, ○ = off by default but super admin can grant, – = never.
@@ -52,7 +61,7 @@ Keys are checked on the server and in RLS. S = super admin, O = venue owner, M =
 | `bookings.view` | ✓ | ✓ | ✓ | ✓ | – |
 | `bookings.edit` (status, quote, details) | ✓ | ✓ | ✓ | – | – |
 | `quotes.override` (with reason) | ✓ | ✓ | ✓ | – | – |
-| `calendar.manage` (block, hold, date pricing) | ✓ | ✓ | ✓ | – | – |
+| `calendar.manage` (block, hold, date pricing; edit date prices in Settings) | ✓ | ✓ | ✓ | – | – |
 | `catalogue.edit` (menus, packages, add-ons, stage themes, offers) | ✓ | ✓ | ✓ | – | – |
 | `prices.edit` | ✓ | ✓ | ✓ | – | – |
 | `venue.info.edit` (phones, opening hours, address, manager card) | ✓ | ✓ | ✓ | – | – |

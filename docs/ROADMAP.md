@@ -6,8 +6,8 @@ One milestone at a time. Each ends with a code review, checks actually run, docs
 |---|---|---|---|---|
 | M0 | Planning documents | S | – | Done, approved 2026-10-19 |
 | M1 | Foundation and security | L | M0 | Done, merged |
-| M2 | Public site from config | L | M1 | Built on `feat/m2-public-site`, awaiting whole-branch review and merge |
-| M3 | Venue configuration and catalogue | M | M1 | Not started |
+| M2 | Public site from config | L | M1 | Done, merged |
+| M3 | Venue configuration and catalogue | M | M1 | Built on `feat/m3-venue-editing`, awaiting whole-branch review and merge |
 | M4 | Booking engine and pricing | L | M3 | Not started |
 | M5 | Payments | M | M4 | Not started |
 | M6 | Dashboard and operations | L | M4, M5 | Not started |
@@ -66,17 +66,29 @@ Scope: choose hosting, deploy, domains and HTTPS, backups, monitoring, security 
 Acceptance: every launch checklist item verified, not assumed.
 
 ## Handoff
-Current state: M0 and M1 are merged to `main`. M2 is built on branch `feat/m2-public-site` (Tasks 1-10 done) and awaits the whole-branch code review and your approval before merge.
+Current state: M0, M1 and M2 are merged to `main`. M3 is built on branch `feat/m3-venue-editing` (Tasks 1-13 done) and awaits the whole-branch code review and your approval before merge.
 
-Checks run on the branch (2026-10-24): lint and typecheck clean; 109 unit tests (17 files), 92 database tests (14 files) and 38 Playwright tests pass; `npm run build` passes.
+Checks run on the branch (2026-10-26, after `npm run db:seed`): lint and typecheck clean; 225 unit tests (26 files), 184 database tests (21 files) and 59 Playwright tests pass; `npm run build` passes.
 
-Built in M2: site content block in tenant settings; catalogue slice (event types, packages, offers with RLS); media slice (public `venue-media` bucket, `media_assets` with pixel `dims`, seed upload); public site shell from tenant config (theme, fonts, SEO, JSON-LD, preview bar); sections hero, inside, stage, gallery, events, packages, contact and footer; scroll motion, reduced-motion and no-WebGL fallbacks, no-JavaScript output; responsive images; hero depth parallax layer with offline depth maps; QA specs; performance work (idle animation, `srcset`, off-hydration `Intl`, `content-visibility`).
+Built in M3: `venue.info.edit` key; add-ons, stage themes and offer discounts; hall hire price; field-level permissions (SQL triggers, TS mirror and one tested table); audited direct writes for halls, slots and date prices; date prices with an overlap rule; site drafts and atomic audited Publish; the on-page editor at `/dashboard/site` (draft, ✎ panels, phone preview, publish, discard); add-ons and stage themes on the public site; media library with uploads, size variants, alt text, replace, delete and depth maps; settings screen (halls, slots, date prices, money rules); the guard on `/dashboard?tenant=`.
 
-Notes for M3:
-- Show a "sample" badge in the dashboard while content or catalogue rows are marked sample; the public site stays noindex until they are not.
-- Price columns need the `prices.edit` key; the catalogue tables use `catalogue.edit` for now.
-- The media upload path must write `media_assets.dims` for every size, and `depth.png` when the hero mode is `depth`.
-- The decorative duplicate hero and section `Shot`s need `alt=""` and `aria-hidden` (pending review).
-- Lighthouse mobile performance is about 45-51 on Manor and 70-76 on the demo venue locally, against a target of 80. Local Lighthouse on this Windows machine is noisy and shows a suspect 16-21 s LCP. Recheck with PageSpeed Insights after the first deploy.
-- Not built yet: audit log screen, users and permissions UI, deactivation screens (M6), staff invite flow, phone OTP login, "See stage themes" (M8).
+Notes for M4:
+- Date prices are stored, not applied: `percent` (-90 to 300) or `per_guest` paisa; an event-specific range wins over an all-events one.
+- Add-on `basis` is `flat` or `per_guest`; price each accordingly.
+- Offer discounts (`discount_kind`, `discount_value`, `starts_on`, `ends_on`) are stored, not applied. A text-only offer has none.
+- Hall hire price (`halls.hire_price_paisa`) is optional and not yet in any quote.
+- Price columns are 4-byte integers, so one price tops out at 20,000,000 rupees; booking totals must use bigint.
+- Money rules (tax, advance, hold hours) are edited in Settings; M4 reads them.
+
+Notes for M8: stage themes are priced rows with photo keys; the public Packages section lists them, and the preview and picker are still to build.
+
+Not built yet: audit log screen, users and permissions UI, deactivation screens (M6), staff invite flow, phone OTP login, "See stage themes" (M8), menus as separate tables, hall delete, undo of a single draft change.
+
+Known limits:
+- Uploads pass through the Next server (16 MB body limit); Vercel caps bodies at 4.5 MB, so switch to signed direct uploads before deploying there.
+- `require_publishing()` trusts `app.publishing`; a session with raw SQL as `authenticated` could set it (see `DECISIONS.md`).
+- Opening hours keep one window per day; a second window stored by hand is dropped when the hours panel saves.
+- A photo with no stored size counts as square in the gallery panel.
+- A date-price check-then-save race still throws instead of returning a message.
+- Lighthouse mobile performance from M2 is unchanged: about 45-51 on Manor and 70-76 on the demo venue locally, against a target of 80. Recheck with PageSpeed Insights after the first deploy.
 - Run `npm run db:seed` before `npm run test:db` and `npm run test:e2e`. The seed uploads Manor photos from `MANOR_MEDIA_DIR`; set `SKIP_MANOR_MEDIA=1` to skip them.
