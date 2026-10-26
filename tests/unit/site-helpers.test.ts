@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { coverSizes, srcSet } from "@/sections/shared/image";
 import { openStatus, todayIn, addDays } from "@/sections/shared/hours";
 import { buildEnquiryMessage, waLink } from "@/sections/shared/enquiry";
-import { formatRs, lakhFrom, formatLocalPhone } from "@/sections/shared/format";
+import { formatRs, lakhFrom, formatLocalPhone, parseRupees } from "@/sections/shared/format";
 import { easeToward, subscribeFrame } from "@/sections/shared/motion";
 
 const TZ = "Asia/Karachi";
@@ -80,6 +80,21 @@ describe("format", () => {
     expect(lakhFrom(320000, 300)).toBe("9.6");
     expect(formatLocalPhone("+923085021418")).toBe("0308 502 1418");
     expect(formatLocalPhone("+14155550123")).toBe("+14155550123");
+  });
+});
+
+describe("parseRupees", () => {
+  it("accepts rupees the way people type them", () => {
+    expect(parseRupees("Rs 3,200")).toBe(320000);
+    expect(parseRupees("3200.5")).toBe(320050);
+    expect(parseRupees("3,200.50")).toBe(320050);
+    expect(parseRupees(" 3200 ")).toBe(320000);
+    expect(parseRupees("100,000,000")).toBe(10_000_000_000);
+  });
+  it("refuses negative, scientific, over-precise, zero, non-ASCII, empty and too-large input", () => {
+    for (const input of ["-5", "1e3", "3.333", "0", "٣٢٠٠", "", "100000000.01", "Rs", "3.", ".5"]) {
+      expect(parseRupees(input), input).toBeNull();
+    }
   });
 });
 
