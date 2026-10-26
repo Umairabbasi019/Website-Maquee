@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, useEffect, useId } from "react";
+import { useActionState, useEffect, useId, useRef } from "react";
 import { buttonClass, inputClass } from "@/ui/form-styles";
 import { t, type TranslationKey } from "@/ui/i18n";
 import type { MediaCategory } from "../server/library";
@@ -31,8 +31,12 @@ export function UploadForm({
   const id = useId();
   const error = state && "error" in state ? state.error : null;
   const key = state && "key" in state ? state.key : null;
+  // Once per uploaded key, even when the parent passes a new onUploaded on every render.
+  const handled = useRef<string | null>(null);
   useEffect(() => {
-    if (key) onUploaded?.(key);
+    if (!key || handled.current === key) return;
+    handled.current = key;
+    onUploaded?.(key);
   }, [key, onUploaded]);
 
   return (

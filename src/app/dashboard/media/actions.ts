@@ -56,10 +56,10 @@ export async function replacePhoto(_prev: ItemState, fd: FormData): Promise<Item
   if (!file) return { error: "media.error.file" };
   const from = text(fd, "key");
   return inVenue(async (tenantId) => {
+    // Read the draft first, so a failure here leaves no new photo behind.
+    const used = mediaUsage((await getDraft(tenantId)).draft).has(from);
     const result = await replaceMedia(tenantId, from, file);
     if ("error" in result) return { error: ERRORS[result.error] };
-    const { draft } = await getDraft(tenantId);
-    const used = mediaUsage(draft).has(from);
     if (used) {
       try {
         await saveDraftChange(tenantId, { kind: "swapMedia", from, to: result.key });

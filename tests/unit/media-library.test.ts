@@ -11,21 +11,32 @@ const calls = vi.hoisted(() => ({
   audits: [] as { action: string }[],
   row: null as Record<string, unknown> | null,
   keys: [] as string[],
+  // Keys that already have a row, paths already in Storage, and keys the next mediaKeyFrom calls return.
+  taken: new Set<string>(),
+  existing: new Set<string>(),
+  nextKeys: [] as string[],
+  lastKey: "",
 }));
+
+vi.mock("@/modules/media/variants", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/modules/media/variants")>();
+  return { ...real, mediaKeyFrom: (name: string) => calls.nextKeys.shift() ?? real.mediaKeyFrom(name) };
+});
 
 vi.mock("@/modules/access", () => {
   class ForbiddenError extends Error {}
   const query = {
     select: () => query,
-    eq: () => query,
-    maybeSingle: async () => ({ data: calls.row, error: null }),
+    eq: (col: string, value: string) => (col === "key" && (calls.lastKey = value), query),
+    maybeSingle: async () => ({ data: calls.row ?? (calls.taken.has(calls.lastKey) ? { id: "other" } : null), error: null }),
     single: async () => ({ data: { id: "a1b2c3d4-0000-4000-8000-000000000001" }, error: null }),
     insert: (row: Record<string, unknown>) => (calls.inserts.push(row), query),
     update: (row: Record<string, unknown>) => (calls.updates.push(row), { eq: async () => ({ error: null }) }),
     delete: () => (calls.deletes++, { eq: async () => ({ error: null }) }),
   };
   const bucket = {
-    upload: async (path: string, _data: unknown, opts: Record<string, unknown>) => (calls.uploads.push({ path, opts }), { error: null }),
+    upload: async (path: string, _data: unknown, opts: Record<string, unknown>) =>
+      calls.existing.has(path) ? { error: { message: "The resource already exists" } } : (calls.uploads.push({ path, opts }), { error: null }),
     remove: async (paths: string[]) => (calls.removed.push(paths), { error: null }),
   };
   return {
@@ -47,6 +58,7 @@ const jpegFile = async (name: string, width: number, height: number) =>
 
 beforeEach(() => {
   Object.assign(calls, { uploads: [], removed: [], inserts: [], updates: [], deletes: 0, audits: [], row: null, keys: ["media.manage"] });
+  Object.assign(calls, { taken: new Set(), existing: new Set(), nextKeys: [], lastKey: "" });
 });
 
 describe("uploadMedia", () => {
@@ -64,6 +76,31 @@ describe("uploadMedia", () => {
       ext: "jpg",
     });
     expect(calls.audits.map((a) => a.action)).toEqual(["media.upload"]);
+  });
+
+  it("skips a key another photo already has, and leaves that photo's row and files alone", async () => {
+    calls.taken.add("hall-aaaaaa");
+    calls.existing.add(`${TENANT}/hall-aaaaaa/s.jpg`);
+    calls.nextKeys.push("hall-aaaaaa", "hall-bbbbbb");
+    const result = await uploadMedia(TENANT, await jpegFile("hall.jpg", 100, 100), { alt: "Hall", category: "gallery" });
+    expect(result).toEqual({ key: "hall-bbbbbb" });
+    expect(calls.uploads.map((u) => u.path)).toEqual([`${TENANT}/hall-bbbbbb/s.jpg`]);
+    expect([calls.removed, calls.deletes]).toEqual([[], 0]);
+  });
+
+  it("on a failed write removes only the files this upload wrote", async () => {
+    // No row, but stray files at m.jpg (say, from a delete whose file removal failed).
+    calls.nextKeys.push("hall-cccccc");
+    calls.existing.add(`${TENANT}/hall-cccccc/m.jpg`);
+    await expect(uploadMedia(TENANT, await jpegFile("hall.jpg", 1800, 900), { alt: "Hall", category: "gallery" })).rejects.toThrow(/already exists/);
+    expect(calls.removed).toEqual([[`${TENANT}/hall-cccccc/s.jpg`]]);
+    expect(calls.inserts).toEqual([]);
+  });
+
+  it("refuses a file over 15 MB before reading it", async () => {
+    const big = new File([new Uint8Array(15 * 1024 * 1024 + 1)], "big.jpg");
+    expect(await uploadMedia(TENANT, big, { alt: "x", category: "gallery" })).toEqual({ error: "tooLarge" });
+    expect(calls.uploads).toEqual([]);
   });
 
   it("keeps hero, logo and search photos for tenant.settings.edit", async () => {

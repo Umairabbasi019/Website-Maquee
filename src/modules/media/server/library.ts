@@ -63,13 +63,13 @@ export async function processUpload(bytes: Buffer): Promise<{ ext: "jpg" | "png"
   const [w, h] = (meta.orientation ?? 1) >= 5 ? [meta.height, meta.width] : [meta.width, meta.height];
   const source = sharp(bytes, { limitInputPixels: MAX_PIXELS }).rotate();
   try {
-    const variants = await Promise.all(
-      planVariants(w, h).map(async (v) => {
-        const out = source.clone().resize(v.width, v.height);
-        const data = await (ext === "png" ? out.png() : out.flatten({ background: "#ffffff" }).jpeg({ quality: 82, mozjpeg: true })).toBuffer();
-        return { ...v, data };
-      }),
-    );
+    // One size at a time keeps only one decoded copy in memory.
+    const variants: Variant[] = [];
+    for (const v of planVariants(w, h)) {
+      const out = source.clone().resize(v.width, v.height);
+      const data = await (ext === "png" ? out.png() : out.flatten({ background: "#ffffff" }).jpeg({ quality: 82, mozjpeg: true })).toBuffer();
+      variants.push({ ...v, data });
+    }
     return { ext, variants };
   } catch {
     return { error: "type" }; // a valid header over corrupt pixel data
@@ -93,6 +93,17 @@ async function findAsset(tenantId: string, key: string): Promise<AssetRow | null
 const filePath = (tenantId: string, a: Pick<AssetRow, "key" | "ext">, size: MediaSize | "depth") =>
   objectPath(tenantId, a.key, size, size === "depth" ? "png" : a.ext);
 
+const KEY_TRIES = 5;
+
+/** A new key no asset of this venue has yet. The random part makes a clash rare; the insert's unique (tenant_id, key) still guards a race. */
+async function freeKey(tenantId: string, fileName: string): Promise<string> {
+  for (let i = 0; i < KEY_TRIES; i++) {
+    const key = mediaKeyFrom(fileName);
+    if (!(await findAsset(tenantId, key))) return key;
+  }
+  throw new Error("media: no free key after several tries");
+}
+
 export type UploadResult = { key: string } | { error: ImageError | "alt" | "category" | "notFound" };
 
 /** Stores a new photo for the venue under a key made here; nothing about the path comes from the browser. */
@@ -104,17 +115,22 @@ export async function uploadMedia(tenantId: string, file: File, input: { alt: st
   if (!category.success) return { error: "category" };
   if (!categoriesFor(viewer, tenantId).includes(category.data)) throw new ForbiddenError();
 
+  if (file.size > MAX_BYTES) return { error: "tooLarge" };
+
   const processed = await processUpload(Buffer.from(await file.arrayBuffer()));
   if ("error" in processed) return processed;
   const { ext, variants } = processed;
-  const key = mediaKeyFrom(file.name);
-  const paths = variants.map((v) => objectPath(tenantId, key, v.size, ext));
+  const key = await freeKey(tenantId, file.name);
   const db = createServiceClient();
+  // Only files this call wrote are removed on failure; a path that already exists makes upload fail, and its files are someone else's.
+  const written: string[] = [];
   let id: string;
   try {
-    for (const [i, v] of variants.entries()) {
-      const { error } = await db.storage.from(BUCKET).upload(paths[i], v.data, { contentType: CONTENT_TYPE[ext], cacheControl: CACHE });
-      if (error) throw new Error(`upload ${paths[i]}: ${error.message}`);
+    for (const v of variants) {
+      const path = objectPath(tenantId, key, v.size, ext);
+      const { error } = await db.storage.from(BUCKET).upload(path, v.data, { contentType: CONTENT_TYPE[ext], cacheControl: CACHE });
+      if (error) throw new Error(`upload ${path}: ${error.message}`);
+      written.push(path);
     }
     const { data, error } = await db
       .from("media_assets")
@@ -132,7 +148,7 @@ export async function uploadMedia(tenantId: string, file: File, input: { alt: st
     if (error) throw new Error(`media_assets: ${error.message}`);
     id = data.id;
   } catch (e) {
-    await db.storage.from(BUCKET).remove(paths);
+    if (written.length) await db.storage.from(BUCKET).remove(written);
     throw e;
   }
   await recordAudit({ tenantId, action: "media.upload", entity: "media_asset", entityId: id, after: { key, alt: alt.data, category: category.data } });
@@ -186,6 +202,7 @@ export async function uploadDepth(
   file: File,
 ): Promise<{ ok: true } | { error: ImageError | "notFound" | "aspect" }> {
   await requirePerm(tenantId, "tenant.settings.edit");
+  if (file.size > MAX_BYTES) return { error: "tooLarge" };
   const bytes = Buffer.from(await file.arrayBuffer());
   const checked = await inspect(bytes, ["png"]);
   if ("error" in checked) return checked;
