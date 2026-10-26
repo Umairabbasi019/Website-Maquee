@@ -58,6 +58,12 @@ export async function getDraft(tenantId: string): Promise<{ draft: SiteDraft; re
   return { draft: await readSnapshot(db, tenantId), revision: null, changes: {} };
 }
 
+/** The published site, whether or not a draft exists. */
+export async function getPublished(tenantId: string): Promise<SiteDraft> {
+  await requireEditor(tenantId);
+  return readSnapshot(await createServerClient(), tenantId);
+}
+
 // applyChange creates a row for an id the draft does not have; that id comes from the browser, so replace it.
 function withServerId(draft: SiteDraft, change: DraftChange): DraftChange {
   if (!("id" in change) || change.value === null) return change;

@@ -17,7 +17,7 @@ export type MediaView = {
 const SIZES: MediaSize[] = ["s", "m", "l"];
 
 /** A stored [width, height] pair; anything else (missing, zero, malformed) counts as unknown. */
-const isDims = (d: unknown): d is [number, number] =>
+export const isDims = (d: unknown): d is [number, number] =>
   Array.isArray(d) && d.length === 2 && d.every((n) => typeof n === "number" && n > 0);
 
 /** Public media for one tenant, keyed by media key. Service client bypasses RLS, so the query is filtered by tenantId. */
