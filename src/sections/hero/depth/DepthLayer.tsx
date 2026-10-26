@@ -56,9 +56,12 @@ export default function DepthLayer({ media, focus, host, progress }: Props) {
       // currentSrc is the size the browser already picked (and cached) for this screen.
       Promise.all([bitmap(img.currentSrc || img.src, aborts.signal), bitmap(media.depthUrl, aborts.signal)])
         .then(([photo, depth]) => {
-          draw.current = createDepthProgram(gl, photo, depth, [fx, fy]);
-          photo.close();
-          depth.close();
+          try {
+            draw.current = createDepthProgram(gl, photo, depth, [fx, fy]);
+          } finally {
+            photo.close();
+            depth.close();
+          }
         })
         .catch(() => aborts.signal.aborted || fail());
     } else queueMicrotask(fail); // not a synchronous setState inside the effect
@@ -88,6 +91,10 @@ export default function DepthLayer({ media, focus, host, progress }: Props) {
       c.removeEventListener("webglcontextlost", fail);
       c.removeEventListener("animationend", hideImg);
       img.style.filter = "";
+      // Free the GPU context only once the canvas has left the page (real unmount). A Strict Mode re-run or a
+      // dependency change keeps the same canvas, and a lost context could not be used again. The fail listener is
+      // already gone, so this loss does not flip the layer to failed.
+      if (!c.isConnected) gl?.getExtension("WEBGL_lose_context")?.loseContext();
     };
   }, [img, media.depthUrl, focus]);
 
