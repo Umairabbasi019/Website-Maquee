@@ -166,6 +166,8 @@ describe("access RLS", () => {
 
       await asUser(c, s.managerA);
       expect(await count(c, "select count(*) from halls where tenant_id = $1", [s.A])).toBe(1);
+      // Holds venue.info.edit and catalogue.edit, so the own settings row is readable.
+      expect(await count(c, "select count(*) from tenant_settings where tenant_id = $1", [s.A])).toBe(1);
       for (const t of tables.filter((t) => !REVOKED_TABLES.has(t))) {
         expect(await count(c, `select count(*) from public.${t} where tenant_id = $1`, [s.B]), t).toBe(0);
         expect((await c.query(`update public.${t} set tenant_id = tenant_id where tenant_id = $1`, [s.B])).rowCount, t).toBe(0);

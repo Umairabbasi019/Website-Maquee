@@ -73,7 +73,7 @@ async function override(c: Client, membership: string, key: string, granted: boo
 }
 
 describe("catalogue column permissions", () => {
-  it.each(CATALOGUE)("$part.$field needs $key", (row) =>
+  it.each(CATALOGUE)("$part $field needs $key", (row) =>
     withDb(async (c) => {
       const s = await seed(c);
       await publishing(c);
