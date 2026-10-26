@@ -17,7 +17,7 @@ export type MediaView = {
 const SIZES: MediaSize[] = ["s", "m", "l"];
 
 /** A stored [width, height] pair; anything else (missing, zero, malformed) counts as unknown. */
-const isDims = (d: unknown): d is [number, number] =>
+export const isDims = (d: unknown): d is [number, number] =>
   Array.isArray(d) && d.length === 2 && d.every((n) => typeof n === "number" && n > 0);
 
 /** Public media for one tenant, keyed by media key. Service client bypasses RLS, so the query is filtered by tenantId. */
@@ -43,7 +43,9 @@ export async function getPublicMedia(tenantId: string): Promise<Record<string, M
         widths: Object.fromEntries(known.map(([s, [w]]) => [s, w])),
       };
       if (known.length) view.aspect = known[0][1][0] / known[0][1][1];
-      if (r.sizes.includes("depth")) view.depthUrl = `${base}/${r.key}/depth.png`;
+      // depth.png is overwritten in place when a map is corrected; the version makes the URL new, so year-long caches don't keep the old map.
+      const version = typeof r.dims.depthVersion === "number" ? `?v=${r.dims.depthVersion}` : "";
+      if (r.sizes.includes("depth")) view.depthUrl = `${base}/${r.key}/depth.png${version}`;
       return [r.key, view];
     }),
   );

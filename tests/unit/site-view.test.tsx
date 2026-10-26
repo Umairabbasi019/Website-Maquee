@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { buildSiteView, eventVenueJsonLd, siteMetadata } from "@/modules/site";
 import { SECTION_KEYS } from "@/modules/tenants";
+import { Events } from "@/sections/events/Events";
 import { Footer } from "@/sections/footer/Footer";
+import { Packages } from "@/sections/packages/Packages";
+import { EnquiryProvider } from "@/sections/shared/enquiry-state";
 import { manorContent, manorIdentity, manorMessaging, manorTheme } from "../../scripts/seed-data/manor";
 import { defaultSettings } from "./fixtures/tenant-settings";
 
 type Raw = Parameters<typeof buildSiteView>[0];
+const empty: Raw["catalogue"] = { events: [], offers: [], addons: [], stageThemes: [], hasSample: false };
 
 const raw = (over: Partial<Raw> = {}): Raw => ({
   tenantId: "t1",
@@ -18,7 +22,7 @@ const raw = (over: Partial<Raw> = {}): Raw => ({
   messaging: { ...defaultSettings.messaging, ...manorMessaging },
   content: { ...manorContent, sample: false },
   media: {},
-  catalogue: { events: [], offers: [], hasSample: false },
+  catalogue: empty,
   slots: ["Lunch", "Dinner"],
   ...over,
 });
@@ -54,13 +58,60 @@ describe("buildSiteView", () => {
   });
 });
 
+describe("edit markers", () => {
+  const goldCatalogue: Raw["catalogue"] = {
+    ...empty,
+    events: [
+      {
+        id: "e1",
+        slug: "barat",
+        name: "Barat",
+        description: "d",
+        mediaKey: null,
+        packages: [{ id: "p1", name: "Gold", pricePerGuestPaisa: 420000, minGuests: 300, items: ["Seating"], featured: true }],
+      },
+    ],
+  };
+  const site = (editing?: true) => ({ ...buildSiteView(raw({ catalogue: goldCatalogue })), ...(editing && { editing }) });
+  const render = (view: ReturnType<typeof site>) =>
+    renderToStaticMarkup(
+      <EnquiryProvider guests={400} maxGuests={1000}>
+        <Packages site={view} />
+      </EnquiryProvider>,
+    );
+
+  it("marks the Gold card and the section while editing", () => {
+    const html = render(site(true));
+    expect(html).toContain('data-edit="package:p1"');
+    expect(html).toContain('data-edit-label="Edit Gold package"');
+    expect(html).toContain('data-edit="package-new:e1"');
+    expect(html).toContain('data-edit="section:packages"');
+  });
+
+  it("keeps the add placeholders while editing an event with no packages, or no events", () => {
+    const noPackages = { ...goldCatalogue, events: [{ ...goldCatalogue.events[0], packages: [] }] };
+    expect(render({ ...buildSiteView(raw({ catalogue: noPackages })), editing: true })).toContain('data-edit="package-new:e1"');
+    const none = { ...buildSiteView(raw()), editing: true as const };
+    expect(renderToStaticMarkup(<Events site={none} />)).toContain('data-edit="event-new"');
+    expect(render(none)).toContain('data-edit="offer-new"');
+    // The public site still drops the empty sections.
+    expect(renderToStaticMarkup(<Events site={buildSiteView(raw())} />)).toBe("");
+    expect(render(buildSiteView(raw({ catalogue: noPackages })))).toBe("");
+  });
+
+  it("leaves no data-edit attribute in public HTML", () => {
+    expect(render(site())).not.toContain("data-edit");
+    expect(renderToStaticMarkup(<Footer site={site()} />)).not.toContain("data-edit");
+  });
+});
+
 describe("siteMetadata", () => {
   it("blocks indexing for sample content", () => {
     const view = buildSiteView(raw({ content: { ...manorContent, sample: true } }));
     expect((siteMetadata(view, "manor.test").robots as { index: boolean }).index).toBe(false);
   });
   it("blocks indexing for sample catalogue rows and setup status", () => {
-    const sampleRows = buildSiteView(raw({ catalogue: { events: [], offers: [], hasSample: true } }));
+    const sampleRows = buildSiteView(raw({ catalogue: { ...empty, hasSample: true } }));
     expect((siteMetadata(sampleRows, "manor.test").robots as { index: boolean }).index).toBe(false);
     expect((siteMetadata(buildSiteView(raw({ status: "setup" })), "manor.test").robots as { index: boolean }).index).toBe(false);
   });

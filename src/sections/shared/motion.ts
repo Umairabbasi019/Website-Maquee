@@ -6,8 +6,8 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 export const prefersReducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// One requestAnimationFrame loop for the whole page. It runs only while someone subscribes, the tab is visible
-// and motion is allowed.
+// One requestAnimationFrame loop for the whole page. It runs only while someone subscribes, the tab is visible,
+// motion is allowed and the page has SiteShell's html.js flag (the editor's canvas has none: its scenes stay plain blocks).
 const subscribers = new Set<(dt: number) => void>();
 let raf = 0;
 let last = 0;
@@ -20,7 +20,8 @@ function tick(now: number) {
 }
 
 function sync() {
-  const shouldRun = subscribers.size > 0 && !document.hidden && !prefersReducedMotion();
+  const shouldRun =
+    subscribers.size > 0 && !document.hidden && !prefersReducedMotion() && document.documentElement.classList.contains("js");
   if (shouldRun && !raf) {
     last = performance.now();
     raf = requestAnimationFrame(tick);

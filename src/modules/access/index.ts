@@ -5,4 +5,4 @@ export { createServerClient, createServiceClient, refreshSession } from "./serve
 export { getViewer, buildViewer, can, requirePerm, ForbiddenError, type Viewer } from "./server/can";
 export { recordAudit, type AuditInput } from "./server/audit";
 export { isPlatformAdminUser, needsMfa, hasPausedMembership } from "./server/session";
-export { DASHBOARD_SCREENS, dashboardNav } from "./ui/nav";
+export { DASHBOARD_SCREENS, dashboardNav, canAny } from "./ui/nav";

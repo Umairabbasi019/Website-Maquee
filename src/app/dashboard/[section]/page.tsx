@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { can, DASHBOARD_SCREENS } from "@/modules/access";
+import { canAny, DASHBOARD_SCREENS } from "@/modules/access";
 import { t } from "@/ui/i18n";
 import { ComingSoon, Forbidden } from "@/ui/notices";
 import { getDashboard } from "../context";
@@ -14,6 +14,6 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
   if (!screen) notFound();
   const { viewer, venue } = await getDashboard();
   if (!venue) return null;
-  if (!can(viewer, venue.id, screen.perm)) return <Forbidden />;
+  if (!canAny(viewer, venue.id, screen.perm)) return <Forbidden />;
   return <ComingSoon title={t(screen.labelKey)} />;
 }

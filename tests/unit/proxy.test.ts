@@ -24,9 +24,10 @@ vi.mock("@/modules/tenants", () => ({
 
 const { proxy } = await import("@/proxy");
 
-const request = (path: string) =>
+const request = (path: string, fetchSite?: string) =>
   new NextRequest(`http://manor.localhost:3000${path}`, {
     headers: {
+      ...(fetchSite ? { "sec-fetch-site": fetchSite } : {}),
       host: "manor.localhost:3000",
       cookie: "sb-auth-token=old; other=1",
       "x-tenant-id": "forged",
@@ -42,7 +43,7 @@ beforeEach(() => {
 });
 
 describe("proxy session refresh", () => {
-  it.each(["/dashboard", "/dashboard/users", "/admin", "/mfa", "/login", "/auth/signed-out"])(
+  it.each(["/dashboard", "/dashboard/users", "/site-preview", "/admin", "/mfa", "/login", "/auth/signed-out"])(
     "refreshes on %s and passes rotated cookies both ways",
     async (path) => {
       const res = await proxy(request(path));
@@ -77,13 +78,31 @@ describe("proxy session refresh", () => {
 
   it("turns /dashboard?tenant=<uuid> into the venue cookie and drops the query", async () => {
     const id = "6f1c2a7e-1b2c-4d3e-8f90-0a1b2c3d4e5f";
-    const res = await proxy(request(`/dashboard?tenant=${id}`));
+    const res = await proxy(request(`/dashboard?tenant=${id}`, "same-origin"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("http://manor.localhost:3000/dashboard");
     const cookie = res.headers.get("set-cookie") ?? "";
     expect(cookie).toContain(`venue=${id}`);
     expect(cookie.toLowerCase()).toContain("httponly");
   });
+
+  it("also honours the tenant query on a typed or bookmarked address (sec-fetch-site none)", async () => {
+    const id = "6f1c2a7e-1b2c-4d3e-8f90-0a1b2c3d4e5f";
+    const res = await proxy(request(`/dashboard?tenant=${id}`, "none"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("set-cookie")).toContain(`venue=${id}`);
+  });
+
+  it.each(["cross-site", "same-site", undefined])(
+    "refuses the tenant query when sec-fetch-site is %s: no cookie, query stripped",
+    async (site) => {
+      const id = "6f1c2a7e-1b2c-4d3e-8f90-0a1b2c3d4e5f";
+      const res = await proxy(request(`/dashboard?tenant=${id}`, site));
+      expect(res.headers.get("set-cookie") ?? "").not.toContain("venue=");
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toBe("http://manor.localhost:3000/dashboard");
+    },
+  );
 
   it("ignores a tenant query that is not a uuid", async () => {
     const res = await proxy(request("/dashboard?tenant=not-a-uuid"));

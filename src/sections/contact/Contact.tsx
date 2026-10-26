@@ -1,4 +1,5 @@
 import { t } from "@/ui/i18n";
+import { editAttrs } from "../shared/edit";
 import { formatLocalPhone } from "../shared/format";
 import { coverSizes } from "../shared/image";
 import { Lines } from "../shared/lines";
@@ -25,13 +26,13 @@ export function Contact({ site }: SectionProps) {
   const photoSizes = `(max-width: 860px) ${coverSizes(photo?.aspect, "100vw", 55)}, ${coverSizes(photo?.aspect, "53vw", 100)}`;
 
   return (
-    <section id="contact">
+    <section id="contact" {...editAttrs(site, "section:contact", t("edit.section", { name: "contact" }))}>
       <div className={styles.hero}>
         <div className={styles.pic}>
           <Shot media={photo} focus={c.media.focus} sizes={photoSizes} className="full" />
         </div>
         <div className={styles.side} data-r>
-          {hours.length > 0 && <LiveHours hours={hours} timeZone={timeZone} openText={c.openText} closedText={c.closedText} />}
+          {hours.length > 0 && <LiveHours edit={editAttrs(site, "venue:hours", t("edit.hours"))} hours={hours} timeZone={timeZone} openText={c.openText} closedText={c.closedText} />}
           <Lines lines={c.lines} as="h2" className={`title serif ${styles.title}`} />
           <p className={`fade ${styles.lead}`}>{c.lead}</p>
           <EnquiryForm
@@ -45,10 +46,11 @@ export function Contact({ site }: SectionProps) {
             timeZone={timeZone}
             whatsapp={whatsapp}
             sendCta={c.sendCta.replace("{name}", c.manager.name)}
+            callEdit={editAttrs(site, "venue:phones", t("edit.phones"))}
             call={phone ? { href: `tel:${phone}`, label: c.callCta.replace("{phone}", formatLocalPhone(phone)) } : undefined}
             compare={site.sections.includes("packages") ? c.compareLink : undefined}
           />
-          <div className={`fade ${styles.who}`}>
+          <div className={`fade ${styles.who}`} {...editAttrs(site, "venue:manager", t("edit.manager"))}>
             <div className={styles.mono} aria-hidden>
               {c.manager.name.charAt(0)}
             </div>
@@ -87,7 +89,7 @@ export function Contact({ site }: SectionProps) {
             </div>
           )}
           {directions && (
-            <div className={`fade ${styles.acts}`}>
+            <div className={`fade ${styles.acts}`} {...editAttrs(site, "venue:address", t("edit.address"))}>
               <a className="pill" href={directions} target="_blank" rel="noopener">
                 {c.map.directionsCta}
               </a>

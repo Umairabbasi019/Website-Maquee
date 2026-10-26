@@ -52,15 +52,19 @@ describe("media_assets RLS", () => {
       expect(Number(await one(c, "select count(*) from media_assets where tenant_id <> $1", [s.A]))).toBe(0);
     }));
 
-  it("a manager can write own tenant rows but not another tenant's", () =>
+  it("a manager cannot write rows directly, even in own tenant", () =>
     withDb(async (c) => {
       const s = await seed(c);
-      const other = await one(c, "select id from tenants where slug = 'b-venue'");
       await asUser(c, s.manager);
-      await c.query(ASSET, [s.A, "extra", "{s}"]);
-      await c.query("savepoint x");
-      await expect(c.query(ASSET, [other, "extra", "{s}"])).rejects.toThrow(/row-level security/);
-      await c.query("rollback to savepoint x");
+      await expect(c.query(ASSET, [s.A, "extra", "{s}"])).rejects.toThrow(/row-level security/);
+    }));
+
+  it("a manager's update and delete reach no row", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      await asUser(c, s.manager);
+      expect((await c.query("update media_assets set alt = 'x' where tenant_id = $1", [s.A])).rowCount).toBe(0);
+      expect((await c.query("delete from media_assets where tenant_id = $1", [s.A])).rowCount).toBe(0);
     }));
 
   it("sizes outside s, m, l, depth are rejected", () =>

@@ -3,15 +3,16 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 // Add a name here when a new module is created under src/modules.
-const modules = ["tenants", "access", "catalogue", "media", "site"];
+const modules = ["tenants", "access", "catalogue", "media", "site", "calendar", "editor"];
 
 const restrictModuleInternals = (allowedModule) => [
   "error",
   {
     patterns: [
       {
-        group: ["@/modules/*/*", ...(allowedModule ? [`!@/modules/${allowedModule}/*`] : [])],
-        message: "Import modules only through their index.ts",
+        // client.ts is a module's second public entry: its pure code, safe to import from client components.
+        group: ["@/modules/*/*", "!@/modules/*/client", ...(allowedModule ? [`!@/modules/${allowedModule}/*`] : [])],
+        message: "Import modules only through their index.ts (or client.ts from client components)",
       },
     ],
   },

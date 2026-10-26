@@ -8,7 +8,7 @@ const OTHER = "22222222-2222-2222-2222-222222222222";
 const ROLE_KEYS: Record<string, PermissionKey[]> = {
   manager: [
     "bookings.view", "bookings.edit", "quotes.override", "calendar.manage", "catalogue.edit", "prices.edit",
-    "media.manage", "payments.view", "payments.verify", "enquiries.handle", "marketing.send", "schedule.manage",
+    "venue.info.edit", "media.manage", "payments.view", "payments.verify", "enquiries.handle", "marketing.send", "schedule.manage",
     "schedule.view_own",
   ],
   accounts: ["bookings.view", "payments.view", "payments.verify", "schedule.view_own"],
@@ -42,6 +42,20 @@ describe("dashboardNav", () => {
     expect(items).toContain("nav.bookings");
     expect(items).not.toContain("nav.users");
     expect(items).not.toContain("nav.audit");
+  });
+
+  it("shows a manager Edit site and Settings, and staff neither", () => {
+    expect(labels(viewerAs("manager"))).toEqual(expect.arrayContaining(["nav.site", "nav.settings"]));
+    expect(labels(viewerAs("staff"))).not.toContain("nav.site");
+    expect(labels(viewerAs("staff"))).not.toContain("nav.settings");
+  });
+
+  it("shows Edit site to a viewer holding only venue.info.edit", () => {
+    const viewer: Viewer = {
+      userId: "u", isPlatformAdmin: false, aal: "aal1",
+      memberships: [{ tenantId: TENANT, role: "custom", keys: ["venue.info.edit"] }],
+    };
+    expect(labels(viewer)).toEqual(["nav.site"]);
   });
 
   it("gives nothing for a tenant the viewer has no membership in", () => {

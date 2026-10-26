@@ -1,1 +1,3 @@
-export { getPublicCatalogue, type PublicCatalogue } from "./server/public";
+export { getPublicCatalogue } from "./server/public";
+export { toPublicCatalogue, type CatalogueRows, type PublicCatalogue } from "./public-view";
+export * from "./schemas";

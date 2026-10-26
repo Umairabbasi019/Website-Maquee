@@ -24,6 +24,7 @@ const ALL_KEYS = [
   "schedule.manage",
   "schedule.view_own",
   "audit.view",
+  "venue.info.edit",
 ];
 
 /** Back to the test superuser (bypasses RLS) for setup. */
@@ -93,7 +94,11 @@ async function seed(c: Client) {
     [B, eventB],
   );
   await c.query("insert into offers (tenant_id, title, body) values ($1, 't', 'b')", [B]);
+  await c.query("insert into addons (tenant_id, name, price_paisa, basis) values ($1, 'Lights', 1, 'flat')", [B]);
+  await c.query("insert into stage_themes (tenant_id, name, price_paisa) values ($1, 'Royal', 1)", [B]);
+  await c.query("insert into date_prices (tenant_id, starts_on, ends_on, kind, value, label) values ($1, '2026-12-01', '2026-12-02', 'percent', 10, 'Winter')", [B]);
   await c.query("insert into media_assets (tenant_id, key, alt, category, sizes) values ($1, 'front', 'a', 'hero', '{s}')", [B]);
+  await c.query("insert into site_drafts (tenant_id, payload) values ($1, '{}')", [B]);
   await c.query("insert into tenant_domains (tenant_id, host) values ($1, 'b.test')", [B]);
   await c.query("insert into tenant_features (tenant_id, feature_key, enabled) values ($1, 'invites', true)", [B]);
   await c.query("insert into tenant_secrets (tenant_id, kind, ciphertext) values ($1, 'whatsapp', 'x')", [B]);
@@ -163,6 +168,8 @@ describe("access RLS", () => {
 
       await asUser(c, s.managerA);
       expect(await count(c, "select count(*) from halls where tenant_id = $1", [s.A])).toBe(1);
+      // Holds venue.info.edit and catalogue.edit, so the own settings row is readable.
+      expect(await count(c, "select count(*) from tenant_settings where tenant_id = $1", [s.A])).toBe(1);
       for (const t of tables.filter((t) => !REVOKED_TABLES.has(t))) {
         expect(await count(c, `select count(*) from public.${t} where tenant_id = $1`, [s.B]), t).toBe(0);
         expect((await c.query(`update public.${t} set tenant_id = tenant_id where tenant_id = $1`, [s.B])).rowCount, t).toBe(0);
@@ -182,6 +189,15 @@ describe("access RLS", () => {
       expect(await hasPerm(c, s.A, "prices.edit")).toBe(true);
       expect(await hasPerm(c, s.A, "users.manage")).toBe(false);
       expect(await hasPerm(c, s.B, "prices.edit")).toBe(false);
+    }));
+
+  it("venueInfoEdit_isGrantedOnlyToOwnerAndManager", () =>
+    withDb(async (c) => {
+      const r = await c.query(
+        `select r.name from public.role_permissions rp join public.roles r on r.id = rp.role_id
+         where r.tenant_id is null and rp.permission_key = 'venue.info.edit' order by r.name`,
+      );
+      expect(r.rows.map((row) => row.name)).toEqual(["manager", "owner"]);
     }));
 
   it("override_removesKey", () =>

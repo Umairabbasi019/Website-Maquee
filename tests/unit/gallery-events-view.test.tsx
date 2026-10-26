@@ -16,9 +16,12 @@ type Media = Raw["media"];
 const manor: Catalogue = {
   events: manorCatalogue.events.map(({ packages, ...e }) => ({
     ...e,
-    packages: packages.map(({ rupees, featured, ...p }) => ({ ...p, pricePerGuestPaisa: rupees * 100, featured: !!featured })),
+    id: `e-${e.slug}`,
+    packages: packages.map(({ rupees, featured, ...p }) => ({ ...p, id: `p-${e.slug}-${p.name}`, pricePerGuestPaisa: rupees * 100, featured: !!featured })),
   })),
-  offers: manorCatalogue.offers,
+  offers: manorCatalogue.offers.map((o, i) => ({ ...o, id: `o-${i}` })),
+  addons: [],
+  stageThemes: [],
   hasSample: true,
 };
 

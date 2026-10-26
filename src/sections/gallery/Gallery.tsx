@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { t } from "@/ui/i18n";
+import { editAttrs } from "../shared/edit";
 import { Lines } from "../shared/lines";
 import { coverSizes } from "../shared/image";
 import { Shot } from "../shared/Shot";
@@ -29,7 +30,7 @@ export function Gallery({ site }: SectionProps) {
     ));
 
   return (
-    <section id="gallery" className={styles.gal}>
+    <section id="gallery" className={styles.gal} {...editAttrs(site, "section:gallery", t("edit.section", { name: "gallery" }))}>
       <div className={styles.proof} data-r>
         {rating && (
           <a className={`fade ${styles.rating}`} href={rating.url} target="_blank" rel="noopener">
@@ -54,7 +55,7 @@ export function Gallery({ site }: SectionProps) {
         )}
       </div>
       {shown.length > 0 && (
-        <div className={styles.reel}>
+        <div className={styles.reel} {...editAttrs(site, "gallery:tiles", t("edit.galleryTiles"))}>
           <div className={`${styles.row} ${styles.r1}`}>
             {strip(shown, 0)}
             {strip(shown, 1)}

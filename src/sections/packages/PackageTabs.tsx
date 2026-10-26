@@ -1,12 +1,18 @@
 "use client";
-import { useState, type KeyboardEvent } from "react";
+import { useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import type { PublicCatalogue } from "@/modules/catalogue";
 import { t } from "@/ui/i18n";
 import { useEnquiry } from "../shared/enquiry-state";
 import styles from "./packages.module.css";
 
-type Pkg = PublicCatalogue["events"][number]["packages"][number] & { priceText: string; lakh: string };
-type Props = { events: (Omit<PublicCatalogue["events"][number], "packages"> & { packages: Pkg[] })[]; selected: string; canChoose: boolean };
+// `edit` holds the editor's data-edit attributes (empty on the public site); `newEdit` is set only while editing.
+type Pkg = PublicCatalogue["events"][number]["packages"][number] & { priceText: string; lakh: string; edit: Record<string, string> };
+type Props = {
+  events: (Omit<PublicCatalogue["events"][number], "packages"> & { packages: Pkg[]; newEdit?: Record<string, string> })[];
+  selected: string;
+  canChoose: boolean;
+};
+const noSubscription = () => () => {};
 
 export const packageTabId = (slug: string) => `packages-tab-${slug}`;
 const panelId = (slug: string) => `packages-panel-${slug}`;
@@ -22,6 +28,8 @@ const STEP: Record<string, (i: number, n: number) => number> = {
 export function PackageTabs({ events, selected: initial, canChoose }: Props) {
   const [selected, setSelected] = useState(initial);
   const { choosePackage } = useEnquiry();
+  // False in server HTML, true once hydrated: without JavaScript there are no tabs, so panels are plain groups then.
+  const hydrated = useSyncExternalStore(noSubscription, () => true, () => false);
 
   const onKeyDown = (e: KeyboardEvent) => {
     const step = STEP[e.key];
@@ -55,13 +63,13 @@ export function PackageTabs({ events, selected: initial, canChoose }: Props) {
         <div
           key={ev.slug}
           id={panelId(ev.slug)}
-          role="tabpanel"
-          aria-labelledby={packageTabId(ev.slug)}
+          role={hydrated ? "tabpanel" : undefined}
+          aria-labelledby={hydrated ? packageTabId(ev.slug) : undefined}
           className={`fade ${styles.pkgs} ${ev.slug === selected ? "" : styles.off}`}
         >
           <h3 className={styles.event}>{ev.name}</h3>
           {ev.packages.map((p) => (
-            <div key={p.name} className={p.featured ? `${styles.pkg} ${styles.feat}` : styles.pkg}>
+            <div key={p.id} className={p.featured ? `${styles.pkg} ${styles.feat}` : styles.pkg} {...p.edit}>
               <h4>{p.name}</h4>
               <div className={styles.price}>
                 {p.priceText} <small>{t("packages.perGuestMin", { min: p.minGuests })}</small>
@@ -85,6 +93,7 @@ export function PackageTabs({ events, selected: initial, canChoose }: Props) {
               )}
             </div>
           ))}
+          {ev.newEdit && <div {...ev.newEdit} />}
         </div>
       ))}
     </>

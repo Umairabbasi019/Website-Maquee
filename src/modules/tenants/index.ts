@@ -20,3 +20,14 @@ export {
   type TenantSummary,
 } from "./server/admin";
 export { TenantBanner } from "./ui/TenantBanner";
+export {
+  deleteSlot,
+  getMoneyRules,
+  listHalls,
+  listSlots,
+  saveHall,
+  saveMoneyRules,
+  saveSlot,
+  type Hall,
+  type Slot,
+} from "./server/venue-setup";

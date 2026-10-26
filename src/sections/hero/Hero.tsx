@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
+import { t } from "@/ui/i18n";
 import { Caption } from "../shared/Caption";
+import { editAttrs } from "../shared/edit";
 import { Shot } from "../shared/Shot";
 import type { SectionProps } from "../types";
 import styles from "./hero.module.css";
@@ -32,7 +34,7 @@ export function Hero({ site }: SectionProps) {
   );
 
   return (
-    <div id="hero" className="pin" style={{ "--pin": "340vh" } as CSSProperties}>
+    <div id="hero" className="pin" style={{ "--pin": "340vh" } as CSSProperties} {...editAttrs(site, "section:hero", t("edit.section", { name: "hero" }))}>
       <div className="sticky">
         <div className="frame">
           {frontShot("full shot", true)}

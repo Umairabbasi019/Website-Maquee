@@ -18,6 +18,7 @@ export const PERMISSIONS = [
   "schedule.manage",
   "schedule.view_own",
   "audit.view",
+  "venue.info.edit",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[number];

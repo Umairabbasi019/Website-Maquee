@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
+import { t } from "@/ui/i18n";
 import { Caption } from "../shared/Caption";
+import { editAttrs } from "../shared/edit";
 import { Lines } from "../shared/lines";
 import { Shot } from "../shared/Shot";
 import type { SectionProps } from "../types";
@@ -10,7 +12,7 @@ import { InsideMotion } from "./InsideMotion";
 export function Inside({ site }: SectionProps) {
   const { chapter, title, rooms } = site.content.inside;
   return (
-    <div id="inside" className="pin" style={{ "--pin": "320vh" } as CSSProperties}>
+    <div id="inside" className="pin" style={{ "--pin": "320vh" } as CSSProperties} {...editAttrs(site, "section:inside", t("edit.section", { name: "inside" }))}>
       <div className="sticky">
         {rooms.map((room, i) => (
           <div className="frame" key={i}>
