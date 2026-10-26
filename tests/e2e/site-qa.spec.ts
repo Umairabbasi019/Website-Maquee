@@ -27,6 +27,11 @@ for (const base of VENUES) {
         [...document.querySelectorAll<HTMLElement>("h1, h2, h3, h4, p, a, button, label, li, output")]
           .filter((el) => !el.closest('#gallery [class*="reel"]')) // the gallery reel rows drift sideways by design
           .filter((el) => {
+            // Inside a sideways scroller (the phone package tabs) the user can scroll to it.
+            for (let p = el.parentElement; p; p = p.parentElement) if (/auto|scroll/.test(getComputedStyle(p).overflowX)) return false;
+            return true;
+          })
+          .filter((el) => {
             const r = el.getBoundingClientRect();
             return r.width > 0 && r.height > 0 && el.checkVisibility() && r.right > innerWidth + 1;
           })
