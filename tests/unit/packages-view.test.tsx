@@ -16,9 +16,12 @@ type Catalogue = Raw["catalogue"];
 const manor: Catalogue = {
   events: manorCatalogue.events.map(({ packages, ...e }) => ({
     ...e,
-    packages: packages.map(({ rupees, featured, ...p }) => ({ ...p, pricePerGuestPaisa: rupees * 100, featured: !!featured })),
+    id: `e-${e.slug}`,
+    packages: packages.map(({ rupees, featured, ...p }) => ({ ...p, id: `p-${e.slug}-${p.name}`, pricePerGuestPaisa: rupees * 100, featured: !!featured })),
   })),
-  offers: manorCatalogue.offers,
+  offers: manorCatalogue.offers.map((o, i) => ({ ...o, id: `o-${i}` })),
+  addons: [],
+  stageThemes: [],
   hasSample: true,
 };
 
@@ -45,7 +48,28 @@ const render = (catalogue: Catalogue, defaultEvent?: string) =>
 
 const tabs = (html: string) => [...html.matchAll(/<button[^>]*role="tab"[^>]*>([^<]*)</g)].map((m) => m[1]);
 
+const addon = { id: "a1", name: "Fairy lights", pricePaisa: 2_500_000, basis: "flat" as const };
+const theme = { id: "s1", name: "Royal gold", description: "Gold drapes", pricePaisa: 15_000_000, mediaKeys: [] };
+
 describe("Packages", () => {
+  it("lists active add-ons and stage themes in one Extras row", () => {
+    const html = render({ ...manor, addons: [addon, { ...addon, id: "a2", name: "Welcome drink", pricePaisa: 30_000, basis: "per_guest" }], stageThemes: [theme] });
+    expect(html.match(/>Extras</g)).toHaveLength(1);
+    expect(html).toContain("Rs 25,000");
+    expect(html).toContain("Rs 300 per guest");
+    expect(html).toContain("from Rs 150,000");
+  });
+
+  it("has no Extras heading without add-ons or stage themes", () => {
+    expect(render(manor)).not.toContain("Extras");
+  });
+
+  it("gives panels no tabpanel role in server output, since without JavaScript there are no tabs", () => {
+    const html = render(manor);
+    expect(html).not.toContain("tabpanel");
+    expect(html).not.toContain("aria-labelledby");
+  });
+
   it("gives an event with zero packages no tab", () => {
     const catalogue = { ...manor, events: manor.events.map((e) => (e.slug === "nikkah" ? { ...e, packages: [] } : e)) };
     expect(tabs(render(catalogue))).toEqual(["Mehndi", "Barat", "Valima", "Corporate"]);

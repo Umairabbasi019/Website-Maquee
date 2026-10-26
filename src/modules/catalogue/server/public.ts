@@ -1,17 +1,6 @@
 import "server-only";
 import { createServiceClient } from "@/modules/access";
-
-export type PublicCatalogue = {
-  events: {
-    slug: string;
-    name: string;
-    description: string;
-    mediaKey: string | null;
-    packages: { name: string; pricePerGuestPaisa: number; minGuests: number; items: string[]; featured: boolean }[];
-  }[];
-  offers: { title: string; body: string }[];
-  hasSample: boolean;
-};
+import { toPublicCatalogue, type PublicCatalogue } from "../public-view";
 
 // Throws on error; the return type drops the failure variant, so callers see non-null data.
 function check<T extends { data: unknown; error: { message: string } | null }>(
@@ -25,36 +14,33 @@ function check<T extends { data: unknown; error: { message: string } | null }>(
 /** Public catalogue for one tenant. Service client bypasses RLS, so every query is filtered by tenantId. */
 export async function getPublicCatalogue(tenantId: string): Promise<PublicCatalogue> {
   const db = createServiceClient();
-  const [events, packages, offers] = await Promise.all([
-    db.from("event_types").select("id, slug, name, description, media_key, sample").eq("tenant_id", tenantId).order("sort"),
+  const [events, packages, offers, addons, themes] = await Promise.all([
+    db.from("event_types").select("id, slug, name, description, media_key, sort, sample").eq("tenant_id", tenantId),
+    db.from("packages").select("id, event_type_id, name, price_per_guest_paisa, min_guests, items, featured, sort, sample").eq("tenant_id", tenantId),
     db
-      .from("packages")
-      .select("event_type_id, name, price_per_guest_paisa, min_guests, items, featured, sample")
-      .eq("tenant_id", tenantId)
-      .order("sort"),
-    db.from("offers").select("title, body, sample").eq("tenant_id", tenantId).eq("active", true).order("sort"),
+      .from("offers")
+      .select("id, title, body, active, sort, sample, discount_kind, discount_value, starts_on, ends_on")
+      .eq("tenant_id", tenantId),
+    db.from("addons").select("id, name, price_paisa, basis, active, sort, sample").eq("tenant_id", tenantId),
+    db.from("stage_themes").select("id, name, description, price_paisa, media_keys, active, sort, sample").eq("tenant_id", tenantId),
   ]);
-  const eventRows = check(events, "event_types");
-  const packageRows = check(packages, "packages");
-  const offerRows = check(offers, "offers");
 
-  return {
-    events: eventRows.map((e) => ({
-      slug: e.slug,
-      name: e.name,
-      description: e.description,
-      mediaKey: e.media_key,
-      packages: packageRows
-        .filter((p) => p.event_type_id === e.id)
-        .map((p) => ({
-          name: p.name,
-          pricePerGuestPaisa: p.price_per_guest_paisa,
-          minGuests: p.min_guests,
-          items: p.items,
-          featured: p.featured,
-        })),
+  return toPublicCatalogue({
+    events: check(events, "event_types").map(({ media_key, ...e }) => ({ ...e, mediaKey: media_key })),
+    packages: check(packages, "packages").map(({ event_type_id, price_per_guest_paisa, min_guests, ...p }) => ({
+      ...p,
+      eventTypeId: event_type_id,
+      pricePerGuestPaisa: price_per_guest_paisa,
+      minGuests: min_guests,
     })),
-    offers: offerRows.map((o) => ({ title: o.title, body: o.body })),
-    hasSample: [...eventRows, ...packageRows, ...offerRows].some((r) => r.sample),
-  };
+    offers: check(offers, "offers").map(({ discount_kind, discount_value, starts_on, ends_on, ...o }) => ({
+      ...o,
+      discountKind: discount_kind,
+      discountValue: discount_value,
+      startsOn: starts_on,
+      endsOn: ends_on,
+    })),
+    addons: check(addons, "addons").map(({ price_paisa, ...a }) => ({ ...a, pricePaisa: price_paisa })),
+    stageThemes: check(themes, "stage_themes").map(({ price_paisa, media_keys, ...s }) => ({ ...s, pricePaisa: price_paisa, mediaKeys: media_keys })),
+  });
 }

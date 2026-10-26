@@ -19,6 +19,7 @@ type Props = {
   whatsapp?: string;
   sendCta: string;
   call?: { href: string; label: string };
+  callEdit: Record<string, string>;
   compare?: string;
 };
 
@@ -26,7 +27,7 @@ type Props = {
 const OTHER = "";
 
 /** The visitor picks date, event, time and guests; the message preview and the WhatsApp link follow every change. */
-export function EnquiryForm({ className, events, defaultEvent, otherEvent, slots, guests: range, greeting, timeZone, whatsapp, sendCta, call, compare }: Props) {
+export function EnquiryForm({ className, events, defaultEvent, otherEvent, slots, guests: range, greeting, timeZone, whatsapp, sendCta, call, callEdit, compare }: Props) {
   const { eventSlug, pick, guests, chooseEvent, setGuests } = useEnquiry();
   // Server HTML has no min or default date (the server clock and zone would not match hydration); the browser fills them in once idle, after hydration.
   const today = useAfterIdle(() => todayIn(timeZone, new Date())) ?? "";
@@ -98,7 +99,7 @@ export function EnquiryForm({ className, events, defaultEvent, otherEvent, slots
         {message}
       </div>
       {(whatsapp || call) && (
-        <div className={styles.acts}>
+        <div className={styles.acts} {...callEdit}>
           {whatsapp && (
             <a className={`pill ${styles.wa}`} href={waLink(whatsapp, message)} target="_blank" rel="noopener">
               {sendCta}

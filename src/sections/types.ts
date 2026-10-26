@@ -23,6 +23,8 @@ export type SiteView = {
   /** Visible sections, in settings order. */
   sections: SectionKey[];
   navLinks: { href: string; label: string }[];
+  /** Set only by the on-page editor: sections then carry `data-edit` markers. */
+  editing?: true;
 };
 
 export type SectionProps = { site: SiteView };

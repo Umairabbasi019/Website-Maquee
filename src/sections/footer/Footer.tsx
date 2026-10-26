@@ -1,11 +1,12 @@
 import { t } from "@/ui/i18n";
+import { editAttrs } from "../shared/edit";
 import type { SectionProps } from "../types";
 import styles from "./footer.module.css";
 
 export function Footer({ site }: SectionProps) {
   const { footer } = site.content;
   return (
-    <footer id="footer" className={styles.footer}>
+    <footer id="footer" className={styles.footer} {...editAttrs(site, "section:footer", t("edit.section", { name: "footer" }))}>
       <div className={styles.row}>
         <span>{footer.line}</span>
         <nav aria-label={t("site.navFooter")}>

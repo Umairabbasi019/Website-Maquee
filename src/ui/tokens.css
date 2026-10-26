@@ -1,9 +1,9 @@
 /* Platform defaults. Tenants override these variables at runtime. */
 :root {
   --color-bg: #ece7df; /* warm stone */
-  --color-accent: #c2a878; /* muted champagne */
+  --color-accent: #785e2c; /* brass */
   --color-text: #2b2a28; /* charcoal */
-  --color-muted: #8a857d; /* stone grey */
+  --color-muted: #5c574f; /* warm grey */
   --color-brand: #9c7a3c; /* brass */
   /* Fixed WhatsApp brand colours, the same for every venue; not theme colours and never overridden. */
   --color-whatsapp: #25d366;
