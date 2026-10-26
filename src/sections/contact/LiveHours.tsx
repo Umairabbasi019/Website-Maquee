@@ -8,6 +8,7 @@ type Props = { hours: OpeningHours; timeZone: string; openText: string; closedTe
 
 /** Open/closed in the venue's own time zone. Server HTML says "Checking hours…", since only the browser knows the visit time. */
 export function LiveHours({ hours, timeZone, openText, closedText }: Props) {
+  // shortcut: worked out once per page view, so a tab left open past opening or closing shows stale text; add a timer to the next change if that matters.
   const status = useAfterIdle(() => openStatus(hours, timeZone, new Date()));
   const closed = status !== null && !status.open;
   return (

@@ -31,7 +31,8 @@ export function openStatus(hours: OpeningHours, timeZone: string, now: Date): { 
     const starts = hours
       .filter((h) => h.day === (day + ahead) % 7 && (ahead > 0 || minutes(h.open) > min))
       .sort((a, b) => minutes(a.open) - minutes(b.open));
-    if (starts.length) return { open, opensAt: label(starts[0].open) };
+    // Today and tomorrow read fine as a bare time after "Closed now"; further out needs the weekday.
+    if (starts.length) return { open, opensAt: `${ahead > 1 ? `${DAYS[(day + ahead) % 7]} ` : ""}${label(starts[0].open)}` };
   }
   return { open, opensAt: null };
 }

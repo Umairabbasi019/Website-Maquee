@@ -37,6 +37,12 @@ describe("openStatus", () => {
     const h = [{ day: 3, open: "21:30", close: "23:00" }]; // 2026-10-21 is a Wednesday
     expect(openStatus(h, TZ, new Date("2026-10-21T10:00:00Z")).opensAt).toBe("9:30 PM");
   });
+  it("names the weekday when the next opening is more than a day away", () => {
+    const noThu = manor.filter((h) => h.day !== 4); // 2026-10-21 is a Wednesday, so closed tomorrow
+    expect(openStatus(noThu, TZ, new Date("2026-10-21T17:00:00Z")).opensAt).toBe("Fri 11 AM");
+    const wedOnly = [{ day: 3, open: "11:00", close: "21:30" }];
+    expect(openStatus(wedOnly, TZ, new Date("2026-10-21T17:00:00Z")).opensAt).toBe("Wed 11 AM");
+  });
   it("handles no hours", () => {
     expect(openStatus([], TZ, new Date())).toEqual({ open: false, opensAt: null });
   });
