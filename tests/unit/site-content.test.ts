@@ -5,6 +5,11 @@ import { manorContent } from "../../scripts/seed-data/manor";
 import { defaultSettings } from "./fixtures/tenant-settings";
 
 describe("site content schema", () => {
+  it.each(["javascript:alert(1)", "http://maps.google.com/"])("rejects %s as the gallery rating link", (url) => {
+    const gallery = { ...manorContent.gallery, rating: { ...manorContent.gallery.rating!, url } };
+    expect(SiteContentSchema.safeParse({ ...manorContent, gallery }).success).toBe(false);
+  });
+
   it.each([
     ["manor", manorContent],
     ["demo", demoContent],

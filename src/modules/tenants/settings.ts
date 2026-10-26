@@ -3,18 +3,20 @@ import { z } from "zod";
 export const SlugSchema = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "lowercase letters, digits and hyphens only");
 
 const Hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "must be #rrggbb");
+// Public links and images: https only, so a stored value can never become a javascript: or plain-http link.
+const Url = z.url({ protocol: /^https$/ });
 const Time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "must be HH:MM");
 
 export const IdentitySchema = z.object({
   name: z.string().min(1),
-  logoUrl: z.url().optional(),
+  logoUrl: Url.optional(),
   tagline: z.string().optional(),
   phones: z.array(z.string().min(1)),
   address: z.string().optional(),
   mapLocation: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).optional(),
   openingHours: z.array(z.object({ day: z.number().int().min(0).max(6), open: Time, close: Time })),
-  social: z.object({ instagram: z.url().optional(), facebook: z.url().optional() }),
-  googleReviewUrl: z.url().optional(),
+  social: z.object({ instagram: Url.optional(), facebook: Url.optional() }),
+  googleReviewUrl: Url.optional(),
 });
 
 export const ThemeSchema = z.object({
@@ -57,7 +59,6 @@ export const LimitsSchema = z.object({
 export const HERO_MODES = ["photos", "depth", "sequence"] as const;
 
 const Text = z.string().min(1);
-const Url = z.url();
 // 1 to 3 display lines; `*word*` marks the accent italic.
 const Lines = z.array(Text).min(1).max(3);
 const Caption = z.object({ chapter: Text, lines: Lines, body: Text.optional() });
