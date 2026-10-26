@@ -22,6 +22,11 @@ const COLUMN_KEYS: Record<"events" | "packages" | "offers" | "addons" | "stageTh
   stageThemes: { pricePaisa: "prices.edit" },
 };
 
+/** The key one catalogue field needs: its column's own key, else catalogue.edit. For the editor's read-only fields. */
+export function fieldKey(table: keyof typeof COLUMN_KEYS, field: string): PermissionKey {
+  return Object.hasOwn(COLUMN_KEYS[table], field) ? COLUMN_KEYS[table][field] : ROW_KEY;
+}
+
 type Json = Record<string, unknown>;
 
 // Same comparison as jsonb equality: key order does not matter and an undefined key counts as absent.

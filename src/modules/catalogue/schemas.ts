@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SlugSchema } from "@/modules/tenants";
+import { SlugSchema } from "@/modules/tenants/client";
 
 // Rows as the editor draft holds them: camelCase of the SQL columns, with the same checks as the table constraints.
 // Integer columns are SQL int, so values stay within int32.

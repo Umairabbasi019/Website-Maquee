@@ -17,7 +17,7 @@ describe("module boundaries", () => {
     expect(errors[0].message).toContain("Import modules only through their index.ts");
   });
 
-  it("allows imports through a module index", async () => {
+  it("allows imports through a module index or its client entry", async () => {
     expect(await restrictedImportErrors("tests/lint/fixtures/good-import.ts")).toHaveLength(0);
   });
 });

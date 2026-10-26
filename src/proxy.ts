@@ -7,7 +7,7 @@ const TENANT_HEADER = "x-tenant-id";
 const STATUS_HEADER = "x-tenant-status";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Signed-in routes: refresh the Supabase session here, because Server Components cannot write cookies.
-const SESSION_PREFIXES = ["/dashboard", "/admin", "/mfa", "/login", "/auth"];
+const SESSION_PREFIXES = ["/dashboard", "/site-preview", "/admin", "/mfa", "/login", "/auth"];
 // Routes that never get a host tenant: the signed-in ones take it from memberships, the API from its own checks.
 const NO_TENANT_PREFIXES = [...SESSION_PREFIXES, "/api"];
 

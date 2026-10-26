@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { buildSiteView, eventVenueJsonLd, siteMetadata } from "@/modules/site";
 import { SECTION_KEYS } from "@/modules/tenants";
+import { Events } from "@/sections/events/Events";
 import { Footer } from "@/sections/footer/Footer";
 import { Packages } from "@/sections/packages/Packages";
 import { EnquiryProvider } from "@/sections/shared/enquiry-state";
@@ -85,6 +86,17 @@ describe("edit markers", () => {
     expect(html).toContain('data-edit-label="Edit Gold package"');
     expect(html).toContain('data-edit="package-new:e1"');
     expect(html).toContain('data-edit="section:packages"');
+  });
+
+  it("keeps the add placeholders while editing an event with no packages, or no events", () => {
+    const noPackages = { ...goldCatalogue, events: [{ ...goldCatalogue.events[0], packages: [] }] };
+    expect(render({ ...buildSiteView(raw({ catalogue: noPackages })), editing: true })).toContain('data-edit="package-new:e1"');
+    const none = { ...buildSiteView(raw()), editing: true as const };
+    expect(renderToStaticMarkup(<Events site={none} />)).toContain('data-edit="event-new"');
+    expect(render(none)).toContain('data-edit="offer-new"');
+    // The public site still drops the empty sections.
+    expect(renderToStaticMarkup(<Events site={buildSiteView(raw())} />)).toBe("");
+    expect(render(buildSiteView(raw({ catalogue: noPackages })))).toBe("");
   });
 
   it("leaves no data-edit attribute in public HTML", () => {

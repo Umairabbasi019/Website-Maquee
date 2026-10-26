@@ -11,8 +11,9 @@ import styles from "./packages.module.css";
 export function Packages({ site }: SectionProps) {
   const { chapter, lines, lead, fine, background, defaultEvent } = site.content.packages;
   // Prices are formatted here, on the server: the first Intl call in the browser costs hundreds of ms and must not land in hydration.
+  // The editor keeps events without packages, so each gets its "Add a package" placeholder.
   const events = site.catalogue.events
-    .filter((e) => e.packages.length > 0)
+    .filter((e) => e.packages.length > 0 || site.editing)
     .map((e) => ({
       ...e,
       newEdit: site.editing ? editAttrs(site, `package-new:${e.id}`, t("edit.packageNew", { event: e.name })) : undefined,
@@ -23,8 +24,8 @@ export function Packages({ site }: SectionProps) {
         edit: editAttrs(site, `package:${p.id}`, t("edit.package", { name: p.name })),
       })),
     }));
-  if (!events.length) return null;
-  const selected = events.some((e) => e.slug === defaultEvent) ? defaultEvent! : events[0].slug;
+  if (!events.length && !site.editing) return null;
+  const selected = events.some((e) => e.slug === defaultEvent) ? defaultEvent! : (events[0]?.slug ?? "");
   const { offers, addons, stageThemes } = site.catalogue;
 
   return (

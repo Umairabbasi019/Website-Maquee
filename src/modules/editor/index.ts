@@ -7,3 +7,5 @@ export { blockedItems } from "./blocked";
 export { getDraft, getPublished, writeDraft, saveDraftChange, discardDraft, type DraftChanges } from "./server/draft";
 export { publishDraft, type PublishResult } from "./server/publish";
 export { getDraftView } from "./server/view";
+export { EditorBar } from "./ui/EditorBar";
+export { EditOverlay } from "./ui/EditOverlay";

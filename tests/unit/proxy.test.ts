@@ -43,7 +43,7 @@ beforeEach(() => {
 });
 
 describe("proxy session refresh", () => {
-  it.each(["/dashboard", "/dashboard/users", "/admin", "/mfa", "/login", "/auth/signed-out"])(
+  it.each(["/dashboard", "/dashboard/users", "/site-preview", "/admin", "/mfa", "/login", "/auth/signed-out"])(
     "refreshes on %s and passes rotated cookies both ways",
     async (path) => {
       const res = await proxy(request(path));

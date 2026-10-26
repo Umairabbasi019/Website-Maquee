@@ -17,6 +17,8 @@ export function SiteShell({ site, mode = "public" }: { site: SiteView; mode?: "p
   const { nav } = site.content;
   const logoUrls = site.theme.logo ? site.media[site.theme.logo]?.urls : undefined;
   const logo = logoUrls && (logoUrls.s ?? logoUrls.m ?? logoUrls.l);
+  // The editor shows the site inside the dashboard's own <main>, and a page has only one.
+  const Main = editing ? "div" : "main";
 
   return (
     <div className={`site-root ${styles.site} ${fontClassName}`} style={themeStyle(site.theme)}>
@@ -31,14 +33,14 @@ export function SiteShell({ site, mode = "public" }: { site: SiteView; mode?: "p
           />
         </>
       )}
-      <main>
+      <Main>
         <EnquiryProvider guests={site.content.contact.guests.default} maxGuests={site.content.contact.guests.max}>
           {site.sections.map((key) => {
             const Section = SECTION_COMPONENTS[key];
             return <Section key={key} site={site} />;
           })}
         </EnquiryProvider>
-      </main>
+      </Main>
       {site.status === "setup" && !editing && (
         <div className={styles.previewBar} role="status">
           {t("site.previewBar")}

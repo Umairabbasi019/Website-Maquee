@@ -11,7 +11,8 @@ import { EventsMotion } from "./EventsMotion";
 export function Events({ site }: SectionProps) {
   const { chapter, checkCta, packagesCta } = site.content.events;
   const { events } = site.catalogue;
-  if (!events.length) return null;
+  // In the editor an empty section still renders, so its "Add an event" placeholder has somewhere to be.
+  if (!events.length && !site.editing) return null;
   const canCheck = site.sections.includes("contact");
   const canSee = site.sections.includes("packages");
 

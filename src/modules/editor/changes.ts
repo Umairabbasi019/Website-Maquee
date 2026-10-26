@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ROW_VALUE_SCHEMAS } from "@/modules/catalogue";
+import { ROW_VALUE_SCHEMAS } from "@/modules/catalogue/client";
 import { ROW_TABLES, SETTINGS_PARTS, SiteDraftSchema, type RowKind, type SettingsPart, type SiteDraft } from "./draft";
 import { mediaRefs } from "./media-usage";
 

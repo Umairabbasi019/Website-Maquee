@@ -25,7 +25,7 @@
 
 ## Feature modules
 
-Each module lives in `src/modules/<name>/` and owns its server actions, queries, UI pieces, SQL migrations and tests. Other code imports only from `src/modules/<name>/index.ts`. A lint rule blocks imports of a module's internals.
+Each module lives in `src/modules/<name>/` and owns its server actions, queries, UI pieces, SQL migrations and tests. Other code imports only from `src/modules/<name>/index.ts`. A lint rule blocks imports of a module's internals. A module whose pure code a client component needs also has `client.ts`, a second public entry that must never import `server-only` code, directly or through another module's `index.ts` (it uses their `client.ts`); `index.ts` stays the server entry. Today: `tenants`, `catalogue`, `media`, `editor`.
 
 | Module | Owns |
 |---|---|
@@ -89,6 +89,7 @@ No adapter configured → the feature shows an honest "not connected" state.
 | Connect the bank or a gateway | New file `src/providers/payments/<vendor>.ts` + keys in admin console |
 | Change WhatsApp provider | New file in `src/providers/messaging/` |
 | Message wording | Templates in Dashboard → Messages (WhatsApp ones need Meta re-approval) |
+| The on-page editor screen: editor bar (change count, still-sample list, Laptop/Phone, Discard, Publish with the rendered revision), ✎ buttons on `data-edit` markers (who sees which ✎: `targets.ts`), side panels for packages, events, offers, add-ons and stage themes (rupee inputs, inline Zod messages, read-only fields with a reason), the phone preview | `src/modules/editor/ui/` (`EditorBar.tsx`, `EditOverlay.tsx`, `Panel.tsx`, `RowPanel.tsx`, `fields.tsx`, `panels/`), `src/modules/editor/targets.ts`; routes `src/app/dashboard/site/page.tsx` and `src/app/site-preview/page.tsx` (noindex, editors only, session route in `src/proxy.ts`); markers from `editAttrs` in `src/sections/shared/edit.ts`; the shared motion loop runs only with `html.js` (`src/sections/shared/motion.ts`), so the edit canvas stays plain blocks |
 | A dashboard screen | `src/modules/<feature>/ui/` + route folder in `src/app/dashboard/` (replaces its placeholder from `src/app/dashboard/[section]/page.tsx`) |
 | Dashboard menu: which screens exist and the permission each needs | `DASHBOARD_SCREENS` in `src/modules/access/ui/nav.ts` (mirrors the `/dashboard` table in `docs/SITEMAP.md`) |
 | Sign-in, MFA (TOTP) and sign-out flow; venue choice | `src/app/login/`, `src/app/mfa/`, `src/app/dashboard/context.ts`; MFA rule in `src/modules/access/server/session.ts` |
@@ -100,7 +101,7 @@ No adapter configured → the feature shows an honest "not connected" state.
 | Owner protection (who can touch owner memberships) | `supabase/migrations/20261020000700_owner_protection.sql`; tests in `tests/db/owner-protection.test.ts` |
 | Custom tenant roles (super admin only until M6) | Write policies in `supabase/migrations/20261021000200_custom_roles_admin_only.sql` |
 | Local demo data | `supabase/seed.sql` (tenants, template) and `scripts/seed-users.ts` (auth users, memberships); run `npm run db:seed` |
-| Which modules the import-boundary lint rule covers | `modules` list in `eslint.config.mjs`; add a name there when a module is created |
+| Which modules the import-boundary lint rule covers; the allowed `client.ts` entry | `modules` list and the `!@/modules/*/client` pattern in `eslint.config.mjs`; add a name there when a module is created |
 | A scheduled job | `src/modules/<feature>/jobs.ts` (registered in the job runner) |
 | Database tables of a feature | `supabase/migrations/` file named after the module |
 

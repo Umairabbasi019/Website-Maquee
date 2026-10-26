@@ -10,8 +10,9 @@ const restrictModuleInternals = (allowedModule) => [
   {
     patterns: [
       {
-        group: ["@/modules/*/*", ...(allowedModule ? [`!@/modules/${allowedModule}/*`] : [])],
-        message: "Import modules only through their index.ts",
+        // client.ts is a module's second public entry: its pure code, safe to import from client components.
+        group: ["@/modules/*/*", "!@/modules/*/client", ...(allowedModule ? [`!@/modules/${allowedModule}/*`] : [])],
+        message: "Import modules only through their index.ts (or client.ts from client components)",
       },
     ],
   },

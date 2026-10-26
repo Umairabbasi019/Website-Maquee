@@ -5,8 +5,8 @@ import {
   OfferRowSchema,
   PackageRowSchema,
   StageThemeRowSchema,
-} from "@/modules/catalogue";
-import { IdentitySchema, MessagingSchema, SectionsSchema, SiteContentSchema, ThemeSchema } from "@/modules/tenants";
+} from "@/modules/catalogue/client";
+import { IdentitySchema, MessagingSchema, SectionsSchema, SiteContentSchema, ThemeSchema } from "@/modules/tenants/client";
 
 /** Everything the public site reads, as one venue draft. site_snapshot() in SQL returns this same shape. */
 export const SiteDraftSchema = z.object({

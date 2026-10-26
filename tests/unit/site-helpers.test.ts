@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { coverSizes, srcSet } from "@/sections/shared/image";
 import { openStatus, todayIn, addDays } from "@/sections/shared/hours";
 import { buildEnquiryMessage, waLink } from "@/sections/shared/enquiry";
-import { formatRs, lakhFrom, formatLocalPhone, parseRupees } from "@/sections/shared/format";
+import { formatRs, lakhFrom, formatLocalPhone, parseRupees, rupeesInput } from "@/sections/shared/format";
 import { easeToward, subscribeFrame } from "@/sections/shared/motion";
 
 const TZ = "Asia/Karachi";
@@ -98,6 +98,14 @@ describe("parseRupees", () => {
   });
 });
 
+describe("rupeesInput", () => {
+  it("shows paisa as rupees an editor can type back without loss", () => {
+    for (const paisa of [1, 5, 50, 100, 320050, 420000, 2_000_000_000]) expect(parseRupees(rupeesInput(paisa)), String(paisa)).toBe(paisa);
+    expect(rupeesInput(320005)).toBe("3200.05");
+    expect(rupeesInput(420000)).toBe("4200");
+  });
+});
+
 describe("easeToward", () => {
   it("eases part of the way, then settles exactly on the target and stays there", () => {
     const first = easeToward(0, 1);
@@ -117,7 +125,8 @@ describe("easeToward", () => {
 
 describe("subscribeFrame", () => {
   it("keeps the shared visibility listener while any subscriber is left", () => {
-    const doc = Object.assign(new EventTarget(), { hidden: true });
+    // A public page: SiteShell has set html.js.
+    const doc = Object.assign(new EventTarget(), { hidden: true, documentElement: { classList: { contains: (c: string) => c === "js" } } });
     const raf = vi.fn(() => 1);
     vi.stubGlobal("document", doc);
     vi.stubGlobal("requestAnimationFrame", raf);
@@ -131,6 +140,18 @@ describe("subscribeFrame", () => {
       doc.dispatchEvent(new Event("visibilitychange"));
       expect(raf).toHaveBeenCalledTimes(1);
       leaveA();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it("never runs on a page without html.js (the editor's canvas)", () => {
+    const raf = vi.fn(() => 1);
+    vi.stubGlobal("document", Object.assign(new EventTarget(), { hidden: false, documentElement: { classList: { contains: () => false } } }));
+    vi.stubGlobal("requestAnimationFrame", raf);
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    try {
+      subscribeFrame(() => {})();
+      expect(raf).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
     }

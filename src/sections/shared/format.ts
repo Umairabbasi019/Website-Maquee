@@ -26,3 +26,9 @@ export function formatLocalPhone(e164: string): string {
   const m = /^\+92(3\d{2})(\d{3})(\d{4})$/.exec(e164);
   return m ? `0${m[1]} ${m[2]} ${m[3]}` : e164;
 }
+
+/** Paisa as rupees in an input ("3200", "3200.05"); parseRupees reads it back exactly. */
+export function rupeesInput(paisa: number): string {
+  const cents = paisa % 100;
+  return cents ? `${Math.floor(paisa / 100)}.${String(cents).padStart(2, "0")}` : String(paisa / 100);
+}
