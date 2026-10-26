@@ -34,3 +34,4 @@
 | 2026-10-24 | Responsive images use server-rendered `<img srcset sizes>` with pixel sizes stored in `media_assets.dims` | Replaced client-side size picking; the browser chooses once, with no layout shift or JavaScript needed |
 | 2026-10-24 | `content-visibility: auto` only on unpinned sections | Skips off-screen layout work; pinned scroll scenes need real layout |
 | 2026-10-24 | `Intl` formatting stays off hydration: prices formatted on the server, `useAfterIdle` for live hours and the date minimum | First-use `Intl` setup cost hundreds of ms on slow phones |
+| 2026-10-26 | Date prices may not overlap within one scope (a tenant's all-events rules, or one event type), but an event-specific range may overlap an all-events one; the pricing service (M4) applies the event-specific rule | A database exclusion constraint keeps each scope unambiguous; a venue can still run a general season and a special price for one event type inside it |

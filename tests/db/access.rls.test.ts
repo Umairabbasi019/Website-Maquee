@@ -96,6 +96,7 @@ async function seed(c: Client) {
   await c.query("insert into offers (tenant_id, title, body) values ($1, 't', 'b')", [B]);
   await c.query("insert into addons (tenant_id, name, price_paisa, basis) values ($1, 'Lights', 1, 'flat')", [B]);
   await c.query("insert into stage_themes (tenant_id, name, price_paisa) values ($1, 'Royal', 1)", [B]);
+  await c.query("insert into date_prices (tenant_id, starts_on, ends_on, kind, value, label) values ($1, '2026-12-01', '2026-12-02', 'percent', 10, 'Winter')", [B]);
   await c.query("insert into media_assets (tenant_id, key, alt, category, sizes) values ($1, 'front', 'a', 'hero', '{s}')", [B]);
   await c.query("insert into tenant_domains (tenant_id, host) values ($1, 'b.test')", [B]);
   await c.query("insert into tenant_features (tenant_id, feature_key, enabled) values ($1, 'invites', true)", [B]);
