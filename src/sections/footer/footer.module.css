@@ -30,7 +30,7 @@
   font-size: 13.5vw;
   line-height: 0.8;
   letter-spacing: -0.03em;
-  color: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent); /* full accent: any tint needs a different mix per theme to reach 3:1 */
   white-space: nowrap;
   margin-top: 40px;
 }
