@@ -84,7 +84,7 @@ describe("Gallery with missing data", () => {
 describe("Events with missing data", () => {
   const render = (over: Partial<Raw> = {}) =>
     renderToStaticMarkup(
-      <EnquiryProvider guests={400}>
+      <EnquiryProvider guests={400} maxGuests={1000}>
         <Events site={view(over)} />
       </EnquiryProvider>,
     );

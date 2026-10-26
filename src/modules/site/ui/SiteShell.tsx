@@ -26,7 +26,7 @@ export function SiteShell({ site }: { site: SiteView }) {
         links={site.navLinks}
       />
       <main>
-        <EnquiryProvider guests={site.content.contact.guests.default}>
+        <EnquiryProvider guests={site.content.contact.guests.default} maxGuests={site.content.contact.guests.max}>
           {site.sections.map((key) => {
             const Section = SECTION_COMPONENTS[key];
             return <Section key={key} site={site} />;

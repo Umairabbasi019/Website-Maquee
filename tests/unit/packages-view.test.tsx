@@ -24,7 +24,7 @@ const manor: Catalogue = {
 
 const render = (catalogue: Catalogue, defaultEvent?: string) =>
   renderToStaticMarkup(
-    <EnquiryProvider guests={400}>
+    <EnquiryProvider guests={400} maxGuests={1000}>
       <Packages
         site={buildSiteView({
           tenantId: "t1",
