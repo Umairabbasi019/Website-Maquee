@@ -26,3 +26,11 @@
 | 2026-10-21 | Halls and slots are written with `tenant.settings.edit` | Simple for M1; revisit in M2/M3 when booking rules are built |
 | 2026-10-21 | Members of a paused tenant cannot read their tenant row; the server shows a paused notice | The database blocks everything for paused tenants; only the super admin sees them |
 | 2026-10-21 | Custom roles are super admin only until M6 | A tenant owner could create roles with "never" keys or extra manager-like roles that skip the manager limit |
+| 2026-10-24 | Site content (hero, captions, event text, contact) is a `content` block inside `tenant_settings`, checked by a Zod schema | A new venue needs only data, not code; one place to edit and validate |
+| 2026-10-24 | Section styles are CSS Modules ported from the approved mockup, coloured by theme CSS variables | Keeps the approved look; no venue colour or font in code |
+| 2026-10-24 | Venue photos go in a public `venue-media` bucket; only the service role writes | Public pages need plain image URLs and a CDN; writes stay closed to browsers |
+| 2026-10-24 | Sites stay noindex while content or catalogue is marked sample | Sample copy and prices must not appear in search as the venue's real offer |
+| 2026-10-24 | Depth parallax is a progressive layer: desktop, fine pointer, hardware WebGL2 only; the server `<img>` stays as fallback and LCP | Phones and weak devices keep a fast, stable hero; the effect never blocks first paint |
+| 2026-10-24 | Responsive images use server-rendered `<img srcset sizes>` with pixel sizes stored in `media_assets.dims` | Replaced client-side size picking; the browser chooses once, with no layout shift or JavaScript needed |
+| 2026-10-24 | `content-visibility: auto` only on unpinned sections | Skips off-screen layout work; pinned scroll scenes need real layout |
+| 2026-10-24 | `Intl` formatting stays off hydration: prices formatted on the server, `useAfterIdle` for live hours and the date minimum | First-use `Intl` setup cost hundreds of ms on slow phones |

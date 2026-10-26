@@ -7,7 +7,7 @@ insert into tenant_templates (name, payload) values ('Standard marquee', $json$
   "settings": {
     "identity": { "name": "", "phones": [], "openingHours": [], "social": {} },
     "theme": {
-      "colors": { "primary": "#c2a878", "background": "#ece7df", "text": "#2b2a28" },
+      "colors": { "primary": "#785e2c", "background": "#ece7df", "text": "#2b2a28", "muted": "#5c574f", "deep": "#d9cdb7" },
       "fonts": { "heading": "Cormorant Garamond", "body": "Inter" }
     },
     "sections": [
@@ -38,7 +38,7 @@ begin
   for v_def in
     select * from (values
       ('Manor Group', 'manor', 'Manor', 'live', 'manor.localhost',
-       '{"colors":{"primary":"#d9bf8c","background":"#0b0405","text":"#f4ece0"},"fonts":{"heading":"Cormorant Garamond","body":"Inter"}}'::jsonb),
+       '{"colors":{"primary":"#d9bf8c","background":"#0b0405","text":"#f4ece0","muted":"#b3a597","deep":"#5b0f1a"},"fonts":{"heading":"Cormorant Garamond","body":"Inter"}}'::jsonb),
       ('Demo Events', 'demo-hall', 'Demo Hall', 'setup', 'demo.localhost', null::jsonb)
     ) as t(account_name, slug, tenant_name, status, host, theme)
   loop
@@ -58,7 +58,7 @@ begin
     insert into tenant_features (tenant_id, feature_key, enabled)
     select v_tenant, f.key, f.value::text::boolean from jsonb_each(v_template -> 'features') f;
 
-    insert into tenant_domains (tenant_id, host, verified_at) values (v_tenant, v_def.host, now());
+    insert into tenant_domains (tenant_id, host, verified_at, is_primary) values (v_tenant, v_def.host, now(), true);
     insert into halls (tenant_id, name, capacity_min, capacity_max) values (v_tenant, 'Main hall', 100, 500);
     insert into slots (tenant_id, name, start_time, end_time) values
       (v_tenant, 'Lunch', '12:00', '16:00'),

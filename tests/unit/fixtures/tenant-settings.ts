@@ -1,4 +1,5 @@
 import type { TenantSettings } from "@/modules/tenants";
+import { demoContent } from "../../../scripts/seed-data/demo";
 
 const keys = ["hero", "inside", "stage", "gallery", "events", "packages", "contact", "footer"] as const;
 
@@ -11,7 +12,7 @@ export const defaultSettings: TenantSettings = {
     social: {},
   },
   theme: {
-    colors: { primary: "#b8893b", background: "#0b0b0f", text: "#f5efe6" },
+    colors: { primary: "#b8893b", background: "#0b0b0f", text: "#f5efe6", muted: "#8a857d", deep: "#9c7a3c" },
     fonts: { heading: "Cormorant Garamond", body: "Inter" },
   },
   sections: keys.map((key) => ({ key, visible: true })),
@@ -26,4 +27,5 @@ export const defaultSettings: TenantSettings = {
   },
   messaging: { reminderDays: [7, 3, 1], morningSummaryTime: "08:00", marketingCapPerMonth: 4 },
   limits: { loginLimit: 5, managerLimit: 2 },
+  content: demoContent,
 };

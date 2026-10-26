@@ -27,6 +27,8 @@ type TenantRow = {
   tenant_domains: { host: string; verified_at: string | null }[];
   tenant_settings: { identity: unknown } | null;
   halls: { count: number }[];
+  packages: { count: number }[];
+  media_assets: { count: number }[];
 };
 
 const MANAGE = "platform.tenants.manage";
@@ -54,10 +56,9 @@ function summarise(row: TenantRow, lastActivity: string | null): TenantSummary {
       {
         domains: verified.length,
         halls: row.halls[0]?.count ?? 0,
-        // shortcut: packages, hero media and payment accounts have no tables until M2–M5, so these
-        // items stay honestly "missing"; count the real tables when those milestones add them.
-        packages: 0,
-        heroMedia: 0,
+        // shortcut: payment accounts have no table until M5, so this item stays honestly "missing".
+        packages: row.packages[0]?.count ?? 0,
+        heroMedia: row.media_assets[0]?.count ?? 0,
         paymentAccounts: 0,
       },
     ),
@@ -65,7 +66,7 @@ function summarise(row: TenantRow, lastActivity: string | null): TenantSummary {
 }
 
 const TENANT_SELECT =
-  "id, name, slug, status, tenant_domains(host, verified_at), tenant_settings(identity), halls(count)";
+  "id, name, slug, status, tenant_domains(host, verified_at), tenant_settings(identity), halls(count), packages(count), media_assets(count)";
 
 async function lastActivity(db: Awaited<ReturnType<typeof createServerClient>>, tenantId: string) {
   const rows = check(
@@ -84,7 +85,7 @@ export async function listTenants(): Promise<TenantSummary[]> {
   await requirePerm(null, MANAGE);
   const db = await createServerClient();
   const rows = check(
-    await db.from("tenants").select(TENANT_SELECT).eq("halls.is_active", true).order("name"),
+    await db.from("tenants").select(TENANT_SELECT).eq("halls.is_active", true).eq("media_assets.category", "hero").order("name"),
     "listTenants",
   ) as unknown as TenantRow[];
   // shortcut: one audit query per tenant (fine for tens of tenants); move to a SQL view when the list grows.
@@ -110,6 +111,7 @@ export async function getTenantDetail(tenantId: string): Promise<TenantDetail | 
       .select(`${TENANT_SELECT}, login_limit, manager_limit`)
       .eq("id", tenantId)
       .eq("halls.is_active", true)
+      .eq("media_assets.category", "hero")
       .maybeSingle(),
     "getTenantDetail",
   ) as unknown as (TenantRow & { login_limit: number; manager_limit: number }) | null;

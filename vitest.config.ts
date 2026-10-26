@@ -9,6 +9,8 @@ const alias = {
   "@": fileURLToPath(new URL("./src", import.meta.url)),
   // The real package throws outside a server build; tests run in plain Node.
   "server-only": fileURLToPath(new URL("./tests/stubs/server-only.ts", import.meta.url)),
+  // The real loader needs the Next.js compiler.
+  "next/font/google": fileURLToPath(new URL("./tests/stubs/next-font.ts", import.meta.url)),
 };
 
 export default defineConfig({
@@ -16,7 +18,7 @@ export default defineConfig({
     projects: [
       {
         resolve: { alias },
-        test: { name: "unit", testTimeout: 30_000, include: ["tests/unit/**/*.test.ts", "tests/lint/**/*.test.ts"] },
+        test: { name: "unit", testTimeout: 30_000, include: ["tests/unit/**/*.test.{ts,tsx}", "tests/lint/**/*.test.ts"] },
       },
       {
         resolve: { alias },

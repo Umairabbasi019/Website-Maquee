@@ -1,6 +1,6 @@
 import pg from "pg";
 import { afterAll, describe, expect, it } from "vitest";
-import { TenantSettingsSchema } from "@/modules/tenants";
+import { SiteContentSchema, TenantSettingsSchema, ThemeSchema } from "@/modules/tenants";
 
 // Reads committed seed data (supabase/seed.sql + scripts/seed-users.ts), so run `npm run db:seed` first.
 const pool = new pg.Pool({
@@ -17,7 +17,7 @@ describe("seeded demo tenants", () => {
   it("has two tenants with different accent colours and valid settings", async () => {
     const { rows } = await pool.query(
       `select t.slug, t.status, t.currency, t.time_zone, t.login_limit, t.manager_limit,
-              s.identity, s.theme, s.sections, s.money_rules, s.messaging
+              s.identity, s.theme, s.sections, s.money_rules, s.messaging, s.content
        from tenants t join tenant_settings s on s.tenant_id = t.id
        where t.slug = any($1) order by t.slug`,
       [slugs],
@@ -32,14 +32,35 @@ describe("seeded demo tenants", () => {
         moneyRules: { ...r.money_rules, currency: r.currency, timeZone: r.time_zone },
         messaging: r.messaging,
         limits: { loginLimit: r.login_limit, managerLimit: r.manager_limit },
+        content: r.content,
       });
       expect(parsed.success, r.slug).toBe(true);
     }
   });
 
+  it("seeds sample site content for Manor and into the template", async () => {
+    const manor = await pool.query(
+      `select s.content, s.theme from tenant_settings s join tenants t on t.id = s.tenant_id where t.slug = 'manor'`,
+    );
+    expect(manor.rows[0].content.sample).toBe(true);
+    expect(manor.rows[0].theme.logo).toBe("logo");
+    const tpl = await pool.query(`select payload -> 'settings' -> 'content' as content from tenant_templates where name = 'Standard marquee'`);
+    const parsed = SiteContentSchema.safeParse(tpl.rows[0].content);
+    expect(parsed.success && parsed.data.sample).toBe(true);
+  });
+
+  it("keeps only templates whose theme and content parse", async () => {
+    const { rows } = await pool.query(`select name, payload -> 'settings' as settings from tenant_templates`);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(ThemeSchema.safeParse(r.settings.theme).success, `${r.name} theme`).toBe(true);
+      expect(SiteContentSchema.safeParse(r.settings.content).success, `${r.name} content`).toBe(true);
+    }
+  });
+
   it("has domains, halls and the lunch and dinner slots", async () => {
     const { rows } = await pool.query(
-      `select t.slug, d.host,
+      `select t.slug, d.host, d.is_primary,
               (select count(*)::int from halls h where h.tenant_id = t.id) as halls,
               (select string_agg(s.name || ' ' || s.start_time || '-' || s.end_time, ', ' order by s.start_time)
                  from slots s where s.tenant_id = t.id) as slots
@@ -47,7 +68,7 @@ describe("seeded demo tenants", () => {
        where t.slug = any($1) order by t.slug`,
       [slugs],
     );
-    expect(rows.map((r) => [r.slug, r.host])).toEqual([["demo-hall", "demo.localhost"], ["manor", "manor.localhost"]]);
+    expect(rows.map((r) => [r.slug, r.host, r.is_primary])).toEqual([["demo-hall", "demo.localhost", true], ["manor", "manor.localhost", true]]);
     for (const r of rows) {
       expect(r.halls).toBeGreaterThan(0);
       expect(r.slots).toBe("Lunch 12:00:00-16:00:00, Dinner 19:00:00-23:00:00");

@@ -87,6 +87,13 @@ async function seed(c: Client) {
     [A, B],
   );
   await c.query("insert into slots (tenant_id, name, start_time, end_time) values ($1, 'Night', '19:00', '23:00')", [B]);
+  const eventB = await one(c, "insert into event_types (tenant_id, slug, name) values ($1, 'barat', 'Barat') returning id", [B]);
+  await c.query(
+    "insert into packages (tenant_id, event_type_id, name, price_per_guest_paisa, min_guests, items) values ($1, $2, 'Gold', 1, 1, '{}')",
+    [B, eventB],
+  );
+  await c.query("insert into offers (tenant_id, title, body) values ($1, 't', 'b')", [B]);
+  await c.query("insert into media_assets (tenant_id, key, alt, category, sizes) values ($1, 'front', 'a', 'hero', '{s}')", [B]);
   await c.query("insert into tenant_domains (tenant_id, host) values ($1, 'b.test')", [B]);
   await c.query("insert into tenant_features (tenant_id, feature_key, enabled) values ($1, 'invites', true)", [B]);
   await c.query("insert into tenant_secrets (tenant_id, kind, ciphertext) values ($1, 'whatsapp', 'x')", [B]);

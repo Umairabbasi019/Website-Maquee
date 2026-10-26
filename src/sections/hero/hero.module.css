@@ -1,0 +1,108 @@
+.low {
+  left: 7vw;
+  bottom: 17vh;
+}
+.high {
+  right: 7vw;
+  top: 28vh;
+  text-align: right;
+}
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+  transition-delay: 0.55s;
+}
+.rays {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: conic-gradient(
+    from 200deg at 72% -10%,
+    transparent 0deg,
+    color-mix(in srgb, var(--color-accent) 13%, transparent) 7deg,
+    transparent 15deg,
+    color-mix(in srgb, var(--color-accent) 8%, transparent) 23deg,
+    transparent 33deg
+  );
+  mix-blend-mode: screen;
+}
+.cue {
+  position: absolute;
+  left: 50%;
+  bottom: 9vh;
+  z-index: 10;
+  transform: translateX(-50%);
+  transform-origin: top;
+  width: 1px;
+  height: 60px;
+  background: linear-gradient(var(--color-accent), transparent);
+}
+/* The arrival caption is rendered already revealed (class "on" in Hero.tsx) so its text paints without waiting for script.
+   Its entrance is transform-only (opacity stays 1) and runs once; "backwards" keeps it from overriding the scroll-driven state later. */
+@media (prefers-reduced-motion: no-preference) {
+  .arrive :global(.line > span) {
+    animation: rise-line 1.3s var(--ease) backwards;
+  }
+  .arrive :global(.fade) {
+    animation: rise 1.2s var(--ease) backwards;
+  }
+  .rays {
+    animation: ray 9s ease-in-out infinite alternate;
+  }
+  .cue {
+    animation: cue 2s ease-in-out infinite;
+  }
+}
+@keyframes ray {
+  to {
+    transform: translateX(-6%) rotate(2deg);
+    opacity: 0.5;
+  }
+}
+/* Grows down from the top, then shrinks into the bottom. The shrink moves down by its own height instead of
+   switching transform-origin, so the animation stays on the compositor. */
+@keyframes cue {
+  0% {
+    transform: translateX(-50%) translateY(0) scaleY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(0) scaleY(1);
+  }
+  100% {
+    transform: translateX(-50%) translateY(100%) scaleY(0);
+  }
+}
+@media (max-width: 860px) {
+  .low {
+    left: 16px;
+  }
+  .high {
+    right: 16px;
+  }
+}
+@keyframes rise-line {
+  from {
+    transform: translateY(105%);
+  }
+}
+@keyframes rise {
+  from {
+    transform: translateY(24px);
+  }
+}
+/* Depth canvas (depth/DepthLayer.tsx): hidden until its first frame is drawn, then fades in over the photo. */
+.depth {
+  visibility: hidden;
+}
+.depth[data-ready] {
+  visibility: visible;
+  animation: depth-in 0.6s ease backwards;
+}
+@keyframes depth-in {
+  from {
+    opacity: 0;
+  }
+}

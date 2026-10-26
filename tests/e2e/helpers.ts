@@ -46,3 +46,11 @@ export async function shoot(page: Page, name: string) {
     await page.screenshot({ path: `${SHOTS}/${name}-${width}.png`, fullPage: true });
   }
 }
+
+/** Init script: WebGL and WebGL2 contexts are unavailable. */
+export function noWebGL() {
+  const getContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+    return type === "webgl2" || type === "webgl" ? null : getContext.call(this, type as "2d", ...(rest as []));
+  } as typeof getContext;
+}

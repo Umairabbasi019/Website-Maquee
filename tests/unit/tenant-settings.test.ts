@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  IdentitySchema,
   MoneyRulesSchema,
   SectionsSchema,
   SlugSchema,
@@ -22,6 +23,13 @@ describe("tenant settings schemas", () => {
     expect(SlugSchema.safeParse("The Manor").success).toBe(false);
     expect(SlugSchema.safeParse("Manor").success).toBe(false);
     expect(SlugSchema.safeParse("the-manor-2").success).toBe(true);
+  });
+
+  it.each(["javascript:alert(1)", "http://instagram.com/x"])("rejects %s as a public link", (url) => {
+    const id = defaultSettings.identity;
+    expect(IdentitySchema.safeParse({ ...id, social: { instagram: url } }).success).toBe(false);
+    expect(IdentitySchema.safeParse({ ...id, googleReviewUrl: url }).success).toBe(false);
+    expect(IdentitySchema.safeParse({ ...id, social: { instagram: "https://instagram.com/x" } }).success).toBe(true);
   });
 
   it("requires each section key exactly once", () => {

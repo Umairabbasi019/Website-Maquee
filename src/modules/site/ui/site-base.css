@@ -1,0 +1,228 @@
+/* Shared vocabulary for sections. Global names on purpose: the Lines component and section markup use them as plain classes. */
+.site-root .serif {
+  font-family: var(--font-heading);
+  font-weight: 300;
+}
+.site-root em {
+  color: var(--color-accent);
+  font-style: italic;
+}
+.site-root .melt {
+  -webkit-mask-image: radial-gradient(ellipse 72% 70% at 50% 48%, #000 38%, transparent 100%);
+  mask-image: radial-gradient(ellipse 72% 70% at 50% 48%, #000 38%, transparent 100%);
+}
+.site-root .pin {
+  position: relative;
+}
+/* A pinned scene is a stack of frames (photo + caption). Without script or with reduced motion each frame is a plain
+   100vh block; with both, the pin gets its scroll length (--pin), the frames overlap on one sticky screen and the
+   section script fades the later ones in. */
+.site-root .frame {
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .js .site-root .pin {
+    height: var(--pin);
+  }
+  .js .site-root .sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .js .site-root .frame {
+    display: contents;
+  }
+  .js .site-root .frame ~ .frame > :not(.cap) {
+    opacity: 0;
+  }
+}
+/* Off-screen layout skip for the plain (unpinned) sections. Never add the pinned ones: their scroll-driven motion needs
+   real layout. "auto" remembers the real height once rendered; these are first-visit guesses measured on the Manor
+   seed (mobile / desktop), so the scrollbar and anchor jumps barely shift. */
+.site-root :is(#gallery, #packages, #contact, #footer) {
+  content-visibility: auto;
+}
+.site-root #gallery {
+  contain-intrinsic-size: auto 900px;
+}
+.site-root #packages {
+  contain-intrinsic-size: auto 2300px;
+}
+.site-root #contact {
+  contain-intrinsic-size: auto 2400px;
+}
+.site-root #footer {
+  contain-intrinsic-size: auto 340px;
+}
+@media (min-width: 861px) {
+  .site-root #gallery {
+    contain-intrinsic-size: auto 1100px;
+  }
+  .site-root #packages {
+    contain-intrinsic-size: auto 1300px;
+  }
+  .site-root #contact {
+    contain-intrinsic-size: auto 2100px;
+  }
+}
+.site-root .shot {
+  z-index: 4;
+  will-change: transform, opacity;
+  -webkit-mask-image: linear-gradient(transparent, #000 12%, #000 80%, transparent);
+  mask-image: linear-gradient(transparent, #000 12%, #000 80%, transparent);
+}
+.site-root .shade {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-bg) 88%, transparent),
+      color-mix(in srgb, var(--color-bg) 40%, transparent) 45%,
+      transparent 62%,
+      color-mix(in srgb, var(--color-bg) 50%, transparent)
+    ),
+    linear-gradient(transparent 55%, color-mix(in srgb, var(--color-bg) 78%, transparent));
+}
+.site-root .full {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.site-root .dip {
+  position: absolute;
+  inset: 0;
+  background: var(--color-bg);
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+}
+.site-root .chap {
+  font-family: var(--font-heading);
+  font-style: italic;
+  font-size: 20px;
+  color: var(--color-accent);
+  margin-bottom: 10px;
+}
+.site-root .big {
+  font-size: clamp(38px, min(6vw, 10vh), 88px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+.site-root .sub {
+  font-size: clamp(30px, 3.4vw, 52px);
+}
+.site-root .cap {
+  position: absolute;
+  z-index: 10;
+  overflow-wrap: anywhere;
+  text-shadow:
+    0 1px 3px color-mix(in srgb, var(--color-bg) 55%, transparent),
+    0 2px 28px color-mix(in srgb, var(--color-bg) 85%, transparent);
+}
+.site-root .cap p {
+  color: color-mix(in srgb, var(--color-text) 93%, transparent);
+  margin-top: 18px;
+  max-width: 440px;
+  font-size: 17px;
+}
+.site-root .line {
+  display: block;
+  overflow: hidden;
+}
+.site-root .pill {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 13px 24px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border: 1px solid var(--color-accent);
+  color: var(--color-bg);
+  background: var(--color-accent);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.4s var(--ease), background 0.3s;
+}
+.site-root .pill:hover {
+  transform: translateY(-2px);
+}
+.site-root .pill.ghost {
+  background: transparent;
+  color: var(--color-accent);
+}
+.site-root .pill:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+/* Section title in flowing (not pinned) sections: gallery, packages. */
+.site-root .title {
+  font-size: clamp(34px, min(4.4vw, 8vh), 64px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Hidden until revealed: only when the inline script has set html.js. Without JavaScript everything shows. */
+.js .site-root .line > span {
+  display: block;
+  transform: translateY(105%);
+  transition: transform 1.3s var(--ease);
+}
+.js .site-root .fade {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 1s, transform 1.2s var(--ease);
+}
+.js .site-root .line + .line > span {
+  transition-delay: 0.12s;
+}
+.js .site-root .on .line > span {
+  transform: none;
+}
+.js .site-root .on .fade {
+  opacity: 1;
+  transform: none;
+}
+
+@media (max-width: 860px) {
+  .site-root .big {
+    font-size: clamp(34px, 9.5vw, 44px);
+  }
+  .site-root .sub {
+    font-size: clamp(28px, 8vw, 36px);
+  }
+  .site-root .cap p {
+    max-width: 86vw;
+    font-size: 16px;
+  }
+  .site-root .pill {
+    padding: 11px 16px;
+    font-size: 13px;
+  }
+  .site-root .shade {
+    background: linear-gradient(
+      color-mix(in srgb, var(--color-bg) 88%, transparent),
+      color-mix(in srgb, var(--color-bg) 55%, transparent) 20%,
+      transparent 32%,
+      color-mix(in srgb, var(--color-bg) 72%, transparent) 50%,
+      color-mix(in srgb, var(--color-bg) 93%, transparent) 70%
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-root .line > span,
+  .site-root .fade {
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}

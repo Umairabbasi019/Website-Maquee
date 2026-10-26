@@ -5,8 +5,8 @@ One milestone at a time. Each ends with a code review, checks actually run, docs
 | ID | Milestone | Size | Depends on | Status |
 |---|---|---|---|---|
 | M0 | Planning documents | S | – | Done, approved 2026-10-19 |
-| M1 | Foundation and security | L | M0 | Built 2026-10-21, awaiting review and approval |
-| M2 | Public site from config | L | M1 | Not started |
+| M1 | Foundation and security | L | M0 | Done, merged |
+| M2 | Public site from config | L | M1 | Built on `feat/m2-public-site`, awaiting whole-branch review and merge |
 | M3 | Venue configuration and catalogue | M | M1 | Not started |
 | M4 | Booking engine and pricing | L | M3 | Not started |
 | M5 | Payments | M | M4 | Not started |
@@ -66,15 +66,17 @@ Scope: choose hosting, deploy, domains and HTTPS, backups, monitoring, security 
 Acceptance: every launch checklist item verified, not assumed.
 
 ## Handoff
-Current state: M1 is built on branch `feat/m1-foundation` and awaits the final branch review and your approval. It is not merged to `main`. M0 was approved and merged 2026-10-19.
+Current state: M0 and M1 are merged to `main`. M2 is built on branch `feat/m2-public-site` (Tasks 1-10 done) and awaits the whole-branch code review and your approval before merge.
 
-Checks run on the branch (2026-10-21): lint, typecheck and build clean; 47 unit tests, 69 database tests and 11 Playwright tests pass.
+Checks run on the branch (2026-10-24): lint and typecheck clean; 109 unit tests (17 files), 92 database tests (14 files) and 38 Playwright tests pass; `npm run build` passes.
 
-Built in M1: module folders with an import lint rule; Supabase schema for tenants and access; permission keys and built-in roles; RLS on every table with negative tests; one key rule in SQL (`auth_has_perm`, `viewer_keys`); platform admin needs aal2 in the database; grant rules below the super admin; owner protection; login limits (5 total, 2 managers by default); tenant settings schemas, templates and setup checklist; encrypted per-tenant secrets; seeds (Manor live, demo hall in setup, role users, super admin with TOTP); proxy (host to tenant for public routes, session refresh); login, super admin MFA, permission-filtered dashboard shell; super admin console shell; holding page for paused tenants.
+Built in M2: site content block in tenant settings; catalogue slice (event types, packages, offers with RLS); media slice (public `venue-media` bucket, `media_assets` with pixel `dims`, seed upload); public site shell from tenant config (theme, fonts, SEO, JSON-LD, preview bar); sections hero, inside, stage, gallery, events, packages, contact and footer; scroll motion, reduced-motion and no-WebGL fallbacks, no-JavaScript output; responsive images; hero depth parallax layer with offline depth maps; QA specs; performance work (idle animation, `srcset`, off-hydration `Intl`, `content-visibility`).
 
-Notes for M2:
-- Read the tenant from `x-tenant-id` and `x-tenant-status` set by `src/proxy.ts`. Never take a tenant ID from the browser.
-- Public pages need a server view or function for site data. Tables stay closed to anonymous users.
-- Replace the paused-tenant holding page in `src/app/page.tsx` with the real site; keep the paused case.
-- Run `npm run db:seed` before `npm run test:db` and `npm run test:e2e`.
-- Not built yet: audit log screen, users and permissions UI, deactivation screens (M6), staff invite flow, phone OTP login.
+Notes for M3:
+- Show a "sample" badge in the dashboard while content or catalogue rows are marked sample; the public site stays noindex until they are not.
+- Price columns need the `prices.edit` key; the catalogue tables use `catalogue.edit` for now.
+- The media upload path must write `media_assets.dims` for every size, and `depth.png` when the hero mode is `depth`.
+- The decorative duplicate hero and section `Shot`s need `alt=""` and `aria-hidden` (pending review).
+- Lighthouse mobile performance is about 45-51 on Manor and 70-76 on the demo venue locally, against a target of 80. Local Lighthouse on this Windows machine is noisy and shows a suspect 16-21 s LCP. Recheck with PageSpeed Insights after the first deploy.
+- Not built yet: audit log screen, users and permissions UI, deactivation screens (M6), staff invite flow, phone OTP login, "See stage themes" (M8).
+- Run `npm run db:seed` before `npm run test:db` and `npm run test:e2e`. The seed uploads Manor photos from `MANOR_MEDIA_DIR`; set `SKIP_MANOR_MEDIA=1` to skip them.
