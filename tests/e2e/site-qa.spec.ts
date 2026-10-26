@@ -1,4 +1,4 @@
-﻿import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { manorContent } from "../../scripts/seed-data/manor";
 import { noWebGL, TENANT_BASE } from "./helpers";
 
