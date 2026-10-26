@@ -89,10 +89,10 @@ describe("parseRupees", () => {
     expect(parseRupees("3200.5")).toBe(320050);
     expect(parseRupees("3,200.50")).toBe(320050);
     expect(parseRupees(" 3200 ")).toBe(320000);
-    expect(parseRupees("100,000,000")).toBe(10_000_000_000);
+    expect(parseRupees("20,000,000")).toBe(2_000_000_000);
   });
   it("refuses negative, scientific, over-precise, zero, non-ASCII, empty and too-large input", () => {
-    for (const input of ["-5", "1e3", "3.333", "0", "٣٢٠٠", "", "100000000.01", "Rs", "3.", ".5"]) {
+    for (const input of ["-5", "1e3", "3.333", "0", "٣٢٠٠", "", "20000000.01", "Rs", "3.", ".5"]) {
       expect(parseRupees(input), input).toBeNull();
     }
   });

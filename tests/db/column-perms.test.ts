@@ -113,6 +113,19 @@ describe("catalogue column permissions", () => {
       await expectReject(c, "update packages set name = 'Platinum' where tenant_id = $1", [s.A], needs("catalogue.edit"));
     }));
 
+  it("a manager with only prices.edit changes a sample package's price and clears its sample flag", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      await c.query("update packages set sample = true where tenant_id = $1", [s.A]);
+      await publishing(c);
+      await override(c, s.membership, "catalogue.edit", false);
+      await asUser(c, s.manager);
+      const update = "update packages set price_per_guest_paisa = 330000, sample = false where tenant_id = $1";
+      expect((await c.query(update, [s.A])).rowCount).toBe(1);
+      expect(await one<boolean>(c, "select sample from packages where tenant_id = $1", [s.A])).toBe(false);
+      await expectReject(c, "update packages set sample = true where tenant_id = $1", [s.A], needs("catalogue.edit"));
+    }));
+
   it("a manager cannot update another tenant's add-on", () =>
     withDb(async (c) => {
       const s = await seed(c);

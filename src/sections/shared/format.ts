@@ -5,7 +5,8 @@ export function formatRs(paisa: number): string {
   return `Rs ${rupees(paisa).toLocaleString("en-PK")}`;
 }
 
-const MAX_RUPEES = 100_000_000;
+// Prices are SQL int paisa (max 2 147 483 647), so the cap stays under it.
+const MAX_RUPEES = 20_000_000;
 
 /** Rupees as people type them ("Rs 3,200", "3200.50") to paisa; null unless a positive amount with at most 2 decimals. */
 export function parseRupees(input: string): number | null {

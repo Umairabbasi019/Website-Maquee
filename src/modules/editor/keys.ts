@@ -1,8 +1,8 @@
 import type { PermissionKey } from "@/modules/access";
 import { SETTINGS_PARTS, type SettingsPart, type SiteDraft } from "./draft";
 
-// TS mirror of the SQL triggers. Keep in step with check_settings_write (20261026000300_settings_m3.sql) and the
-// check_column_perms arguments (20261026000200_catalogue_m3.sql); tests/fixtures/field-permissions.ts tests both.
+// TS mirror of the SQL triggers. Keep in step with check_settings_write (20261026000300_settings_m3.sql), the
+// check_column_perms arguments (20261026000200_catalogue_m3.sql) and its sample rule (20261026000250_sample_flag_free.sql); tests/fixtures/field-permissions.ts tests both.
 const SETTINGS_FIELDS: { part: SettingsPart; path: string[]; key: PermissionKey }[] = [
   { part: "identity", path: ["phones"], key: "venue.info.edit" },
   { part: "identity", path: ["address"], key: "venue.info.edit" },
@@ -61,7 +61,8 @@ export function requiredKeys(before: SiteDraft, after: SiteDraft): Set<Permissio
   for (const [table, columns] of Object.entries(COLUMN_KEYS) as [keyof typeof COLUMN_KEYS, Record<string, PermissionKey>][]) {
     const old = new Map<string, Json>(before[table].map((r) => [r.id, r]));
     const kept = new Set<string>();
-    const rest = (r: Json) => Object.fromEntries(Object.entries(r).filter(([k]) => !Object.hasOwn(columns, k)));
+    const rest = (r: Json, skipSample: boolean) =>
+      Object.fromEntries(Object.entries(r).filter(([k]) => !Object.hasOwn(columns, k) && !(skipSample && k === "sample")));
     for (const row of after[table] as Json[]) {
       const prev = old.get(row.id as string);
       if (!prev) {
@@ -71,7 +72,9 @@ export function requiredKeys(before: SiteDraft, after: SiteDraft): Set<Permissio
       }
       kept.add(row.id as string);
       for (const [col, key] of Object.entries(columns)) if (!same(prev[col], row[col])) keys.add(key);
-      if (!same(rest(prev), rest(row))) keys.add(ROW_KEY);
+      // Clearing sample is a side effect of any allowed edit (20261026000250_sample_flag_free.sql).
+      const cleared = prev.sample === true && row.sample === false;
+      if (!same(rest(prev, cleared), rest(row, cleared))) keys.add(ROW_KEY);
     }
     if ([...old.keys()].some((id) => !kept.has(id))) keys.add(ROW_KEY);
   }

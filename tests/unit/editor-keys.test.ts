@@ -34,6 +34,16 @@ describe("requiredKeys", () => {
     expect(requiredKeys(siteDraft(), after)).toEqual(new Set(["venue.info.edit", "tenant.settings.edit"]));
   });
 
+  it("needs only prices.edit for a price change that clears a sample row's flag, and the row key to set it back", () => {
+    const before = siteDraft();
+    const priced = siteDraft();
+    Object.assign(priced.packages[0], { pricePerGuestPaisa: 330_000, sample: false });
+    expect(requiredKeys(before, priced)).toEqual(new Set(["prices.edit"]));
+    const resampled = siteDraft();
+    resampled.packages[0].sample = false;
+    expect(requiredKeys(resampled, siteDraft())).toEqual(new Set(["catalogue.edit"]));
+  });
+
   it("needs the row key plus the price key for a new priced row, and the row key to remove one", () => {
     const before = siteDraft();
     const added = siteDraft();
