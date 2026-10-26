@@ -108,3 +108,17 @@ test("without JavaScript the phone nav does not cover the packages heading", asy
   expect(navBottom).toBeLessThanOrEqual(titleTop);
   await context.close();
 });
+
+test("at 320px the nav brand and the date pill do not overlap", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(TENANT_BASE);
+  await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible(); // hydrated: phone bar layout
+  const nav = page.locator("nav").first();
+  const brandRight = await nav.locator("div").first().evaluate((el) => {
+    const r = document.createRange();
+    r.selectNodeContents(el); // the text itself, not the flex box, which can be wider or narrower than its text
+    return r.getBoundingClientRect().right;
+  });
+  const pillLeft = await nav.locator('a[href="#contact"]').last().evaluate((a) => a.getBoundingClientRect().left);
+  expect(brandRight).toBeLessThanOrEqual(pillLeft);
+});

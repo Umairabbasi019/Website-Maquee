@@ -128,6 +128,12 @@
   font-weight: 300;
   font-size: 18px;
   letter-spacing: 0.32em;
+  min-width: 0;
+}
+/* A venue name too long for the bar ends in an ellipsis instead of running under the pill. */
+.brand span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .brand img {
   width: 30px;
@@ -260,6 +266,17 @@
     background: color-mix(in srgb, var(--color-bg) 96%, transparent);
     font: 300 40px var(--font-heading);
     color: var(--color-text);
+  }
+}
+
+@media (max-width: 360px) {
+  .brand {
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    gap: 7px;
+  }
+  .pill {
+    padding: 10px 12px;
   }
 }
 

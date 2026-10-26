@@ -121,7 +121,7 @@ export function ShellChrome({ brand, cta, logo, links }: Props) {
         <div className={styles.brand}>
           {/* eslint-disable-next-line @next/next/no-img-element -- venue logo from storage, remote host not configured for next/image */}
           {logo && <img src={logo.url} alt="" width={30} height={30} />}
-          {brand}
+          <span>{brand}</span>
         </div>
         <div ref={linksBox} id={MENU_ID} className={styles.links}>
           {links.map((l) => (
