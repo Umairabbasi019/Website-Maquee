@@ -130,6 +130,7 @@ export async function saveMoneyRulesAction(_prev: FormState, fd: FormData): Prom
         advancePercent: num(fd, "advancePercent"),
         holdHours: num(fd, "holdHours"),
         instantBooking: fd.get("instantBooking") === "on",
+        showPriceEstimate: fd.get("showPriceEstimate") === "on",
         paymentMethods: fd.getAll("paymentMethods").map(String),
       }),
     ),

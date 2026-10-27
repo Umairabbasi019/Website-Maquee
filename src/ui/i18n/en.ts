@@ -378,6 +378,7 @@ export const en = {
   "settings.money.advance": "Advance (%)",
   "settings.money.hold": "Hold length (hours)",
   "settings.money.instant": "Instant booking",
+  "settings.money.estimate": "Show a price estimate on the booking request form",
   "settings.money.methods": "Payment methods",
   "settings.money.method.bank": "Bank transfer",
   "settings.money.method.jazzcash": "JazzCash",

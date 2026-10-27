@@ -41,6 +41,7 @@ export const MoneyRulesSchema = z.object({
   advancePercent: z.number().min(0).max(100).default(50),
   holdHours: z.number().int().positive().default(48),
   instantBooking: z.boolean().default(false),
+  showPriceEstimate: z.boolean().default(true),
   paymentMethods: z.array(z.enum(["bank", "jazzcash", "easypaisa", "gateway"])).default([]),
 });
 

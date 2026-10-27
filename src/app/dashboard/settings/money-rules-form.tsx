@@ -34,6 +34,10 @@ export function MoneyRulesForm({ rules }: { rules: TenantSettings["moneyRules"] 
         <input name="instantBooking" type="checkbox" defaultChecked={rules.instantBooking} />
         {t("settings.money.instant")}
       </label>
+      <label className="flex items-center gap-2">
+        <input name="showPriceEstimate" type="checkbox" defaultChecked={rules.showPriceEstimate} />
+        {t("settings.money.estimate")}
+      </label>
       <fieldset>
         <legend>{t("settings.money.methods")}</legend>
         {METHODS.map((m) => (

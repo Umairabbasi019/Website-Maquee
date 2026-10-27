@@ -87,7 +87,7 @@ async function seed(c: Client) {
     "insert into halls (tenant_id, name, capacity_min, capacity_max) values ($1, 'Hall A', 0, 100), ($2, 'Hall B', 0, 100)",
     [A, B],
   );
-  await c.query("insert into slots (tenant_id, name, start_time, end_time) values ($1, 'Night', '19:00', '23:00')", [B]);
+  const slotB = await one(c, "insert into slots (tenant_id, name, start_time, end_time) values ($1, 'Night', '19:00', '23:00') returning id", [B]);
   const eventB = await one(c, "insert into event_types (tenant_id, slug, name) values ($1, 'barat', 'Barat') returning id", [B]);
   await c.query(
     "insert into packages (tenant_id, event_type_id, name, price_per_guest_paisa, min_guests, items) values ($1, $2, 'Gold', 1, 1, '{}')",
@@ -102,6 +102,17 @@ async function seed(c: Client) {
   await c.query("insert into tenant_domains (tenant_id, host) values ($1, 'b.test')", [B]);
   await c.query("insert into tenant_features (tenant_id, feature_key, enabled) values ($1, 'invites', true)", [B]);
   await c.query("insert into tenant_secrets (tenant_id, kind, ciphertext) values ($1, 'whatsapp', 'x')", [B]);
+  const customerB = await one(c, "insert into customers (tenant_id, name, phone_e164) values ($1, 'Ali', '+923001234567') returning id", [B]);
+  const bookingB = await one(
+    c,
+    `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, guests)
+     values ($1, 'B-1', $2, '2027-01-15', $3, $4, 100) returning id`,
+    [B, customerB, slotB, eventB],
+  );
+  await c.query("insert into quotes (tenant_id, booking_id, version, snapshot, total_paisa, advance_paisa) values ($1, $2, 1, '{}', 1, 1)", [B, bookingB]);
+  await c.query("insert into access_tokens (tenant_id, kind, target_id, token_hash, expires_at) values ($1, 'booking', $2, 'h', now())", [B, bookingB]);
+  await c.query("insert into booking_ref_counters (tenant_id, yymm, n) values ($1, '2701', 1)", [B]);
+  await c.query("insert into booking_request_hits (tenant_id, key_hash) values ($1, 'k')", [B]);
   const roleB = await one(c, "insert into roles (tenant_id, name) values ($1, 'B custom') returning id", [B]);
   await c.query("insert into role_permissions (role_id, permission_key) values ($1, 'bookings.view')", [roleB]);
   await c.query(
@@ -140,8 +151,8 @@ async function tenantTables(c: Client): Promise<string[]> {
   return r.rows.map((row) => row.table_name as string);
 }
 
-// Revoked from client roles outright (tests/db/tenant-secrets.test.ts), so RLS count checks do not apply.
-const REVOKED_TABLES = new Set(["tenant_secrets"]);
+// Revoked from client roles outright (tests/db/tenant-secrets.test.ts, tests/db/booking.rls.test.ts), so RLS count checks do not apply.
+const REVOKED_TABLES = new Set(["tenant_secrets", "access_tokens", "booking_ref_counters", "booking_request_hits"]);
 
 async function allTables(c: Client): Promise<string[]> {
   const r = await c.query(

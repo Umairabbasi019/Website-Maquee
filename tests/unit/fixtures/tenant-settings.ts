@@ -23,6 +23,7 @@ export const defaultSettings: TenantSettings = {
     advancePercent: 50,
     holdHours: 48,
     instantBooking: false,
+    showPriceEstimate: true,
     paymentMethods: ["bank", "jazzcash", "easypaisa"],
   },
   messaging: { reminderDays: [7, 3, 1], morningSummaryTime: "08:00", marketingCapPerMonth: 4 },
