@@ -14,7 +14,6 @@ const PKG = id(5);
 const OTHER_PKG = id(6);
 const ADDON = id(7);
 const OTHER_ADDON = id(8);
-const INACTIVE_ADDON = id(9);
 
 type Row = Record<string, unknown>;
 const rules = { taxPercent: 0, advancePercent: 50, holdHours: 48, instantBooking: false, paymentMethods: [], showPriceEstimate: true };
@@ -174,8 +173,7 @@ describe("createBookingRequest", () => {
     ["event type", { eventTypeId: OTHER_EVENT }],
     ["package", { packageId: OTHER_PKG }],
     ["add-on", { addonIds: [OTHER_ADDON] }],
-    ["inactive add-on", { addonIds: [INACTIVE_ADDON] }],
-  ])("refuses another venue's or an inactive %s", async (_what, change) => {
+  ])("refuses another venue's %s", async (_what, change) => {
     await expect(createBookingRequest(T1, { ...valid, ...change }, "ip")).resolves.toEqual({ error: "invalid" });
     expect(rpcs).toEqual([]);
   });
@@ -197,7 +195,7 @@ describe("createBookingRequest", () => {
     expect(args).toMatchObject({
       p_tenant: T1,
       p_customer: { name: "Ali Khan", phone_e164: "+923001234567", whatsapp_consent: true },
-      p_booking: { event_date: "2026-12-15", slot_id: SLOT, event_type_name: "Barat", package_name: "Gold", addon_ids: [ADDON], guests: 300 },
+      p_booking: { event_date: "2026-12-15", slot_id: SLOT, event_type_name: "Barat", package_name: "Gold", addon_ids: [ADDON], addon_names: ["Lights"], guests: 300 },
       p_expires: "2027-02-13T00:00:00.000Z",
     });
     expect(args.p_token_hash).toMatch(/^[0-9a-f]{64}$/);

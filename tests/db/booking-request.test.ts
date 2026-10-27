@@ -132,6 +132,24 @@ describe("getBookingByToken", () => {
     expect((await getBookingByToken(b.token))?.reference).toBe(b.reference);
   });
 
+  it("keeps the chosen add-on names after the add-on row is deleted, and locks them once confirmed", async () => {
+    const addon = await one("insert into addons (tenant_id, name, price_paisa, basis) values ($1, 'Fireworks', 100, 'flat') returning id", [tenant]);
+    const r = await createBookingRequest(tenant, { ...input(), addonIds: [addon] }, `ip-${fresh()}`);
+    if (!("ok" in r)) throw new Error(`request refused: ${r.error}`);
+    await pool.query("delete from addons where id = $1", [addon]);
+    expect((await getBookingByToken(r.token))?.addons).toEqual(["Fireworks"]);
+    const b = await one("select id from bookings where tenant_id = $1 and reference = $2", [tenant, r.reference]);
+    const q = await one(
+      "insert into quotes (tenant_id, booking_id, version, snapshot, total_paisa, advance_paisa) values ($1, $2, 1, '{}', 1, 1) returning id",
+      [tenant, b],
+    );
+    await pool.query(
+      "update bookings set status = 'confirmed', hall_id = $2, during = tstzrange(now() + interval '2 days', now() + interval '49 hours'), current_quote_id = $3 where id = $1",
+      [b, hall, q],
+    );
+    await expect(pool.query("update bookings set addon_names = '{}' where id = $1", [b])).rejects.toThrow(/booking_locked/);
+  });
+
   it("gives null for a wrong, expired or revoked token", async () => {
     await expect(getBookingByToken("x".repeat(43))).resolves.toBeNull();
     await expect(getBookingByToken("not a token")).resolves.toBeNull();

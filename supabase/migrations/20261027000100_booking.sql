@@ -32,8 +32,9 @@ create table bookings (
   event_type_name text not null,
   package_id uuid,
   package_name text,
-  -- shortcut: no FK per element, so ids of add-ons Publish removed stay here; read prices and names from the quote snapshot.
+  -- No FK per element: ids of add-ons Publish removed stay here, and addon_names (same order) keeps what was chosen.
   addon_ids uuid[] not null default '{}',
+  addon_names text[] not null default '{}',
   guests int not null constraint bookings_guests_positive check (guests > 0),
   hall_id uuid,
   during tstzrange constraint bookings_during_not_empty check (not isempty(during)),

@@ -30,9 +30,13 @@ export const hashKey = (value: string): string => createHmac("sha256", hashSecre
 
 export const sha256Hex = (value: string): string => createHash("sha256").update(value).digest("hex");
 
-function check<T>(r: { data: T | null; error: { message: string } | null }, what: string): T {
+/** Throws on error; the return type drops the failure variant, so `single()` gives non-null data and `maybeSingle()` may be null. */
+export function check<T extends { data: unknown; error: { message: string } | null }>(
+  r: T,
+  what: string,
+): Exclude<T, { error: { message: string } }>["data"] {
   if (r.error) throw new Error(`${what}: ${r.error.message}`);
-  return r.data as T;
+  return r.data;
 }
 
 type Choice = { date: string; eventTypeId: string; guests: number; packageId?: string; addonIds: string[] };
@@ -108,6 +112,7 @@ export async function createBookingRequest(
   if (!choice || !check(slot, "slots")) return { error: "invalid" };
 
   const token = randomBytes(32).toString("base64url");
+  // shortcut: expiry counts from UTC midnight, up to 5 hours off venue-local midnight; use the venue time zone if links must end exactly.
   const expires = new Date(Date.parse(`${r.date}T00:00:00Z`) + TOKEN_DAYS * 86_400_000);
   const { data, error } = await db.rpc("create_booking_request", {
     p_tenant: tenantId,
@@ -120,6 +125,7 @@ export async function createBookingRequest(
       package_id: choice.pkg?.id ?? null,
       package_name: choice.pkg?.name ?? null,
       addon_ids: choice.addons.map((a) => a.id),
+      addon_names: choice.addons.map((a) => a.name),
       guests: r.guests,
     },
     p_token_hash: sha256Hex(token),

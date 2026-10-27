@@ -44,17 +44,22 @@ begin
   insert into public.booking_ref_counters as r (tenant_id, yymm, n) values (p_tenant, v_yymm, 1)
   on conflict (tenant_id, yymm) do update set n = r.n + 1
   returning n into v_n;
+  -- The reference has four digits; a fifth would break its format, so the month is full.
+  if v_n > 9999 then
+    raise exception using errcode = 'P0001', message = 'reference_overflow';
+  end if;
   -- The first two letters of the slug; slugs may hold digits and hyphens.
   v_reference := upper(rpad(left(regexp_replace(v_slug, '[^a-z]', '', 'g'), 2), 2, 'x')) || '-' || v_yymm || '-' || lpad(v_n::text, 4, '0');
 
   insert into public.bookings (
     tenant_id, reference, customer_id, event_date, slot_id, event_type_id, event_type_name,
-    package_id, package_name, addon_ids, guests
+    package_id, package_name, addon_ids, addon_names, guests
   ) values (
     p_tenant, v_reference, v_customer, (p_booking ->> 'event_date')::date, (p_booking ->> 'slot_id')::uuid,
     (p_booking ->> 'event_type_id')::uuid, p_booking ->> 'event_type_name',
     (p_booking ->> 'package_id')::uuid, p_booking ->> 'package_name',
-    array(select jsonb_array_elements_text(p_booking -> 'addon_ids'))::uuid[], (p_booking ->> 'guests')::int
+    array(select e from jsonb_array_elements_text(p_booking -> 'addon_ids') with ordinality as a (e, i) order by i)::uuid[],
+    array(select e from jsonb_array_elements_text(p_booking -> 'addon_names') with ordinality as a (e, i) order by i), (p_booking ->> 'guests')::int
   ) returning id into v_booking;
 
   insert into public.access_tokens (tenant_id, kind, target_id, token_hash, expires_at)
