@@ -105,8 +105,8 @@ async function seed(c: Client) {
   const customerB = await one(c, "insert into customers (tenant_id, name, phone_e164) values ($1, 'Ali', '+923001234567') returning id", [B]);
   const bookingB = await one(
     c,
-    `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, guests)
-     values ($1, 'B-1', $2, '2027-01-15', $3, $4, 100) returning id`,
+    `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, event_type_name, guests)
+     values ($1, 'B-1', $2, '2027-01-15', $3, $4, 'Barat', 100) returning id`,
     [B, customerB, slotB, eventB],
   );
   await c.query("insert into quotes (tenant_id, booking_id, version, snapshot, total_paisa, advance_paisa) values ($1, $2, 1, '{}', 1, 1)", [B, bookingB]);

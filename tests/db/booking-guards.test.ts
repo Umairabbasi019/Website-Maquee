@@ -31,8 +31,8 @@ async function seed(c: Client) {
   const request = async () =>
     one(
       c,
-      `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, guests)
-       values ($1, $2, $3, '2027-01-15', $4, $5, 200) returning id`,
+      `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, event_type_name, guests)
+       values ($1, $2, $3, '2027-01-15', $4, $5, 'Barat', 200) returning id`,
       [tenant, `MM-2701-${String(++n).padStart(4, "0")}`, customer, slot, eventType],
     );
   const quote = async (booking: string, version = 1) =>
@@ -91,14 +91,20 @@ describe("booking transitions", () => {
     withDb(async (c) => {
       const s = await seed(c);
       const b = await s.request();
-      await expectReject(c, "update bookings set status = 'confirmed' where id = $1", [b], /check/);
+      await expectReject(c, "update bookings set status = 'confirmed' where id = $1", [b], /bookings_confirmed_complete/);
+      await expectReject(
+        c,
+        "update bookings set status = 'confirmed', hall_id = $2, during = 'empty', current_quote_id = $3 where id = $1",
+        [b, s.hall, await s.quote(b)],
+        /bookings_during_not_empty/,
+      );
     }));
 
   it("refuses a decline or cancel without a reason", () =>
     withDb(async (c) => {
       const s = await seed(c);
       const b = await s.request();
-      await expectReject(c, "update bookings set status = 'declined' where id = $1", [b], /check/);
+      await expectReject(c, "update bookings set status = 'declined' where id = $1", [b], /bookings_reason_required/);
     }));
 
   it.each([
@@ -106,6 +112,9 @@ describe("booking transitions", () => {
     ["guests", "300"],
     ["hall_id", "null"],
     ["addon_ids", `'{${randomUUID()}}'`],
+    ["customer_id", `'${randomUUID()}'`],
+    ["event_type_id", `'${randomUUID()}'`],
+    ["event_type_name", "'Mehndi'"],
   ])("refuses a %s change on a confirmed booking", (column, value) =>
     withDb(async (c) => {
       const s = await seed(c);
@@ -119,6 +128,17 @@ describe("booking transitions", () => {
       const s = await seed(c);
       const b = await s.request();
       await c.query("update bookings set guests = 250, event_date = '2027-02-01' where id = $1", [b]);
+      const row = await c.query("select guests, event_date::text as date from bookings where id = $1", [b]);
+      expect(row.rows[0]).toEqual({ guests: 250, date: "2027-02-01" });
+    }));
+
+  it.each(["declined", "cancelled"])("freezes a %s booking", (status) =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      const b = await s.request();
+      await c.query("update bookings set status = $2, status_reason = 'x' where id = $1", [b, status]);
+      await expectReject(c, "update bookings set guests = 250 where id = $1", [b], /booking_locked/);
+      await expectReject(c, "update bookings set status_reason = 'y' where id = $1", [b], /booking_locked/);
     }));
 });
 
@@ -205,8 +225,8 @@ describe("bookings constraints", () => {
       const ref = await one(c, "select reference from bookings where id = $1", [b]);
       await expectReject(
         c,
-        `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, guests)
-         values ($1, $2, $3, '2027-01-15', $4, $5, 10)`,
+        `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, event_type_name, guests)
+         values ($1, $2, $3, '2027-01-15', $4, $5, 'Barat', 10)`,
         [s.tenant, ref, s.customer, s.slot, s.eventType],
         /duplicate key/,
       );
@@ -216,10 +236,40 @@ describe("bookings constraints", () => {
     withDb(async (c) => {
       const s = await seed(c);
       const other = await one(c, "insert into tenants (account_id, slug, name, status) values ($1, 'b-venue', 'B', 'live') returning id", [s.account]);
-      const sql = `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, guests)
-         values ($1, 'X-1', $2, '2027-01-15', $3, $4, $5)`;
-      await expectReject(c, sql, [s.tenant, s.customer, s.slot, s.eventType, 0], /check/);
+      const sql = `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, event_type_name, guests)
+         values ($1, 'X-1', $2, '2027-01-15', $3, $4, 'Barat', $5)`;
+      await expectReject(c, sql, [s.tenant, s.customer, s.slot, s.eventType, 0], /bookings_guests_positive/);
       await expectReject(c, sql, [other, s.customer, s.slot, s.eventType, 10], /foreign key/);
+    }));
+
+  it("removing an event type and package that bookings use keeps the bookings, with names and null ids", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      const pkg = await one(
+        c,
+        "insert into packages (tenant_id, event_type_id, name, price_per_guest_paisa, min_guests, items) values ($1, $2, 'Gold', 100, 1, '{}') returning id",
+        [s.tenant, s.eventType],
+      );
+      const confirmed = await s.request();
+      const cancelled = await s.request();
+      await c.query("update bookings set package_id = $2, package_name = 'Gold' where id in ($1, $3)", [confirmed, pkg, cancelled]);
+      await s.confirm(confirmed, await s.quote(confirmed));
+      await c.query("update bookings set status = 'cancelled', status_reason = 'x' where id = $1", [cancelled]);
+      await c.query("delete from event_types where id = $1", [s.eventType]);
+      const rows = await c.query(
+        "select status, tenant_id, event_type_id, event_type_name, package_id, package_name from bookings where id in ($1, $2) order by status",
+        [confirmed, cancelled],
+      );
+      expect(rows.rows).toEqual(
+        ["cancelled", "confirmed"].map((status) => ({
+          status,
+          tenant_id: s.tenant,
+          event_type_id: null,
+          event_type_name: "Barat",
+          package_id: null,
+          package_name: "Gold",
+        })),
+      );
     }));
 
   it("refuses deleting a slot that bookings use", () =>

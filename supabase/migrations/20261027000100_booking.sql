@@ -27,24 +27,29 @@ create table bookings (
   customer_id uuid not null,
   event_date date not null,
   slot_id uuid not null,
-  event_type_id uuid not null,
+  -- Names are snapshotted so a booking keeps them after Publish removes the event type or package (ids become null).
+  event_type_id uuid,
+  event_type_name text not null,
   package_id uuid,
+  package_name text,
+  -- shortcut: no FK per element, so ids of add-ons Publish removed stay here; read prices and names from the quote snapshot.
   addon_ids uuid[] not null default '{}',
-  guests int not null check (guests > 0),
+  guests int not null constraint bookings_guests_positive check (guests > 0),
   hall_id uuid,
-  during tstzrange,
+  during tstzrange constraint bookings_during_not_empty check (not isempty(during)),
   status text not null default 'requested' check (status in ('requested', 'confirmed', 'declined', 'cancelled')),
   status_reason text,
   current_quote_id uuid,
   created_at timestamptz not null default now(),
   unique (tenant_id, reference),
   unique (tenant_id, id),
-  check (status <> 'confirmed' or (hall_id is not null and during is not null and current_quote_id is not null)),
-  check (status not in ('declined', 'cancelled') or status_reason is not null),
+  constraint bookings_confirmed_complete
+    check (status <> 'confirmed' or (hall_id is not null and during is not null and current_quote_id is not null)),
+  constraint bookings_reason_required check (status not in ('declined', 'cancelled') or status_reason is not null),
   foreign key (tenant_id, customer_id) references customers (tenant_id, id),
   foreign key (tenant_id, slot_id) references slots (tenant_id, id) on delete restrict,
-  foreign key (tenant_id, event_type_id) references event_types (tenant_id, id),
-  foreign key (tenant_id, package_id) references packages (tenant_id, id),
+  foreign key (tenant_id, event_type_id) references event_types (tenant_id, id) on delete set null (event_type_id),
+  foreign key (tenant_id, package_id) references packages (tenant_id, id) on delete set null (package_id),
   foreign key (tenant_id, hall_id) references halls (tenant_id, id),
   constraint no_overlap exclude using gist (hall_id with =, during with &&) where (status = 'confirmed')
 );
@@ -110,9 +115,12 @@ create table booking_request_hits (
 );
 create index booking_request_hits_key_idx on booking_request_hits (tenant_id, key_hash, at);
 
--- Transition table and the lock on a confirmed booking's details.
+-- Transition table and the lock: a confirmed booking may only be cancelled, a declined or cancelled one never changes.
+-- Either may lose its event type or package id (set null when Publish removes it); the snapshotted names stay.
 create function public.check_booking_update() returns trigger
 language plpgsql set search_path = '' as $$
+declare
+  v_free text[] := array['event_type_id', 'package_id'];
 begin
   if new.status is distinct from old.status and not (
     (old.status = 'requested' and new.status in ('confirmed', 'declined', 'cancelled'))
@@ -120,12 +128,15 @@ begin
   ) then
     raise exception 'invalid_transition: % to %', old.status, new.status using errcode = 'P0001';
   end if;
-  if old.status = 'confirmed' and (
-    new.event_date, new.slot_id, new.hall_id, new.during, new.guests, new.package_id, new.addon_ids, new.current_quote_id
-  ) is distinct from (
-    old.event_date, old.slot_id, old.hall_id, old.during, old.guests, old.package_id, old.addon_ids, old.current_quote_id
+  if old.status = 'confirmed' then
+    v_free := v_free || array['status', 'status_reason'];
+  end if;
+  if old.status <> 'requested' and (
+    (new.event_type_id is distinct from old.event_type_id and new.event_type_id is not null)
+    or (new.package_id is distinct from old.package_id and new.package_id is not null)
+    or (to_jsonb(new) - v_free) is distinct from (to_jsonb(old) - v_free)
   ) then
-    raise exception 'booking_locked: a confirmed booking cannot change its details' using errcode = 'P0001';
+    raise exception 'booking_locked: a % booking cannot change its details', old.status using errcode = 'P0001';
   end if;
   return new;
 end $$;

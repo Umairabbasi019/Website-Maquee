@@ -26,8 +26,8 @@ async function venue(c: Client, account: string, slug: string): Promise<Venue> {
   const eventType = await one(c, "insert into event_types (tenant_id, slug, name) values ($1, 'barat', 'Barat') returning id", [tenant]);
   const booking = await one(
     c,
-    `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, guests)
-     values ($1, 'MM-2701-0001', $2, '2027-01-15', $3, $4, 200) returning id`,
+    `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, event_type_name, guests)
+     values ($1, 'MM-2701-0001', $2, '2027-01-15', $3, $4, 'Barat', 200) returning id`,
     [tenant, customer, slot, eventType],
   );
   await c.query(
@@ -68,8 +68,8 @@ const SERVER_ONLY = ["access_tokens", "booking_ref_counters", "booking_request_h
 const INSERTS: Record<(typeof READABLE)[number] | (typeof SERVER_ONLY)[number], (v: Venue) => [string, unknown[]]> = {
   customers: (v) => ["insert into customers (tenant_id, name, phone_e164) values ($1, 'X', '+923009999999')", [v.tenant]],
   bookings: (v) => [
-    `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, guests)
-     values ($1, 'X-1', $2, '2027-02-01', $3, $4, 50)`,
+    `insert into bookings (tenant_id, reference, customer_id, event_date, slot_id, event_type_id, event_type_name, guests)
+     values ($1, 'X-1', $2, '2027-02-01', $3, $4, 'Barat', 50)`,
     [v.tenant, v.customer, v.slot, v.eventType],
   ],
   booking_status_history: (v) => [

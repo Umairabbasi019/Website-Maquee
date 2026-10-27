@@ -11,8 +11,17 @@ const chain = (op: string) => {
   return q;
 };
 
+const storedRules = { taxPercent: 0, advancePercent: 50, holdHours: 48, instantBooking: false, paymentMethods: ["bank"], showPriceEstimate: true };
+
 vi.mock("@/modules/access", () => ({
   ForbiddenError,
+  recordAudit: async () => {},
+  createServiceClient: () => ({
+    from: () => ({
+      select: () => ({ eq: () => ({ single: async () => ({ data: { money_rules: storedRules }, error: null }) }) }),
+      update: () => ({ eq: async () => (writes.push("money_rules"), { error: null }) }),
+    }),
+  }),
   requirePerm: async (_tenant: string, key: string) => {
     if (!held.has(key)) throw new ForbiddenError(key);
   },
@@ -26,7 +35,7 @@ vi.mock("@/modules/access", () => ({
   }),
 }));
 
-const { saveHall, saveSlot, deleteSlot } = await import("@/modules/tenants/server/venue-setup");
+const { saveHall, saveSlot, deleteSlot, getMoneyRules, saveMoneyRules } = await import("@/modules/tenants/server/venue-setup");
 
 const hall = { id: stored.id, name: "Main", capacityMin: 100, capacityMax: 500, isActive: true, hirePricePaisa: 5_000_000 };
 const slot = { name: "Evening", start: "18:00", end: "23:00", bufferMinutes: 60 };
@@ -71,5 +80,27 @@ describe("slot server check", () => {
     await expect(saveSlot("t1", slot)).resolves.toEqual({ ok: true });
     await expect(deleteSlot("t1", stored.id)).resolves.toEqual({ ok: true });
     expect(writes).toEqual(["insert", "delete"]);
+  });
+});
+
+describe("money rules server check", () => {
+  it("lets a prices.edit holder read the rules and change only showPriceEstimate", async () => {
+    held.add("prices.edit");
+    await expect(getMoneyRules("t1")).resolves.toMatchObject({ showPriceEstimate: true });
+    await expect(saveMoneyRules("t1", { ...storedRules, showPriceEstimate: false })).resolves.toEqual({ ok: true });
+    await expect(saveMoneyRules("t1", { ...storedRules, taxPercent: 5 })).rejects.toThrow(ForbiddenError);
+    expect(writes).toEqual(["money_rules"]);
+  });
+
+  it("lets a tenant.settings.edit holder change any field", async () => {
+    held.add("tenant.settings.edit");
+    await expect(saveMoneyRules("t1", { ...storedRules, taxPercent: 5, showPriceEstimate: false })).resolves.toEqual({ ok: true });
+    expect(writes).toEqual(["money_rules"]);
+  });
+
+  it("refuses a caller with neither key", async () => {
+    await expect(getMoneyRules("t1")).rejects.toThrow(ForbiddenError);
+    await expect(saveMoneyRules("t1", storedRules)).rejects.toThrow(ForbiddenError);
+    expect(writes).toEqual([]);
   });
 });

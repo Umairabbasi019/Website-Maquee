@@ -130,17 +130,28 @@ async function readMoneyRules(tenantId: string): Promise<{ stored: unknown; rule
   return { stored: data.money_rules, rules: MoneyRulesSchema.parse(data.money_rules) };
 }
 
+// Money rules are venue setup (tenant.settings.edit); the customer price estimate is a price setting (prices.edit).
+const setupOrPrices = (tenantId: string) =>
+  requirePerm(tenantId, "tenant.settings.edit").catch(() => requirePerm(tenantId, "prices.edit"));
+
 export async function getMoneyRules(tenantId: string): Promise<TenantSettings["moneyRules"]> {
-  await requirePerm(tenantId, "tenant.settings.edit");
+  await setupOrPrices(tenantId);
   return (await readMoneyRules(tenantId)).rules;
 }
 
-/** Currency and time zone are not stored here (they live on the tenant), so they are not accepted. */
+/**
+ * Currency and time zone are not stored here (they live on the tenant), so they are not accepted.
+ * A prices.edit holder may change only showPriceEstimate; any other change needs tenant.settings.edit.
+ */
 export async function saveMoneyRules(tenantId: string, input: unknown): Promise<SetupResult> {
-  await requirePerm(tenantId, "tenant.settings.edit");
+  await setupOrPrices(tenantId);
   const parsed = MoneyRulesInputSchema.safeParse(input);
   if (!parsed.success) return { error: "invalid" };
-  const { stored } = await readMoneyRules(tenantId);
+  const { stored, rules } = await readMoneyRules(tenantId);
+  const restChanged = Object.entries(parsed.data).some(
+    ([key, value]) => key !== "showPriceEstimate" && JSON.stringify(value) !== JSON.stringify(rules[key as keyof typeof rules]),
+  );
+  if (restChanged) await requirePerm(tenantId, "tenant.settings.edit");
   const { error } = await createServiceClient().from("tenant_settings").update({ money_rules: parsed.data }).eq("tenant_id", tenantId);
   if (error) throw new Error(`money_rules: ${error.message}`);
   await recordAudit({

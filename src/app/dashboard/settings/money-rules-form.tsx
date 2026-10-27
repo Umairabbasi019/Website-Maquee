@@ -8,14 +8,16 @@ import { FormStatus } from "./form-status";
 
 const METHODS = MoneyRulesSchema.shape.paymentMethods.unwrap().element.options;
 
-export function MoneyRulesForm({ rules }: { rules: TenantSettings["moneyRules"] }) {
+/** `full` = tenant.settings.edit; otherwise only the price estimate toggle is editable (prices.edit). */
+export function MoneyRulesForm({ rules, full }: { rules: TenantSettings["moneyRules"]; full: boolean }) {
   const id = useId();
   const [state, action, pending] = useActionState(saveMoneyRulesAction, null);
   const error = state && "error" in state;
-  const field = { "aria-invalid": error || undefined, "aria-describedby": error ? `${id}-error` : undefined, className: inputClass };
+  const field = { disabled: !full, "aria-invalid": error || undefined, "aria-describedby": error ? `${id}-error` : undefined, className: inputClass };
 
   return (
     <form action={action} aria-label={t("settings.moneyRules")} className="space-y-3 rounded-lg border border-muted/40 p-4">
+      {!full && <p className="text-sm">{t("settings.money.estimateOnly")}</p>}
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">
           {t("settings.money.tax")}
@@ -31,7 +33,7 @@ export function MoneyRulesForm({ rules }: { rules: TenantSettings["moneyRules"] 
         </label>
       </div>
       <label className="flex items-center gap-2">
-        <input name="instantBooking" type="checkbox" defaultChecked={rules.instantBooking} />
+        <input name="instantBooking" type="checkbox" disabled={!full} defaultChecked={rules.instantBooking} />
         {t("settings.money.instant")}
       </label>
       <label className="flex items-center gap-2">
@@ -42,7 +44,7 @@ export function MoneyRulesForm({ rules }: { rules: TenantSettings["moneyRules"] 
         <legend>{t("settings.money.methods")}</legend>
         {METHODS.map((m) => (
           <label key={m} className="flex items-center gap-2">
-            <input name="paymentMethods" type="checkbox" value={m} defaultChecked={rules.paymentMethods.includes(m)} />
+            <input name="paymentMethods" type="checkbox" value={m} disabled={!full} defaultChecked={rules.paymentMethods.includes(m)} />
             {t(`settings.money.method.${m}`)}
           </label>
         ))}

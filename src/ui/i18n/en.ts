@@ -379,6 +379,7 @@ export const en = {
   "settings.money.hold": "Hold length (hours)",
   "settings.money.instant": "Instant booking",
   "settings.money.estimate": "Show a price estimate on the booking request form",
+  "settings.money.estimateOnly": "Only the price estimate setting can be changed with your role.",
   "settings.money.methods": "Payment methods",
   "settings.money.method.bank": "Bank transfer",
   "settings.money.method.jazzcash": "JazzCash",
