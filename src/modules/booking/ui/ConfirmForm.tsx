@@ -103,7 +103,8 @@ type ConfirmProps = {
  */
 export function ConfirmForm({ bookingId, halls, hallId, preview, canOverride, action, previewAction }: ConfirmProps) {
   const [state, formAction, pending] = useActionState(action, null);
-  const [live, setLive] = useState<QuotePreview | null | undefined>(undefined);
+  // A hall preview belongs to the answer it was asked under; a newer answer (such as priceChanged) brings its own.
+  const [live, setLive] = useState<{ under: ConfirmFormState; quote: QuotePreview | null }>();
   const asked = useRef(0);
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -117,7 +118,7 @@ export function ConfirmForm({ bookingId, halls, hallId, preview, canOverride, ac
     const n = ++asked.current;
     // A failed preview shows no quote rather than the previous hall's.
     const quote = await previewAction(bookingId, e.target.value).catch(() => null);
-    if (n === asked.current) setLive(quote);
+    if (n === asked.current) setLive({ under: state, quote });
   };
 
   return (
@@ -142,7 +143,7 @@ export function ConfirmForm({ bookingId, halls, hallId, preview, canOverride, ac
           {t("bookings.confirm.update")}
         </button>
       </noscript>
-      <Preview quote={live !== undefined ? live : state ? state.preview : preview} />
+      <Preview quote={live?.under === state ? live.quote : state ? state.preview : preview} />
       {canOverride && (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>

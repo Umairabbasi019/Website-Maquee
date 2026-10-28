@@ -147,6 +147,30 @@ test("a role without quotes.override confirms without the override field", async
   }
 });
 
+test("a price change after a hall preview shows the new price, not the old one", async ({ page }) => {
+  await signIn(page, "manager1@manor.test");
+  await openRequest(page, sent.decline.reference);
+  const form = page.getByRole("form", { name: en["bookings.confirm.heading"] });
+  const hall = form.getByLabel(en["bookings.confirm.hall"]);
+  // Manor has one hall, so a change event on it stands in for picking another: the quote now follows the select.
+  await Promise.all([page.waitForResponse((r) => r.request().method() === "POST"), hall.dispatchEvent("change")]);
+  const previewed = form.locator('input[name="previewedTotalPaisa"]');
+  await expect(previewed).toHaveValue(/^\d+$/);
+  const before = Number(await previewed.inputValue());
+  const halls = (await db.query("select id, hire_price_paisa from halls where tenant_id = $1", [tenant])).rows;
+  await db.query("update halls set hire_price_paisa = coalesce(hire_price_paisa, 0) + 100000 where tenant_id = $1", [tenant]);
+  try {
+    await form.getByRole("button", { name: en["bookings.confirm.submit"] }).click();
+    await expect(form.getByRole("alert")).toHaveText(en["bookings.error.priceChanged"]);
+    // The answer's own preview replaces the hall preview, so a retry posts the price now on screen.
+    await expect(previewed).toHaveValue(String(before + 100000));
+  } finally {
+    for (const h of halls) await db.query("update halls set hire_price_paisa = $2 where id = $1", [h.id, h.hire_price_paisa]);
+  }
+  const row = await db.query("select status from bookings where tenant_id = $1 and reference = $2", [tenant, sent.decline.reference]);
+  expect(row.rows[0].status).toBe("requested");
+});
+
 test("declining works without JavaScript and the customer link shows the not-confirmed copy", async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
