@@ -69,7 +69,8 @@ export async function getRequestOptions(tenantId: string) {
 /** The venue's own active rows for the chosen ids, or null when any id is not one of them or a limit is broken. */
 async function resolveChoice(db: SupabaseClient, tenantId: string, c: Choice) {
   const [{ venue, rules, maxGuests }, catalogue] = await Promise.all([readVenue(db, tenantId), getPublicCatalogue(tenantId)]);
-  if (venue.status === "paused" || !inBookingWindow(c.date, todayIn(venue.time_zone)) || c.guests > maxGuests) return null;
+  // Only a live venue takes requests: setup is a preview, paused is closed.
+  if (venue.status !== "live" || !inBookingWindow(c.date, todayIn(venue.time_zone)) || c.guests > maxGuests) return null;
 
   const eventType = catalogue.events.find((e) => e.id === c.eventTypeId);
   const pkg = c.packageId ? eventType?.packages.find((p) => p.id === c.packageId) : null;

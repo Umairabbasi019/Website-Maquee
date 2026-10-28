@@ -5,38 +5,43 @@ import { openDb, TENANT_BASE } from "./helpers";
 test.use({ viewport: { width: 1440, height: 900 } });
 
 const db = openDb();
-const PHONE = "+923001234567";
+// One phone per test, so no test leans on another's share of the 5-per-hour limit.
+const PHONES = { sameLook: "03001111111", noJs: "03002222222", focus: "03003333333", private: "03004444444" };
 const TAKEN_PHONE = "+923009999999";
+const OURS = [...Object.values(PHONES).map((p) => `+92${p.slice(1)}`), TAKEN_PHONE];
 const manor = () => db.query("select id from tenants where slug = 'manor'").then((r) => r.rows[0].id as string);
 const karachiDate = (days: number) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date(Date.now() + days * 86_400_000));
 const DATE = karachiDate(30);
 
-// Each request counts toward the 5-per-hour limits; clear them so reruns within the hour still pass.
 async function cleanUp() {
   const tenant = await manor();
   const ours = "select b.id from bookings b join customers c on c.id = b.customer_id where b.tenant_id = $1 and c.phone_e164 = any($2)";
-  await db.query(`delete from access_tokens where target_id in (${ours})`, [tenant, [PHONE, TAKEN_PHONE]]);
-  await db.query(`delete from bookings where id in (${ours})`, [tenant, [PHONE, TAKEN_PHONE]]);
-  await db.query("delete from customers where tenant_id = $1 and phone_e164 = any($2)", [tenant, [PHONE, TAKEN_PHONE]]);
-  await db.query("delete from booking_request_hits where tenant_id = $1", [tenant]);
+  await db.query(`delete from access_tokens where target_id in (${ours})`, [tenant, OURS]);
+  await db.query(`delete from bookings where id in (${ours})`, [tenant, OURS]);
+  await db.query("delete from customers where tenant_id = $1 and phone_e164 = any($2)", [tenant, OURS]);
 }
 
 test.beforeAll(cleanUp);
+// Every request from this machine shares one IP key (5 per hour); start each test with none counted.
+test.beforeEach(async () => {
+  await db.query("delete from booking_request_hits where tenant_id = $1", [await manor()]);
+});
 test.afterAll(async () => {
   await cleanUp();
+  await db.query("delete from booking_request_hits where tenant_id = $1", [await manor()]);
   await db.end();
 });
 
 /** Fills and sends the form for DATE, Barat, Dinner, 300 guests; returns the sent page's reference. */
-async function sendRequest(page: Page) {
+async function sendRequest(page: Page, phone: string) {
   await page.goto(`${TENANT_BASE}/book`);
   await page.getByLabel(en["booking.date"]).fill(DATE);
   await page.getByRole("radio", { name: "Barat", exact: true }).check({ force: true });
   await page.getByRole("radio", { name: "Dinner", exact: true }).check({ force: true });
   await page.getByLabel(en["booking.guests"]).fill("300");
   await page.getByLabel(en["booking.name"]).fill("Ayesha Khan");
-  await page.getByLabel(en["booking.phone"]).fill("0300 1234567");
+  await page.getByLabel(en["booking.phone"]).fill(phone);
   await page.getByRole("button", { name: en["booking.submit"] }).click();
   await expect(page.getByRole("heading", { name: en["booking.sent.heading"] })).toBeVisible();
   return (await page.getByTestId("reference").textContent())!.trim();
@@ -46,7 +51,7 @@ const mainText = async (page: Page, reference: string) =>
   (await page.locator("main").innerText()).replaceAll(reference, "REF").replace(/\/b\/[\w-]{43}/g, "/b/TOKEN");
 
 test("a request for a free date and one for a taken date look the same, and the link shows it", async ({ page }) => {
-  const free = await sendRequest(page);
+  const free = await sendRequest(page, PHONES.sameLook);
   expect(free).toMatch(/^MA-\d{4}-\d{4}$/);
   expect(new URL(page.url()).searchParams.get("ref")).toBeNull();
   const freeSent = await mainText(page, free);
@@ -86,7 +91,7 @@ test("a request for a free date and one for a taken date look the same, and the 
     [booking, ids.hall, DATE, quote],
   );
 
-  const taken = await sendRequest(page);
+  const taken = await sendRequest(page, PHONES.sameLook);
   expect(taken).not.toBe(free);
   expect(await mainText(page, taken)).toBe(freeSent);
   await page.getByRole("link", { name: en["booking.sent.open"] }).click();
@@ -106,11 +111,24 @@ test("the form works without JavaScript and keeps the input on an error", async 
   await expect(page.getByLabel(en["booking.name"])).toHaveValue("Ayesha Khan");
   await expect(page.getByLabel(en["booking.guests"])).toHaveValue("300");
 
-  await page.getByLabel(en["booking.phone"]).fill("0300 1234567");
+  await page.getByLabel(en["booking.phone"]).fill(PHONES.noJs);
   await page.getByRole("button", { name: en["booking.submit"] }).click();
   await expect(page.getByRole("heading", { name: en["booking.sent.heading"] })).toBeVisible();
   await expect(page.getByTestId("reference")).toHaveText(/^MA-\d{4}-\d{4}$/);
   await context.close();
+});
+
+test("with JavaScript, an error moves focus to the first marked field", async ({ page }) => {
+  await page.goto(`${TENANT_BASE}/book?event=barat&slot=Dinner&guests=300&date=${DATE}`);
+  await page.getByLabel(en["booking.name"]).fill("Ayesha Khan");
+  await page.getByLabel(en["booking.phone"]).fill("12345");
+  await page.getByRole("button", { name: en["booking.submit"] }).click();
+  await expect(page.getByText(en["booking.error.phone"])).toBeVisible();
+  await expect(page.getByLabel(en["booking.phone"])).toBeFocused();
+  // The fixed number is still accepted, so the focus answer did not cost the kept input.
+  await page.getByLabel(en["booking.phone"]).fill(PHONES.focus);
+  await page.getByRole("button", { name: en["booking.submit"] }).click();
+  await expect(page.getByRole("heading", { name: en["booking.sent.heading"] })).toBeVisible();
 });
 
 test("the estimate shows only when the venue turns it on", async ({ page }) => {
@@ -162,7 +180,7 @@ test("private pages are noindex, send no referrer, and unknown or foreign links 
   expect((await page.goto(`${TENANT_BASE}/b/garbage`))?.status()).toBe(404);
   expect((await page.goto(`${TENANT_BASE}/book/sent?t=garbage`))?.status()).toBe(404);
 
-  const reference = await sendRequest(page);
+  const reference = await sendRequest(page, PHONES.private);
   expect(reference).toBeTruthy();
   for (const meta of [page.locator('meta[name="robots"]'), page.locator('meta[name="referrer"]')]) await expect(meta).toHaveCount(1);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex, nofollow/);

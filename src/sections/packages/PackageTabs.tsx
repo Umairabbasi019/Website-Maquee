@@ -91,7 +91,7 @@ export function PackageTabs({ events, selected: initial, canChoose }: Props) {
                   {t("packages.choose", { name: p.name })}
                 </a>
               )}
-              <a className={styles.request} href={`/book?event=${ev.slug}&package=${p.id}`} aria-label={`${t("booking.request")}: ${p.name}`}>
+              <a className={styles.request} href={`/book?event=${ev.slug}&package=${p.id}`} aria-label={t("booking.requestFor", { name: p.name })}>
                 {t("booking.request")}
               </a>
             </div>

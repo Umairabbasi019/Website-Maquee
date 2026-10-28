@@ -163,6 +163,12 @@ describe("createBookingRequest", () => {
     }
   });
 
+  it.each(["setup", "paused"])("refuses a request to a venue in %s status (only live venues take bookings)", async (status) => {
+    tables.tenants[0].status = status;
+    await expect(createBookingRequest(T1, valid, "ip")).resolves.toEqual({ error: "invalid" });
+    expect(rpcs).toEqual([]);
+  });
+
   it("refuses guests above the largest active hall capacity", async () => {
     await expect(createBookingRequest(T1, { ...valid, guests: 501 }, "ip")).resolves.toEqual({ error: "invalid" });
     await expect(createBookingRequest(T1, { ...valid, guests: 500 }, "ip")).resolves.toMatchObject({ ok: true });

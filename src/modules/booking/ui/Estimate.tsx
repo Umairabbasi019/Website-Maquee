@@ -47,7 +47,7 @@ export function Estimate({ estimate }: { estimate: EstimateAction }) {
   return (
     <div ref={box} role="status" className={styles.estimate} hidden={total === undefined}>
       <span className={styles.lab}>{t("booking.estimate")}</span>
-      <strong>{total ?? "–"}</strong>
+      <strong>{total ?? t("booking.estimateNone")}</strong>
       <small>{t("booking.estimateNote")}</small>
     </div>
   );

@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, type ReactNode } from "react";
+import { useActionState, useEffect, useRef, type ReactNode } from "react";
 import { t, type TranslationKey } from "@/ui/i18n";
 import type { RequestFormState, RequestFormValues } from "../client";
 import styles from "./booking.module.css";
@@ -26,6 +26,16 @@ const PHONE_HINT = "booking-phone-hint";
 export function RequestForm({ action, estimate, events, addons, slots, maxGuests, today, lastDay, prefill }: Props) {
   const [state, formAction, pending] = useActionState(action, null);
   const v = state?.values ?? prefill;
+  const form = useRef<HTMLFormElement>(null);
+  // The answer re-mounts the form (see the key), which drops focus: move it to the first marked field, else the message.
+  useEffect(() => {
+    if (!state) return;
+    const el = form.current;
+    const marked = el?.querySelector<HTMLElement>('[aria-invalid="true"]');
+    // A marked radio group takes focus on its first radio.
+    const target = marked?.matches('[role="radiogroup"]') ? marked.querySelector("input") : marked;
+    (target ?? el?.querySelector<HTMLElement>('[role="alert"]'))?.focus();
+  }, [state]);
   const invalid = new Set(state?.errors);
   // aria-invalid and aria-describedby for a field, and its message.
   const field = (name: string) => (invalid.has(name) ? { "aria-invalid": true, "aria-describedby": errorId(name) } : {});
@@ -36,7 +46,7 @@ export function RequestForm({ action, estimate, events, addons, slots, maxGuests
       </p>
     );
   const chips = (name: "slotId" | "eventTypeId", legend: string, options: Option[]): ReactNode => (
-    <fieldset className={styles.chips} aria-describedby={invalid.has(name) ? errorId(name) : undefined}>
+    <fieldset role="radiogroup" className={styles.chips} {...field(name)}>
       <legend className={styles.lab}>{legend}</legend>
       {options.map((o) => (
         <label key={o.id}>
@@ -53,9 +63,9 @@ export function RequestForm({ action, estimate, events, addons, slots, maxGuests
       <h1 className={styles.title}>{t("booking.heading")}</h1>
       <p className={styles.lead}>{t("booking.lead")}</p>
       {/* The key re-mounts the fields after each answer, so their defaults show the posted values. */}
-      <form key={JSON.stringify(state)} action={formAction} className={styles.card}>
+      <form ref={form} key={JSON.stringify(state)} action={formAction} className={styles.card}>
         {state && (
-          <p role="alert" className={styles.alert}>
+          <p role="alert" tabIndex={-1} className={styles.alert}>
             {t(state.message === "limited" ? "booking.limited" : state.errors.length ? "booking.error.fields" : "booking.error.invalid")}
           </p>
         )}
