@@ -19,16 +19,20 @@ declare
   v_booking uuid;
   v_reference text;
 begin
-  -- Serialise requests per key, so two at once cannot both take the fifth place.
-  perform pg_advisory_xact_lock(hashtextextended(p_tenant::text || k, 0)) from unnest(p_key_hashes) as k order by k;
+  -- Serialise requests per key (and for the venue as a whole), so two at once cannot both take the last place.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant::text || k, 0)) from unnest(p_key_hashes || 'venue'::text) as k order by k;
   if exists (
     select 1 from public.booking_request_hits
     where tenant_id = p_tenant and key_hash = any (p_key_hashes) and at > now() - interval '1 hour'
     group by key_hash having count(*) >= 5
-  ) then
+  ) or (
+    -- Per-venue cap: 30 requests an hour across all phones and IPs, so random keys cannot flood a venue.
+    select count(*) from public.booking_request_hits
+    where tenant_id = p_tenant and key_hash = 'venue' and at > now() - interval '1 hour'
+  ) >= 30 then
     raise exception using errcode = 'P0001', message = 'rate_limited';
   end if;
-  insert into public.booking_request_hits (tenant_id, key_hash) select p_tenant, k from unnest(p_key_hashes) as k;
+  insert into public.booking_request_hits (tenant_id, key_hash) select p_tenant, k from unnest(p_key_hashes || 'venue'::text) as k;
 
   -- A returning phone keeps its first name (a stranger cannot rename it); consent is only ever added here.
   insert into public.customers as c (tenant_id, name, phone_e164, whatsapp_consent_at)
@@ -44,12 +48,9 @@ begin
   insert into public.booking_ref_counters as r (tenant_id, yymm, n) values (p_tenant, v_yymm, 1)
   on conflict (tenant_id, yymm) do update set n = r.n + 1
   returning n into v_n;
-  -- The reference has four digits; a fifth would break its format, so the month is full.
-  if v_n > 9999 then
-    raise exception using errcode = 'P0001', message = 'reference_overflow';
-  end if;
+  -- At least four digits: lpad would cut a fifth one, so the number widens past 9999.
   -- The first two letters of the slug; slugs may hold digits and hyphens.
-  v_reference := upper(rpad(left(regexp_replace(v_slug, '[^a-z]', '', 'g'), 2), 2, 'x')) || '-' || v_yymm || '-' || lpad(v_n::text, 4, '0');
+  v_reference := upper(rpad(left(regexp_replace(v_slug, '[^a-z]', '', 'g'), 2), 2, 'x')) || '-' || v_yymm || '-' || case when v_n < 10000 then lpad(v_n::text, 4, '0') else v_n::text end;
 
   insert into public.bookings (
     tenant_id, reference, customer_id, event_date, slot_id, event_type_id, event_type_name,

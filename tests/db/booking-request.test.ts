@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createBookingRequest, getBookingByToken } from "@/modules/booking";
 
 // The functions use the service client on a separate connection, so this file commits a throwaway venue and
@@ -54,7 +54,19 @@ afterAll(async () => {
   await pool.end();
 });
 
+const yymm = () => one("select to_char(now() at time zone 'Asia/Karachi', 'YYMM')");
+const venueHits = (ageHours: number, count: number) =>
+  pool.query(
+    "insert into booking_request_hits (tenant_id, key_hash, at) select $1, 'venue', now() - make_interval(hours => $2) from generate_series(1, $3)",
+    [tenant, ageHours, count],
+  );
+
 describe("create_booking_request", () => {
+  // The per-venue cap counts every request of the venue, so each test starts with a clean count.
+  beforeEach(async () => {
+    await pool.query("delete from booking_request_hits where tenant_id = $1", [tenant]);
+  });
+
   it("gives references in the venue's month that increase by one", async () => {
     const a = await request();
     const b = await request();
@@ -70,6 +82,26 @@ describe("create_booking_request", () => {
     const ip = `ip-${fresh()}`;
     for (let i = 0; i < 5; i++) await request(undefined, ip);
     await expect(createBookingRequest(tenant, input(), ip)).resolves.toEqual({ error: "limited" });
+  });
+
+  it("refuses a fresh phone and IP once the venue has had 30 requests in the hour", async () => {
+    await venueHits(0, 29);
+    await request();
+    await expect(createBookingRequest(tenant, input(), `ip-${fresh()}`)).resolves.toEqual({ error: "limited" });
+  });
+
+  it("does not count venue requests older than an hour", async () => {
+    await venueHits(2, 30);
+    await expect(request()).resolves.toMatchObject({ ok: true });
+  });
+
+  it("widens the reference past 9999 instead of failing", async () => {
+    await pool.query("insert into booking_ref_counters (tenant_id, yymm, n) values ($1, $2, 9999) on conflict (tenant_id, yymm) do update set n = 9999", [
+      tenant,
+      await yymm(),
+    ]);
+    const r = await request();
+    expect(r.reference).toBe(`ZQ-${await yymm()}-10000`);
   });
 
   it("is not callable by anon or authenticated", async () => {

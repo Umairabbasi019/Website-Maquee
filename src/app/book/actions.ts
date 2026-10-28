@@ -5,6 +5,7 @@ import {
   createBookingRequest,
   estimateFor,
   hashKey,
+  ipBucket,
   readRequestForm,
   requestFieldErrors,
   type EstimateAction,
@@ -22,7 +23,7 @@ export async function submitBookingRequest(_prev: RequestFormState, fd: FormData
   const values = readRequestForm(fd);
   const tenantId = await hostTenant();
   if (!tenantId) return { values, errors: [], message: "invalid" };
-  const r = await createBookingRequest(tenantId, values, hashKey(clientIp(await headers())));
+  const r = await createBookingRequest(tenantId, values, hashKey(ipBucket(clientIp(await headers()))));
   if ("error" in r) return { values, errors: r.error === "invalid" ? requestFieldErrors(values) : [], message: r.error };
   // Only the token travels: the sent page reads the reference from the stored booking.
   redirect(`/book/sent?t=${r.token}`);

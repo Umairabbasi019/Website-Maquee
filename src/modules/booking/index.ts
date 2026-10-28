@@ -1,4 +1,5 @@
 export * from "./pricing";
+export { ipBucket } from "./ip";
 export {
   BookingRequestSchema,
   normalisePkMobile,
