@@ -14,6 +14,7 @@ const ERRORS = {
   forbidden: "editor.forbidden",
   notFound: "settings.error.notFound",
   overlap: "settings.error.overlap",
+  inUse: "settings.error.slotInUse",
 } as const satisfies Record<string, TranslationKey>;
 
 const text = (fd: FormData, name: string) => String(fd.get(name) ?? "").trim();

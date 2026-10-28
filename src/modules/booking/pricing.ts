@@ -65,6 +65,21 @@ export function applyOverride(
   };
 }
 
+/** What a confirmed quote stores in quotes.snapshot. Totals also live on the quote row (total_paisa, advance_paisa). */
+export type QuoteSnapshot = Pick<Quote, "lines" | "subtotalPaisa" | "taxPaisa" | "advancePaisa"> & {
+  calculatedTotalPaisa: number;
+  finalTotalPaisa: number;
+  overrideReason: string | null;
+  inputs: PriceInput;
+};
+
+/** A stored quote for display: stored totals, never re-summed lines (after an override the lines no longer add up). */
+export const storedQuote = (
+  s: Pick<Quote, "lines" | "subtotalPaisa" | "taxPaisa">,
+  totalPaisa: number,
+  advancePaisa: number,
+): Quote => ({ lines: s.lines, subtotalPaisa: s.subtotalPaisa, taxPaisa: s.taxPaisa, totalPaisa, advancePaisa });
+
 // An event-specific row beats the all-events (null) row.
 export function pickDatePrice<T extends { eventTypeId: string | null }>(matches: T[], eventTypeId: string): T | null {
   return matches.find((m) => m.eventTypeId === eventTypeId) ?? matches.find((m) => m.eventTypeId === null) ?? null;

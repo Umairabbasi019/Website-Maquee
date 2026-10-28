@@ -80,14 +80,8 @@ async function resolveChoice(db: SupabaseClient, tenantId: string, c: Choice) {
   return { venue, rules, eventType, pkg, addons };
 }
 
-/** The customer's price estimate: no hall hire, since no hall is chosen. Null when the venue hides it or there is no package. */
-export async function estimateFor(tenantId: string, input: unknown): Promise<Quote | null> {
-  const parsed = EstimateSchema.safeParse(input);
-  if (!parsed.success) return null;
-  const db = createServiceClient();
-  const choice = await resolveChoice(db, tenantId, parsed.data);
-  if (!choice?.rules.showPriceEstimate || !choice.pkg) return null;
-  const { date, eventTypeId, guests } = parsed.data;
+/** The date price row for this date and event type (null id: only the all-events row applies). */
+export async function datePriceFor(db: SupabaseClient, tenantId: string, date: string, eventTypeId: string | null) {
   const rows = check(
     await db
       .from("date_prices")
@@ -98,16 +92,25 @@ export async function estimateFor(tenantId: string, input: unknown): Promise<Quo
       .returns<{ event_type_id: string | null; kind: "percent" | "per_guest"; value: number; label: string }[]>(),
     "date_prices",
   );
-  const datePrice = pickDatePrice(
-    rows.map((r) => ({ eventTypeId: r.event_type_id, kind: r.kind, value: r.value, label: r.label })),
-    eventTypeId,
-  );
+  const matches = rows.map((r) => ({ eventTypeId: r.event_type_id, kind: r.kind, value: r.value, label: r.label }));
+  // An unknown id matches no event-specific row, so only the all-events row is left.
+  return pickDatePrice(matches, eventTypeId ?? "");
+}
+
+/** The customer's price estimate: no hall hire, since no hall is chosen. Null when the venue hides it or there is no package. */
+export async function estimateFor(tenantId: string, input: unknown): Promise<Quote | null> {
+  const parsed = EstimateSchema.safeParse(input);
+  if (!parsed.success) return null;
+  const db = createServiceClient();
+  const choice = await resolveChoice(db, tenantId, parsed.data);
+  if (!choice?.rules.showPriceEstimate || !choice.pkg) return null;
+  const { date, eventTypeId, guests } = parsed.data;
   return priceQuote({
     guests,
     pkg: choice.pkg,
     addons: choice.addons,
     hall: null,
-    datePrice,
+    datePrice: await datePriceFor(db, tenantId, date, eventTypeId),
     taxPercent: choice.rules.taxPercent,
     advancePercent: choice.rules.advancePercent,
   });

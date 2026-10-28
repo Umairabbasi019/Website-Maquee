@@ -6,10 +6,12 @@ import { MoneyRulesSchema, TimeSchema, type TenantSettings } from "../settings";
 // Halls and slots save on the user's session after a requirePerm check here; RLS, the column-permission trigger and
 // the audit trigger (supabase/migrations/20261026000300_settings_m3.sql) check again. Money rules go through the service client.
 
-export type SetupResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" };
+export type SetupResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "inUse" };
 
 /** Postgres insufficient_privilege: RLS on insert, or the column-permission trigger. */
 const INSUFFICIENT_PRIVILEGE = "42501";
+/** Postgres foreign_key_violation: a booking still points at the slot (on delete restrict). */
+const FOREIGN_KEY_VIOLATION = "23503";
 
 const HallSchema = z
   .object({
@@ -39,6 +41,7 @@ type Write = { error: { code?: string; message: string } | null; data: unknown[]
 // An update RLS hides (or another tenant's id) changes no rows and returns no error, so the row count decides.
 function result(r: Write, what: string): SetupResult {
   if (r.error?.code === INSUFFICIENT_PRIVILEGE) return { error: "forbidden" };
+  if (r.error?.code === FOREIGN_KEY_VIOLATION) return { error: "inUse" };
   if (r.error) throw new Error(`${what}: ${r.error.message}`);
   return r.data?.length ? { ok: true } : { error: "notFound" };
 }

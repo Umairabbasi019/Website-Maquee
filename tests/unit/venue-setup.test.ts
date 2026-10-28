@@ -5,9 +5,14 @@ const held = new Set<string>();
 const writes: string[] = [];
 const stored = { id: "00000000-0000-4000-8000-000000000001", name: "Main", capacity_min: 100, capacity_max: 500, is_active: true, hire_price_paisa: 5_000_000 };
 
+let writeError: { code: string; message: string } | null = null;
+
 class ForbiddenError extends Error {}
 const chain = (op: string) => {
-  const q = { eq: () => q, select: async () => (writes.push(op), { data: [{ id: stored.id }], error: null }) };
+  const q = {
+    eq: () => q,
+    select: async () => (writes.push(op), writeError ? { data: null, error: writeError } : { data: [{ id: stored.id }], error: null }),
+  };
   return q;
 };
 
@@ -43,6 +48,7 @@ const slot = { name: "Evening", start: "18:00", end: "23:00", bufferMinutes: 60 
 beforeEach(() => {
   held.clear();
   writes.length = 0;
+  writeError = null;
 });
 
 describe("saveHall server check", () => {
@@ -80,6 +86,12 @@ describe("slot server check", () => {
     await expect(saveSlot("t1", slot)).resolves.toEqual({ ok: true });
     await expect(deleteSlot("t1", stored.id)).resolves.toEqual({ ok: true });
     expect(writes).toEqual(["insert", "delete"]);
+  });
+
+  it("says a slot is in use when a booking still points at it", async () => {
+    held.add("tenant.settings.edit");
+    writeError = { code: "23503", message: "violates foreign key constraint" };
+    await expect(deleteSlot("t1", stored.id)).resolves.toEqual({ error: "inUse" });
   });
 });
 

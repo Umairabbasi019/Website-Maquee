@@ -389,6 +389,7 @@ export const en = {
   "settings.error.invalid": "Some values are missing or not valid. Check them and try again.",
   "settings.error.notFound": "This item no longer exists. Reload the page.",
   "settings.error.rupees": "Enter an amount in rupees, like 250,000.",
+  "settings.error.slotInUse": "This time is used by bookings.",
   "settings.error.overlap": "These dates overlap another date price for the same events. Change the dates or edit the other one.",
   "settings.halls": "Halls",
   "settings.halls.new": "New hall",

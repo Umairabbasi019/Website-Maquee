@@ -1,6 +1,6 @@
 import "server-only";
 import { createServiceClient } from "@/modules/access";
-import type { Quote } from "../pricing";
+import { storedQuote, type Quote } from "../pricing";
 import { todayIn } from "../request";
 import { check, sha256Hex } from "./request";
 
@@ -92,14 +92,7 @@ export async function getBookingByToken(token: string, tenantId: string): Promis
     packageName: b.package_name,
     addons: b.addon_names,
     hall: (hall && check(hall, "halls"))?.name ?? null,
-    // Stored totals, not re-summed lines: after an override the lines no longer add up to the total.
-    quote: q && {
-      lines: q.snapshot.lines,
-      subtotalPaisa: q.snapshot.subtotalPaisa,
-      taxPaisa: q.snapshot.taxPaisa,
-      totalPaisa: q.total_paisa,
-      advancePaisa: q.advance_paisa,
-    },
+    quote: q && storedQuote(q.snapshot, q.total_paisa, q.advance_paisa),
     venueName: venue.name,
   };
 }
