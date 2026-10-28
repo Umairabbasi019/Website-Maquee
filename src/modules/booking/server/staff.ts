@@ -40,7 +40,9 @@ export type StaffBookingDetail = StaffBookingRow & {
 };
 
 export type StatusResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "state" };
-export type ConfirmResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "slotTaken" | "capacity" | "state" };
+export type ConfirmResult =
+  | { ok: true }
+  | { error: "invalid" | "forbidden" | "notFound" | "slotTaken" | "capacity" | "state" | "outOfRange" | "priceChanged" };
 
 const STATUSES = ["requested", "confirmed", "declined", "cancelled"] as const;
 /** List filters: the stored statuses plus "expired", a request whose date has passed. */
@@ -57,7 +59,14 @@ const ListQuery = z.object({
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional().catch(undefined),
   status: z.enum(FILTERS).optional().catch(undefined),
 });
-const ConfirmInput = z.object({ hallId: z.uuid(), finalTotalRupees: z.string().optional(), reason: z.string().optional() });
+const ConfirmInput = z.object({
+  hallId: z.uuid(),
+  finalTotalRupees: z.string().optional(),
+  reason: z.string().optional(),
+  previewedTotalPaisa: z.string().optional(),
+});
+/** The largest value of the int4 total and advance columns. */
+const MAX_INT4 = 2_147_483_647;
 
 const ROW_COLUMNS =
   "id, reference, status, event_date, guests, event_type_name, package_name, addon_names, current_quote_id, " +
@@ -274,18 +283,31 @@ export async function previewQuote(tenantId: string, id: string, hallId: string)
 }
 
 /**
+ * Records the audit entry once the change is committed. A failure is logged and not thrown: the manager must not see an
+ * error for a change that went through.
+ * shortcut: a failed audit write is lost (only logged); upgrade by writing the audit row in the same SQL transaction as the change.
+ */
+async function auditAfterCommit(entry: Parameters<typeof recordAudit>[0]) {
+  try {
+    await recordAudit(entry);
+  } catch (e) {
+    console.error(`audit ${entry.action} failed for booking ${entry.entityId}`, e);
+  }
+}
+
+/**
  * Confirms a request in a hall at the calculated price, or at a different total with quotes.override and a reason.
  * One SQL call writes quote v1 and the booking together; a clash with another confirmed booking is `slotTaken`.
  */
 export async function confirmBooking(
   tenantId: string,
   id: string,
-  input: { hallId: string; finalTotalRupees?: string; reason?: string },
+  input: { hallId: string; finalTotalRupees?: string; reason?: string; previewedTotalPaisa?: string },
 ): Promise<ConfirmResult> {
   const viewer = await requirePerm(tenantId, "bookings.edit");
   const parsed = ConfirmInput.safeParse(input);
   if (!parsed.success || !Uuid.safeParse(id).success) return { error: "invalid" };
-  const { hallId, finalTotalRupees, reason } = parsed.data;
+  const { hallId, finalTotalRupees, reason, previewedTotalPaisa } = parsed.data;
   const db = createServiceClient();
   const c = await calculate(db, tenantId, id, hallId);
   if (!c) return { error: "notFound" };
@@ -293,6 +315,10 @@ export async function confirmBooking(
   if (c.booking.status !== "requested" || c.booking.event_date < c.today) return { error: "state" };
   const { hall, booking } = c;
   if (!hall.is_active || booking.guests < hall.capacity_min || booking.guests > hall.capacity_max) return { error: "capacity" };
+
+  // The manager confirms the calculated total they were shown; a catalogue or date-price change since then is not locked in unseen.
+  // A missing or garbled previewed total counts as changed.
+  if (!/^-?\d{1,15}$/.test(previewedTotalPaisa ?? "") || Number(previewedTotalPaisa) !== c.quote.totalPaisa) return { error: "priceChanged" };
 
   let quote: Quote = c.quote;
   let overrideReason: string | null = null;
@@ -308,6 +334,8 @@ export async function confirmBooking(
       overrideReason = why.data;
     }
   }
+  // total_paisa and advance_paisa are int4: a negative or too large total would fail inside the RPC.
+  if (quote.totalPaisa < 0 || quote.totalPaisa > MAX_INT4 || quote.advancePaisa < 0 || quote.advancePaisa > MAX_INT4) return { error: "outOfRange" };
   const snapshot: QuoteSnapshot = {
     lines: quote.lines,
     subtotalPaisa: quote.subtotalPaisa,
@@ -329,7 +357,7 @@ export async function confirmBooking(
   if (error?.code === EXCLUSION) return { error: "slotTaken" };
   if (isTransitionError(error)) return { error: "state" };
   if (error) throw new Error(`confirm_booking: ${error.message}`);
-  await recordAudit({
+  await auditAfterCommit({
     tenantId,
     action: "booking.confirm",
     entity: "booking",
@@ -351,7 +379,7 @@ async function setStatus(tenantId: string, id: string, reason: string, to: "decl
   const { error } = await db.rpc(fn, { p_booking: id, p_reason: why.data, p_actor: viewer.userId });
   if (isTransitionError(error)) return { error: "state" };
   if (error) throw new Error(`${fn}: ${error.message}`);
-  await recordAudit({
+  await auditAfterCommit({
     tenantId,
     action: to === "declined" ? "booking.decline" : "booking.cancel",
     entity: "booking",

@@ -46,6 +46,7 @@ export async function confirmAction(_prev: ConfirmFormState, fd: FormData): Prom
         hallId: values.hallId,
         finalTotalRupees: values.finalTotalRupees || undefined,
         reason: values.reason || undefined,
+        previewedTotalPaisa: text(fd, "previewedTotalPaisa"),
       });
       if ("ok" in r) return "confirmed";
       return { error: r.error, values, preview: await previewQuote(tenantId, id, values.hallId) };

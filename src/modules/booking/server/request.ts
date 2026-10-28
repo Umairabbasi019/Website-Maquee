@@ -66,18 +66,26 @@ export async function getRequestOptions(tenantId: string) {
   return { slots: check(slots, "slots"), maxGuests, today, lastDay: lastBookingDay(today), showEstimate: rules.showPriceEstimate };
 }
 
-/** The venue's own active rows for the chosen ids, or null when any id is not one of them or a limit is broken. */
+/**
+ * The venue's own active rows for the chosen ids, or `fields`: the form fields to mark when a choice is refused
+ * (empty when the refusal is not about one field, like a venue that is not live).
+ */
 async function resolveChoice(db: SupabaseClient, tenantId: string, c: Choice) {
   const [{ venue, rules, maxGuests }, catalogue] = await Promise.all([readVenue(db, tenantId), getPublicCatalogue(tenantId)]);
   // Only a live venue takes requests: setup is a preview, paused is closed.
-  if (venue.status !== "live" || !inBookingWindow(c.date, todayIn(venue.time_zone)) || c.guests > maxGuests) return null;
+  if (venue.status !== "live" || !inBookingWindow(c.date, todayIn(venue.time_zone))) return { ok: false as const, fields: [] };
 
   const eventType = catalogue.events.find((e) => e.id === c.eventTypeId);
   const pkg = c.packageId ? eventType?.packages.find((p) => p.id === c.packageId) : null;
   const addonIds = [...new Set(c.addonIds)];
   const addons = catalogue.addons.filter((a) => addonIds.includes(a.id));
-  if (!eventType || pkg === undefined || addons.length !== addonIds.length) return null;
-  return { venue, rules, eventType, pkg, addons };
+  // A package can only be wrong when its event type is right.
+  const fields = [
+    ...(c.guests > maxGuests ? ["guests"] : []),
+    ...(!eventType ? ["eventTypeId"] : pkg === undefined ? ["packageId"] : []),
+  ];
+  if (fields.length || !eventType || addons.length !== addonIds.length) return { ok: false as const, fields };
+  return { ok: true as const, venue, rules, eventType, pkg, addons };
 }
 
 /** The date price row for this date and event type (null id: only the all-events row applies). */
@@ -103,7 +111,7 @@ export async function estimateFor(tenantId: string, input: unknown): Promise<Quo
   if (!parsed.success) return null;
   const db = createServiceClient();
   const choice = await resolveChoice(db, tenantId, parsed.data);
-  if (!choice?.rules.showPriceEstimate || !choice.pkg) return null;
+  if (!choice.ok || !choice.rules.showPriceEstimate || !choice.pkg) return null;
   const { date, eventTypeId, guests } = parsed.data;
   return priceQuote({
     guests,
@@ -121,7 +129,7 @@ export async function createBookingRequest(
   tenantId: string,
   input: unknown,
   ipHash: string,
-): Promise<{ ok: true; reference: string; token: string } | { error: "invalid" | "limited" }> {
+): Promise<{ ok: true; reference: string; token: string } | { error: "limited" } | { error: "invalid"; fields?: string[] }> {
   const parsed = BookingRequestSchema.safeParse(input);
   if (!parsed.success) return { error: "invalid" };
   const r = parsed.data;
@@ -130,7 +138,8 @@ export async function createBookingRequest(
     resolveChoice(db, tenantId, r),
     db.from("slots").select("id").eq("tenant_id", tenantId).eq("id", r.slotId).maybeSingle(),
   ]);
-  if (!choice || !check(slot, "slots")) return { error: "invalid" };
+  if (!choice.ok) return { error: "invalid", ...(choice.fields.length && { fields: choice.fields }) };
+  if (!check(slot, "slots")) return { error: "invalid" };
 
   const token = randomBytes(32).toString("base64url");
   // shortcut: expiry counts from UTC midnight, up to 5 hours off venue-local midnight; use the venue time zone if links must end exactly.

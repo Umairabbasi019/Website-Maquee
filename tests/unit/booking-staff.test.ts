@@ -19,6 +19,9 @@ const tables: Record<string, Row[]> = {};
 const rpcs: { fn: string; args: Row }[] = [];
 const audits: Row[] = [];
 let rpcError: { code: string; message: string } | null = null;
+let failAudit = false;
+/** The calculated total the confirm form was shown for the default booking (200 guests x Rs 1,000 + Rs 50,000). */
+const SEEN = { previewedTotalPaisa: "25000000" };
 const held = new Set<string>();
 
 const future = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
@@ -82,7 +85,10 @@ vi.mock("@/modules/access", () => ({
     if (!held.has(key)) throw new ForbiddenError(key);
     return viewer;
   },
-  recordAudit: async (a: Row) => void audits.push(a),
+  recordAudit: async (a: Row) => {
+    if (failAudit) throw new Error("audit down");
+    audits.push(a);
+  },
   createServerClient: async () => ({ from: query }),
   createServiceClient: () => ({
     from: query,
@@ -99,6 +105,7 @@ beforeEach(() => {
   rpcs.length = 0;
   audits.length = 0;
   rpcError = null;
+  failAudit = false;
 });
 
 describe("previewQuote", () => {
@@ -186,7 +193,7 @@ describe("listBookings and countNewRequests", () => {
 
 describe("confirmBooking", () => {
   it("confirms at the calculated price without quotes.override, recording the actor", async () => {
-    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, finalTotalRupees: "250,000" })).resolves.toEqual({ ok: true });
+    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, finalTotalRupees: "250,000", ...SEEN })).resolves.toEqual({ ok: true });
     expect(rpcs).toHaveLength(1);
     expect(rpcs[0]).toMatchObject({
       fn: "confirm_booking",
@@ -203,14 +210,14 @@ describe("confirmBooking", () => {
   });
 
   it("refuses a changed total without quotes.override", async () => {
-    const r = await confirmBooking(T1, BOOKING, { hallId: HALL, finalTotalRupees: "200000", reason: "Family discount" });
+    const r = await confirmBooking(T1, BOOKING, { hallId: HALL, finalTotalRupees: "200000", reason: "Family discount", ...SEEN });
     expect(r).toEqual({ error: "forbidden" });
     expect(rpcs).toEqual([]);
   });
 
   it("with quotes.override, stores both totals and recalculates the advance from the final total", async () => {
     held.add("quotes.override");
-    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, finalTotalRupees: "200000", reason: "Family discount" })).resolves.toEqual({
+    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, finalTotalRupees: "200000", reason: "Family discount", ...SEEN })).resolves.toEqual({
       ok: true,
     });
     expect(rpcs[0].args).toMatchObject({
@@ -223,7 +230,7 @@ describe("confirmBooking", () => {
 
   it.each(["", "ok", "x".repeat(301)])("refuses an override reason %j", async (reason) => {
     held.add("quotes.override");
-    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, finalTotalRupees: "200000", reason })).resolves.toEqual({ error: "invalid" });
+    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, finalTotalRupees: "200000", reason, ...SEEN })).resolves.toEqual({ error: "invalid" });
     expect(rpcs).toEqual([]);
   });
 
@@ -249,10 +256,46 @@ describe("confirmBooking", () => {
 
   it("maps an overlap to slotTaken and a refused transition to state, without an audit", async () => {
     rpcError = { code: "23P01", message: 'conflicting key value violates exclusion constraint "no_overlap"' };
-    await expect(confirmBooking(T1, BOOKING, { hallId: HALL })).resolves.toEqual({ error: "slotTaken" });
+    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, ...SEEN })).resolves.toEqual({ error: "slotTaken" });
     rpcError = { code: "P0001", message: "invalid_transition: confirmed to confirmed" };
-    await expect(confirmBooking(T1, BOOKING, { hallId: HALL })).resolves.toEqual({ error: "state" });
+    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, ...SEEN })).resolves.toEqual({ error: "state" });
     expect(audits).toEqual([]);
+  });
+
+  it("refuses a total outside the int4 range, without calling the RPC", async () => {
+    held.add("quotes.override");
+    // A date price of -Rs 2,000 per guest x 200 guests takes the calculated total below 0.
+    tables.date_prices = [{ tenant_id: T1, event_type_id: null, kind: "per_guest", value: -200_000, label: "Promo", starts_on: "2000-01-01", ends_on: "2999-12-31" }];
+    const preview = await previewQuote(T1, BOOKING, HALL);
+    expect(preview!.totalPaisa).toBeLessThan(0);
+    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, previewedTotalPaisa: String(preview!.totalPaisa) })).resolves.toEqual({ error: "outOfRange" });
+    tables.date_prices = [];
+    // Too large: an add-on past the int4 maximum (2,147,483,647 paisa). An override cannot get there: parseRupees stops at Rs 20,000,000.
+    tables.addons[0].price_paisa = 2_200_000_000;
+    const big = await previewQuote(T1, BOOKING, HALL);
+    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, previewedTotalPaisa: String(big!.totalPaisa) })).resolves.toEqual({ error: "outOfRange" });
+    expect(rpcs).toEqual([]);
+    // The largest override the app accepts still confirms.
+    reset();
+    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, ...SEEN, finalTotalRupees: "20000000", reason: "Largest" })).resolves.toEqual({ ok: true });
+    expect(rpcs).toHaveLength(1);
+  });
+
+  it("returns priceChanged, storing nothing, when the previewed total is stale, missing or garbled", async () => {
+    for (const previewedTotalPaisa of ["24000000", undefined, "", "abc", "25000000.5"]) {
+      await expect(confirmBooking(T1, BOOKING, { hallId: HALL, previewedTotalPaisa })).resolves.toEqual({ error: "priceChanged" });
+    }
+    expect(rpcs).toEqual([]);
+    expect(audits).toEqual([]);
+  });
+
+  it("still confirms when the audit write fails after the commit", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    failAudit = true;
+    await expect(confirmBooking(T1, BOOKING, { hallId: HALL, ...SEEN })).resolves.toEqual({ ok: true });
+    expect(rpcs).toHaveLength(1);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(BOOKING), expect.any(Error));
+    error.mockRestore();
   });
 
   it("needs bookings.edit", async () => {
@@ -271,6 +314,15 @@ describe("declineBooking and cancelBooking", () => {
     await expect(declineBooking(T1, BOOKING, "  Date full  ")).resolves.toEqual({ ok: true });
     expect(rpcs).toEqual([{ fn: "decline_booking", args: { p_booking: BOOKING, p_reason: "Date full", p_actor: USER } }]);
     expect(audits[0]).toMatchObject({ action: "booking.decline", reason: "Date full" });
+  });
+
+  it("declines and cancels even when the audit write fails after the commit", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    failAudit = true;
+    await expect(declineBooking(T1, BOOKING, "Date full")).resolves.toEqual({ ok: true });
+    await expect(cancelBooking(T1, BOOKING, "Family change")).resolves.toEqual({ ok: true });
+    expect(error).toHaveBeenCalledTimes(2);
+    error.mockRestore();
   });
 
   it("cancels, maps a refused transition to state, and gives notFound for another venue's booking", async () => {

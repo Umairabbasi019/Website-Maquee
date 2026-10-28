@@ -20,6 +20,8 @@ const CONFIRM_ERRORS: Record<ConfirmError, TranslationKey> = {
   slotTaken: "bookings.error.slotTaken",
   capacity: "bookings.error.capacity",
   state: "bookings.error.state",
+  outOfRange: "bookings.error.outOfRange",
+  priceChanged: "bookings.error.priceChanged",
 };
 const REASON_ERRORS: Record<Extract<StatusResult, { error: string }>["error"], TranslationKey> = {
   invalid: "bookings.error.reason",
@@ -66,6 +68,8 @@ function Preview({ quote }: { quote: QuotePreview | null }) {
   const missing = quote?.missing.length ? t("bookings.confirm.missing", { items: quote.missing.join(", ") }) : null;
   return (
     <div className="space-y-2 rounded-lg border border-muted/40 p-4">
+      {/* The calculated total shown; confirm refuses if it has changed by then. */}
+      <input type="hidden" name="previewedTotalPaisa" value={quote?.totalPaisa ?? ""} />
       <h3 className="font-medium">{t("bookings.confirm.preview")}</h3>
       {/* A hall change announces the new total (and any gap), not every line. */}
       <p role="status" className="sr-only">

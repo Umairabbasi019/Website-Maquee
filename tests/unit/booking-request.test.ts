@@ -170,14 +170,23 @@ describe("createBookingRequest", () => {
   });
 
   it("refuses guests above the largest active hall capacity", async () => {
-    await expect(createBookingRequest(T1, { ...valid, guests: 501 }, "ip")).resolves.toEqual({ error: "invalid" });
+    await expect(createBookingRequest(T1, { ...valid, guests: 501 }, "ip")).resolves.toMatchObject({ error: "invalid" });
     await expect(createBookingRequest(T1, { ...valid, guests: 500 }, "ip")).resolves.toMatchObject({ ok: true });
+  });
+
+  it("marks guests as the field to fix when above the cap, and the package when it is not the event's", async () => {
+    await expect(createBookingRequest(T1, { ...valid, guests: 501 }, "ip")).resolves.toEqual({ error: "invalid", fields: ["guests"] });
+    await expect(createBookingRequest(T1, { ...valid, packageId: OTHER_PKG }, "ip")).resolves.toEqual({ error: "invalid", fields: ["packageId"] });
+    await expect(createBookingRequest(T1, { ...valid, guests: 501, packageId: OTHER_PKG }, "ip")).resolves.toEqual({
+      error: "invalid",
+      fields: ["guests", "packageId"],
+    });
+    await expect(createBookingRequest(T1, { ...valid, eventTypeId: OTHER_EVENT }, "ip")).resolves.toEqual({ error: "invalid", fields: ["eventTypeId"] });
+    expect(rpcs).toEqual([]);
   });
 
   it.each([
     ["slot", { slotId: OTHER_SLOT }],
-    ["event type", { eventTypeId: OTHER_EVENT }],
-    ["package", { packageId: OTHER_PKG }],
     ["add-on", { addonIds: [OTHER_ADDON] }],
   ])("refuses another venue's %s", async (_what, change) => {
     await expect(createBookingRequest(T1, { ...valid, ...change }, "ip")).resolves.toEqual({ error: "invalid" });
@@ -187,7 +196,7 @@ describe("createBookingRequest", () => {
   it("refuses a package of a different event type of the same venue", async () => {
     catalogues[T1].events.push(event(id(10), id(11)));
     try {
-      await expect(createBookingRequest(T1, { ...valid, packageId: id(11) }, "ip")).resolves.toEqual({ error: "invalid" });
+      await expect(createBookingRequest(T1, { ...valid, packageId: id(11) }, "ip")).resolves.toEqual({ error: "invalid", fields: ["packageId"] });
     } finally {
       catalogues[T1].events.pop();
     }

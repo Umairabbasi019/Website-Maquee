@@ -24,7 +24,10 @@ export async function submitBookingRequest(_prev: RequestFormState, fd: FormData
   const tenantId = await hostTenant();
   if (!tenantId) return { values, errors: [], message: "invalid" };
   const r = await createBookingRequest(tenantId, values, hashKey(ipBucket(clientIp(await headers()))));
-  if ("error" in r) return { values, errors: r.error === "invalid" ? requestFieldErrors(values) : [], message: r.error };
+  if ("error" in r) {
+    const errors = r.error === "invalid" ? [...new Set([...requestFieldErrors(values), ...(r.fields ?? [])])] : [];
+    return { values, errors, message: r.error };
+  }
   // Only the token travels: the sent page reads the reference from the stored booking.
   redirect(`/book/sent?t=${r.token}`);
 }

@@ -38,7 +38,9 @@ export function RequestForm({ action, estimate, events, addons, slots, maxGuests
   const message = (name: string) =>
     invalid.has(name) && (
       <p id={errorId(name)} className={styles.error}>
-        {t(`booking.error.${name}` as TranslationKey)}
+        {name === "guests" && Number(v.guests) > maxGuests
+          ? t("booking.error.guestsMax", { max: maxGuests })
+          : t(`booking.error.${name}` as TranslationKey)}
       </p>
     );
   const chips = (name: "slotId" | "eventTypeId", legend: string, options: Option[]): ReactNode => (
@@ -94,7 +96,7 @@ export function RequestForm({ action, estimate, events, addons, slots, maxGuests
         {chips("slotId", t("booking.slot"), slots)}
         <label>
           <span className={styles.lab}>{t("booking.package")}</span>
-          <select name="packageId" defaultValue={v.packageId}>
+          <select name="packageId" defaultValue={v.packageId} {...field("packageId")}>
             <option value="">{t("booking.noPackage")}</option>
             {events
               .filter((e) => e.packages.length > 0)
@@ -108,6 +110,7 @@ export function RequestForm({ action, estimate, events, addons, slots, maxGuests
                 </optgroup>
               ))}
           </select>
+          {message("packageId")}
         </label>
         {addons.length > 0 && (
           <fieldset className={styles.list}>

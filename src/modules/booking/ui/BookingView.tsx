@@ -9,7 +9,7 @@ const STATUS = {
   confirmed: "booking.status.confirmed",
   expired: "booking.status.expired",
   declined: "booking.notConfirmed",
-  cancelled: "booking.notConfirmed",
+  cancelled: "booking.cancelled",
 } as const;
 
 /** What the customer's private link shows. The price appears only once confirmed: the stored total and advance, never a re-sum of the lines. */
