@@ -80,6 +80,16 @@ export const storedQuote = (
   advancePaisa: number,
 ): Quote => ({ lines: s.lines, subtotalPaisa: s.subtotalPaisa, taxPaisa: s.taxPaisa, totalPaisa, advancePaisa });
 
+type OverrideFields = Pick<QuoteSnapshot, "calculatedTotalPaisa" | "finalTotalPaisa" | "overrideReason">;
+
+/** Staff only: the calculated total and reason of an overridden quote, or null when the final total is the calculated one. */
+export const quoteOverride = (s: OverrideFields): { calculatedPaisa: number; reason: string } | null =>
+  s.overrideReason && s.calculatedTotalPaisa !== s.finalTotalPaisa ? { calculatedPaisa: s.calculatedTotalPaisa, reason: s.overrideReason } : null;
+
+/** The customer's stored quote. After an override the calculated lines no longer explain the total, so only the totals show. */
+export const customerQuote = (s: QuoteSnapshot, totalPaisa: number, advancePaisa: number): Quote =>
+  storedQuote(s.calculatedTotalPaisa !== s.finalTotalPaisa ? { ...s, lines: [] } : s, totalPaisa, advancePaisa);
+
 // An event-specific row beats the all-events (null) row.
 export function pickDatePrice<T extends { eventTypeId: string | null }>(matches: T[], eventTypeId: string): T | null {
   return matches.find((m) => m.eventTypeId === eventTypeId) ?? matches.find((m) => m.eventTypeId === null) ?? null;

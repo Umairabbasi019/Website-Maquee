@@ -4,7 +4,7 @@ import { z } from "zod";
 import { can, createServerClient, createServiceClient, recordAudit, requirePerm } from "@/modules/access";
 import { MoneyRulesSchema } from "@/modules/tenants/client";
 import { parseRupees } from "@/sections/shared/format";
-import { applyOverride, priceQuote, storedQuote, type PriceInput, type Quote, type QuoteSnapshot } from "../pricing";
+import { applyOverride, priceQuote, quoteOverride, storedQuote, type PriceInput, type Quote, type QuoteSnapshot } from "../pricing";
 import { todayIn } from "../request";
 import { check, datePriceFor } from "./request";
 
@@ -33,6 +33,8 @@ export type StaffBookingDetail = StaffBookingRow & {
   addons: string[];
   history: { from: string | null; to: string; at: string; reason: string | null }[];
   quote: Quote | null;
+  /** Set when staff changed the total: the calculated total and the reason. Staff only. */
+  override: { calculatedPaisa: number; reason: string } | null;
   /** The venue's time zone, for showing history times. */
   timeZone: string;
 };
@@ -82,7 +84,13 @@ const isTransitionError = (e: { code?: string; message: string } | null) =>
 async function venueZone(db: SupabaseClient, tenantId: string): Promise<string> {
   return check(await db.from("tenants").select("time_zone").eq("id", tenantId).single<{ time_zone: string }>(), "tenants").time_zone;
 }
-const venueToday = async (db: SupabaseClient, tenantId: string) => todayIn(await venueZone(db, tenantId));
+const todayAt = async (db: SupabaseClient, tenantId: string) => todayIn(await venueZone(db, tenantId));
+
+/** Today in the venue's time zone (YYYY-MM-DD), for the staff calendar's default month. */
+export async function venueToday(tenantId: string): Promise<string> {
+  await requirePerm(tenantId, "bookings.view");
+  return todayAt(await createServerClient(), tenantId);
+}
 
 function toRow(b: BookingRow, totalPaisa: number | null, today: string): StaffBookingRow {
   return {
@@ -110,7 +118,7 @@ export async function listBookings(tenantId: string, q: { month?: string; status
     const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
     query = query.gte("event_date", `${month}-01`).lt("event_date", `${next}-01`);
   }
-  const today = await venueToday(db, tenantId);
+  const today = await todayAt(db, tenantId);
   // "requested" means still waiting, as countNewRequests counts it; a passed request is "expired" (as toRow labels it).
   if (status === "expired") query = query.eq("status", "requested").lt("event_date", today);
   else if (status === "requested") query = query.eq("status", "requested").gte("event_date", today);
@@ -165,6 +173,7 @@ export async function getBookingDetail(tenantId: string, id: string): Promise<St
     addons: b.addon_names,
     history: check(history, "booking_status_history").map((h) => ({ from: h.from_status, to: h.to_status, at: h.at, reason: h.reason })),
     quote: q && storedQuote(q.snapshot, q.total_paisa, q.advance_paisa),
+    override: q && quoteOverride(q.snapshot),
     timeZone,
   };
 }
@@ -178,7 +187,7 @@ export async function countNewRequests(tenantId: string): Promise<number> {
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
     .eq("status", "requested")
-    .gte("event_date", await venueToday(db, tenantId));
+    .gte("event_date", await todayAt(db, tenantId));
   if (error) throw new Error(`bookings: ${error.message}`);
   return count ?? 0;
 }

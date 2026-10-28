@@ -35,20 +35,20 @@ export async function previewAction(bookingId: string, hallId: string): Promise<
 export async function confirmAction(_prev: ConfirmFormState, fd: FormData): Promise<ConfirmFormState> {
   const id = text(fd, "id");
   const values = { hallId: text(fd, "hallId"), finalTotalRupees: text(fd, "finalTotalRupees"), reason: text(fd, "reason") };
+  // Without JavaScript, "Update quote" reloads the page with the chosen hall (only its id goes in the URL). A redirect
+  // rather than a returned state: Next 16.4 fails to re-render a dashboard page after a no-JS action that returns state
+  // (cookies invariant in createServerClient).
+  if (fd.get("intent") === "preview") redirect(`/dashboard/bookings/${encodeURIComponent(id)}?hall=${encodeURIComponent(values.hallId)}`);
   const state = await inVenue<ConfirmFormState | "confirmed">(
     async (tenantId) => {
-      // Without JavaScript, "Update quote" posts here for the chosen hall's quote.
-      if (fd.get("intent") !== "preview") {
-        // An empty total means the calculated one, so it is not sent at all.
-        const r = await confirmBooking(tenantId, id, {
-          hallId: values.hallId,
-          finalTotalRupees: values.finalTotalRupees || undefined,
-          reason: values.reason || undefined,
-        });
-        if ("ok" in r) return "confirmed";
-        return { error: r.error, values, preview: await previewQuote(tenantId, id, values.hallId) };
-      }
-      return { values, preview: await previewQuote(tenantId, id, values.hallId) };
+      // An empty total means the calculated one, so it is not sent at all.
+      const r = await confirmBooking(tenantId, id, {
+        hallId: values.hallId,
+        finalTotalRupees: values.finalTotalRupees || undefined,
+        reason: values.reason || undefined,
+      });
+      if ("ok" in r) return "confirmed";
+      return { error: r.error, values, preview: await previewQuote(tenantId, id, values.hallId) };
     },
     { error: "forbidden", values, preview: null },
   );

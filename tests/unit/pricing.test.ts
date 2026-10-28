@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyOverride, pickDatePrice, priceQuote, roundHalfUpToRupee, type PriceInput } from "@/modules/booking";
+import { applyOverride, customerQuote, pickDatePrice, priceQuote, quoteOverride, roundHalfUpToRupee, type PriceInput, type QuoteSnapshot } from "@/modules/booking";
 
 const base: PriceInput = {
   guests: 250,
@@ -84,5 +84,31 @@ describe("pickDatePrice", () => {
     expect(pickDatePrice([all, one], "e1")).toBe(one);
     expect(pickDatePrice([all, one], "e2")).toBe(all);
     expect(pickDatePrice([], "e1")).toBeNull();
+  });
+});
+
+describe("customerQuote and quoteOverride", () => {
+  const lines = [{ kind: "package" as const, label: "Gold", amountPaisa: 25_000_000 }];
+  const snap = (finalTotalPaisa: number, overrideReason: string | null): QuoteSnapshot => ({
+    lines,
+    subtotalPaisa: finalTotalPaisa,
+    taxPaisa: 0,
+    advancePaisa: finalTotalPaisa / 2,
+    calculatedTotalPaisa: 25_000_000,
+    finalTotalPaisa,
+    overrideReason,
+    inputs: { guests: 250, pkg: null, addons: [], hall: null, datePrice: null, taxPercent: 0, advancePercent: 50 },
+  });
+
+  it("keeps the lines when the total is the calculated one, with no override for staff", () => {
+    expect(customerQuote(snap(25_000_000, null), 25_000_000, 12_500_000).lines).toEqual(lines);
+    expect(quoteOverride(snap(25_000_000, null))).toBeNull();
+  });
+
+  it("drops the lines for the customer after an override, and gives staff the calculated total and reason", () => {
+    const q = customerQuote(snap(70_000_000, "Agreed"), 70_000_000, 35_000_000);
+    expect(q).toEqual({ lines: [], subtotalPaisa: 70_000_000, taxPaisa: 0, totalPaisa: 70_000_000, advancePaisa: 35_000_000 });
+    expect(JSON.stringify(q)).not.toContain("Agreed");
+    expect(quoteOverride(snap(70_000_000, "Agreed"))).toEqual({ calculatedPaisa: 25_000_000, reason: "Agreed" });
   });
 });

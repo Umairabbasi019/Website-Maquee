@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { can, canAny, DASHBOARD_SCREENS } from "@/modules/access";
 import { ConfirmForm, getBookingDetail, longDate, previewQuote, QuoteLines, ReasonForm, statusLabel } from "@/modules/booking";
 import { listHalls } from "@/modules/tenants";
-import { formatLocalPhone } from "@/sections/shared/format";
+import { formatLocalPhone, formatRs } from "@/sections/shared/format";
 import { t, type TranslationKey } from "@/ui/i18n";
 import { Forbidden } from "@/ui/notices";
 import { getDashboard } from "../../context";
@@ -35,7 +35,9 @@ function Facts({ facts }: { facts: [string, string][] }) {
   );
 }
 
-export default async function BookingPage({ params }: { params: Promise<{ id: string }> }) {
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ hall?: string | string[] }> };
+
+export default async function BookingPage({ params, searchParams }: Props) {
   const { viewer, venue } = await getDashboard();
   if (!venue) return null;
   const screen = DASHBOARD_SCREENS.find((s) => s.href === "/dashboard/bookings")!;
@@ -57,7 +59,9 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
         return { id: h.id, label, disabled: !h.isActive || !fits };
       })
     : [];
-  const hallId = halls.find((h) => !h.disabled)?.id ?? "";
+  // ?hall= comes from "Update quote" without JavaScript; only a hall that fits is taken.
+  const { hall: asked } = await searchParams;
+  const hallId = (halls.find((h) => h.id === asked && !h.disabled) ?? halls.find((h) => !h.disabled))?.id ?? "";
   const preview = hallId ? await previewQuote(venue.id, b.id, hallId) : null;
   const when = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: b.timeZone });
 
@@ -94,6 +98,9 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
         <Section id="booking-quote" title="bookings.detail.quote">
           <div className="max-w-md">
             <QuoteLines quote={b.quote} />
+            {b.override && (
+              <p className="mt-2">{t("bookings.detail.override", { from: formatRs(b.override.calculatedPaisa), reason: b.override.reason })}</p>
+            )}
           </div>
         </Section>
       )}

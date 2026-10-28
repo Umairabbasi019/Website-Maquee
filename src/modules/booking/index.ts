@@ -18,6 +18,7 @@ export {
   getBookingDetail,
   listBookings,
   previewQuote,
+  venueToday,
   type ConfirmResult,
   type QuotePreview,
   type StaffBookingDetail,

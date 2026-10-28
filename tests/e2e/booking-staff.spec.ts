@@ -29,6 +29,12 @@ async function cleanUp() {
   await db.query(`delete from bookings where id in (${ours})`, [tenant, OURS]);
   await db.query("delete from customers where tenant_id = $1 and phone_e164 = any($2)", [tenant, OURS]);
   await db.query("delete from booking_request_hits where tenant_id = $1", [tenant]);
+  // A killed run can leave staff on the custom role; put it back first, or the role cannot be deleted.
+  await db.query(
+    `update memberships set role_id = (select id from roles where tenant_id is null and name = 'staff')
+     where tenant_id = $1 and role_id in (select id from roles where tenant_id = $1 and name = $2)`,
+    [tenant, ROLE],
+  );
   await db.query("delete from roles where tenant_id = $1 and name = $2", [tenant, ROLE]);
 }
 
@@ -100,10 +106,16 @@ test("a manager confirms with an override and the customer link shows the final 
   await expect(page.getByText(en["bookings.status.confirmed"], { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("form", { name: en["bookings.confirm.heading"] })).toHaveCount(0);
   await expect(page.getByText("Rs 700,000")).toBeVisible();
+  // Staff see why the total differs from the calculated lines.
+  await expect(page.getByText(/^Changed from Rs [\d,]+: Agreed on the phone$/)).toBeVisible();
 
+  // Ruling 11: the customer sees only the final total and the advance, never the calculated lines or the reason.
   await page.goto(`${TENANT_BASE}${sent.confirm.link}`);
   await expect(page.getByText(en["booking.status.confirmed"], { exact: true })).toBeVisible();
-  await expect(page.locator("main")).toContainText("Rs 700,000");
+  const price = page.getByRole("region", { name: en["booking.view.price"] });
+  await expect(price.getByRole("listitem")).toHaveCount(2);
+  await expect(price.getByRole("listitem").first()).toContainText("Rs 700,000");
+  await expect(page.locator("main")).not.toContainText("Agreed on the phone");
 });
 
 test("a second request for the same hall, date and slot gets the slot-taken message", async ({ page }) => {
@@ -141,8 +153,14 @@ test("declining works without JavaScript and the customer link shows the not-con
   await signIn(page, "manager1@manor.test");
   await expect(page).toHaveURL(`${TENANT_BASE}/dashboard`);
   await openRequest(page, sent.decline.reference);
-  // Without JavaScript the hall select cannot refresh the quote, so a button asks for it.
-  await expect(page.getByRole("form", { name: en["bookings.confirm.heading"] }).getByRole("button", { name: en["bookings.confirm.update"] })).toBeVisible();
+  // Without JavaScript the hall select cannot refresh the quote, so a button asks for it; it never confirms.
+  const confirm = page.getByRole("form", { name: en["bookings.confirm.heading"] });
+  await confirm.getByRole("button", { name: en["bookings.confirm.update"] }).click();
+  await expect(page).toHaveURL(/\?hall=[0-9a-f-]{36}$/);
+  await expect(confirm.getByText(en["bookings.confirm.preview"])).toBeVisible();
+  await expect(confirm.getByRole("listitem").filter({ hasText: en["booking.view.total"] })).toContainText(/Rs [\d,]+/);
+  const still = await db.query("select status from bookings where tenant_id = $1 and reference = $2", [tenant, sent.decline.reference]);
+  expect(still.rows[0].status).toBe("requested");
   const form = page.getByRole("form", { name: en["bookings.decline.heading"] });
   await form.getByLabel(en["bookings.decline.reason"]).fill("Hall under repair");
   await form.getByRole("button", { name: en["bookings.decline.submit"] }).click();

@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { canAny, DASHBOARD_SCREENS } from "@/modules/access";
-import { getRequestOptions, listBookings, MonthCalendar } from "@/modules/booking";
+import { listBookings, MonthCalendar, venueToday } from "@/modules/booking";
 import { t } from "@/ui/i18n";
 import { Forbidden } from "@/ui/notices";
 import { getDashboard } from "../context";
 
 export const instant = false; // see layout.tsx
 
-const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+// 1900 to 2099 only: Date.UTC reads years 0 to 99 as 1900 to 1999.
+const MONTH = /^(19|20)\d{2}-(0[1-9]|1[0-2])$/;
 // Declined and cancelled bookings hold nothing, so the calendar leaves them out; the list still has them.
 const SHOWN = new Set(["requested", "expired", "confirmed"]);
 
@@ -22,8 +23,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const screen = DASHBOARD_SCREENS.find((s) => s.href === "/dashboard/calendar")!;
   if (!canAny(viewer, venue.id, screen.perm)) return <Forbidden />;
   const { month: asked } = await searchParams;
-  // No (or a bad) month opens the venue's current month; getRequestOptions knows the venue's today.
-  const month = typeof asked === "string" && MONTH.test(asked) ? asked : (await getRequestOptions(venue.id)).today.slice(0, 7);
+  // No (or a bad) month opens the venue's current month.
+  const month = typeof asked === "string" && MONTH.test(asked) ? asked : (await venueToday(venue.id)).slice(0, 7);
   const entries = (await listBookings(venue.id, { month })).filter((b) => SHOWN.has(b.status));
   const nav = "rounded-md border border-muted/40 px-3 py-1 hover:bg-accent/30 focus-visible:outline-2 focus-visible:outline-text";
 

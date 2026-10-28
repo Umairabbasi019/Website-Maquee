@@ -9,8 +9,8 @@ import { focusFirstInvalid } from "./labels";
 
 type ConfirmError = Extract<ConfirmResult, { error: string }>["error"];
 type ConfirmValues = { hallId: string; finalTotalRupees: string; reason: string };
-/** The confirm action's answer when it did not confirm: an error, or (without JavaScript) a new hall's preview. */
-export type ConfirmFormState = { error?: ConfirmError; values: ConfirmValues; preview: QuotePreview | null } | null;
+/** The confirm action's answer when it did not confirm: the error, the posted values and the posted hall's preview. */
+export type ConfirmFormState = { error: ConfirmError; values: ConfirmValues; preview: QuotePreview | null } | null;
 export type ReasonFormState = { error: Extract<StatusResult, { error: string }>["error"]; reason: string } | null;
 
 const CONFIRM_ERRORS: Record<ConfirmError, TranslationKey> = {
@@ -63,15 +63,18 @@ export function QuoteLines({ quote }: { quote: Quote }) {
 }
 
 function Preview({ quote }: { quote: QuotePreview | null }) {
+  const missing = quote?.missing.length ? t("bookings.confirm.missing", { items: quote.missing.join(", ") }) : null;
   return (
-    <div role="status" className="space-y-2 rounded-lg border border-muted/40 p-4">
+    <div className="space-y-2 rounded-lg border border-muted/40 p-4">
       <h3 className="font-medium">{t("bookings.confirm.preview")}</h3>
+      {/* A hall change announces the new total (and any gap), not every line. */}
+      <p role="status" className="sr-only">
+        {quote && [`${t("booking.view.total")} ${formatRs(quote.totalPaisa)}`, missing].filter(Boolean).join(". ")}
+      </p>
       {quote && (
         <>
           <QuoteLines quote={quote} />
-          {quote.missing.length > 0 && (
-            <p className="rounded-md border border-text px-3 py-2">{t("bookings.confirm.missing", { items: quote.missing.join(", ") })}</p>
-          )}
+          {missing && <p className="rounded-md border border-text px-3 py-2">{missing}</p>}
         </>
       )}
     </div>
@@ -91,7 +94,7 @@ type ConfirmProps = {
 
 /**
  * Hall, calculated quote and an optional final total. A plain form posting to a Server Action: without JavaScript,
- * "Update quote" asks for the chosen hall's quote; with it, the quote follows the hall select. The final total starts
+ * "Update quote" reloads the page for the chosen hall; with it, the quote follows the hall select. The final total starts
  * empty and is sent only when typed, so a catalogue change between preview and confirm never needs quotes.override.
  */
 export function ConfirmForm({ bookingId, halls, hallId, preview, canOverride, action, previewAction }: ConfirmProps) {
@@ -100,7 +103,7 @@ export function ConfirmForm({ bookingId, halls, hallId, preview, canOverride, ac
   const asked = useRef(0);
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
-    if (state?.error) focusFirstInvalid(form.current);
+    if (state) focusFirstInvalid(form.current);
   }, [state]);
   const v = state?.values ?? { hallId, finalTotalRupees: "", reason: "" };
   const error = state?.error;
@@ -117,11 +120,12 @@ export function ConfirmForm({ bookingId, halls, hallId, preview, canOverride, ac
     // The key re-mounts the fields after each answer, so their defaults show the posted values.
     <form ref={form} key={JSON.stringify(state)} action={formAction} aria-label={t("bookings.confirm.heading")} className="space-y-4">
       <input type="hidden" name="id" value={bookingId} />
-      {error && <Alert id={errorId} message={CONFIRM_ERRORS[error]} />}
+      {/* Without the override fields, invalid can only be the hall (or a tampered id). */}
+      {error && <Alert id={errorId} message={error === "invalid" && !canOverride ? "bookings.error.hall" : CONFIRM_ERRORS[error]} />}
       {!hallId && <p>{t("bookings.confirm.noHall")}</p>}
       <label className="block">
         {t("bookings.confirm.hall")}
-        <select name="hallId" required defaultValue={v.hallId} onChange={onHall} className={inputClass} {...marked(!!error && HALL_ERRORS.has(error), errorId)}>
+        <select name="hallId" required defaultValue={v.hallId} onChange={onHall} className={inputClass} {...marked(!!error && (HALL_ERRORS.has(error) || (error === "invalid" && !canOverride)), errorId)}>
           {halls.map((h) => (
             <option key={h.id} value={h.id} disabled={h.disabled}>
               {h.label}

@@ -1,6 +1,6 @@
 import "server-only";
 import { createServiceClient } from "@/modules/access";
-import { storedQuote, type Quote } from "../pricing";
+import { customerQuote, type Quote, type QuoteSnapshot } from "../pricing";
 import { todayIn } from "../request";
 import { check, sha256Hex } from "./request";
 
@@ -77,7 +77,7 @@ export async function getBookingByToken(token: string, tenantId: string): Promis
           .select("snapshot, total_paisa, advance_paisa")
           .eq("tenant_id", t)
           .eq("id", b.current_quote_id)
-          .single<{ snapshot: Quote; total_paisa: number; advance_paisa: number }>()
+          .single<{ snapshot: QuoteSnapshot; total_paisa: number; advance_paisa: number }>()
       : null,
   ]);
   const venue = check(tenant, "tenants");
@@ -92,7 +92,7 @@ export async function getBookingByToken(token: string, tenantId: string): Promis
     packageName: b.package_name,
     addons: b.addon_names,
     hall: (hall && check(hall, "halls"))?.name ?? null,
-    quote: q && storedQuote(q.snapshot, q.total_paisa, q.advance_paisa),
+    quote: q && customerQuote(q.snapshot, q.total_paisa, q.advance_paisa),
     venueName: venue.name,
   };
 }
