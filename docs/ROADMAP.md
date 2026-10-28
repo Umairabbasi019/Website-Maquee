@@ -8,7 +8,7 @@ One milestone at a time. Each ends with a code review, checks actually run, docs
 | M1 | Foundation and security | L | M0 | Done, merged |
 | M2 | Public site from config | L | M1 | Done, merged |
 | M3 | Venue configuration and catalogue | M | M1 | Built on `feat/m3-venue-editing`, awaiting whole-branch review and merge |
-| M4 | Booking engine and pricing | L | M3 | Not started |
+| M4 | Booking requests and pricing | L | M3 | Built on `feat/m4-booking-requests`, awaiting whole-branch review and merge |
 | M5 | Payments | M | M4 | Not started |
 | M6 | Dashboard and operations | L | M4, M5 | Not started |
 | M7 | Notifications and jobs | M | M4 | Not started |
@@ -31,13 +31,14 @@ Scope: halls, slots, event types, packages, menus, add-ons, stage themes, offers
 Acceptance: owner/manager edits a price and the public site shows it; super admin edits any tenant; changes audited.
 Tests: Zod schema tests; permission tests per screen; media upload Playwright.
 
-## M4 Booking engine and pricing
-Scope: pricing service, quote snapshots, availability, holds, exclusion constraint, state machine, booking tokens, live date and price calendar, booking flow, shareable quote, instant-booking setting, job runner with hold expiry.
-Acceptance: customer reserves a free date and gets a reference and link; two simultaneous reserves → only one succeeds.
-Tests: pricing unit tests (rounding, discounts, tax, advance), concurrency test, state transition tests, token access tests, Playwright booking journey.
+## M4 Booking requests and pricing
+Scope: pricing service, quote snapshots, public request form with an optional estimate, private booking link, state machine with history (`requested`, `confirmed`, `declined`, `cancelled`), exclusion constraint on `confirmed`, staff bookings list, detail and month calendar, confirm with hall pick and optional price override, decline and cancel with a reason, new-request count on the overview, rate limit. The public site shows no availability.
+Acceptance: a customer sends a request for any future date and gets a reference and a link; two simultaneous confirms of the same hall, date and slot → only one succeeds.
+Tests: pricing unit tests (rounding, discounts, tax, advance, override), concurrency test, state transition tests, token access tests, Playwright request and confirm journeys (also with JavaScript off).
+Moved out: holds, quick booking and the manager switch to M5; the job runner (and pruning `booking_request_hits`) to M7; the shareable family quote (BKG-8) to M8; staff-made bookings to M6.
 
 ## M5 Payments
-Scope: ledger, manual receipts + verify, provider interface, sandbox adapter, webhook route with signature, idempotency and amount checks, auto-confirm, late-payment → Refund pending.
+Scope: the quick-booking manager switch (pay and auto-book, with `awaiting_advance` and holds using `holdHours`), ledger, manual receipts + verify, provider interface, sandbox adapter, webhook route with signature, idempotency and amount checks, auto-confirm, late-payment → Refund pending.
 Acceptance: verified manual payment and sandbox webhook both confirm; a receipt alone or a redirect alone never confirms; duplicate webhook does nothing.
 Tests: webhook idempotency and tamper tests, race test, Playwright receipt upload + verify.
 
@@ -47,7 +48,7 @@ Acceptance: Manor's sheet can be imported; manager runs a booking from enquiry t
 Tests: CSV import mapping tests, permission matrix tests, Playwright staff journeys, chart data tests.
 
 ## M7 Notifications and jobs
-Scope: messaging adapters (WhatsApp Cloud, email, dev log), templates, consent, delivery webhooks, reminders, morning summary, review request, "ready to send" state.
+Scope: job runner (hold expiry, pruning old `booking_request_hits`), messaging adapters (WhatsApp Cloud, email, dev log), templates, consent, delivery webhooks, reminders, morning summary, review request, "ready to send" state.
 Acceptance: with dev log adapter all messages are recorded with honest states; with sandbox WhatsApp a template is accepted and delivery status updates.
 Tests: dedupe tests, time-zone schedule tests, STOP handling, no-provider honesty test.
 
@@ -66,7 +67,7 @@ Scope: choose hosting, deploy, domains and HTTPS, backups, monitoring, security 
 Acceptance: every launch checklist item verified, not assumed.
 
 ## Handoff
-Current state: M0, M1 and M2 are merged to `main`. M3 is built on branch `feat/m3-venue-editing` (Tasks 1-13 done) and awaits the whole-branch code review and your approval before merge.
+Current state: M0, M1 and M2 are merged to `main`. M4 is built on branch `feat/m4-booking-requests` (Tasks 1-7 done) and awaits the whole-branch code review and your approval before merge. M3 is built on branch `feat/m3-venue-editing` (Tasks 1-13 done) and awaits the whole-branch code review and your approval before merge.
 
 Checks run on the branch (2026-10-26, after `npm run db:seed`): lint and typecheck clean; 225 unit tests (26 files), 184 database tests (21 files) and 59 Playwright tests pass; `npm run build` passes.
 
@@ -80,11 +81,19 @@ Notes for M4:
 - Price columns are 4-byte integers, so one price tops out at 20,000,000 rupees; booking totals must use bigint.
 - Money rules (tax, advance, hold hours) are edited in Settings; M4 reads them.
 
+Checks run on the M4 branch (2026-10-28, after `npm run db:seed`): lint and typecheck clean; 299 unit tests (31 files), 254 database tests (25 files) and 73 Playwright tests pass.
+
+Built in M4: the pricing service (integer paisa, half-up rounding to the rupee once per line, date prices, tax, advance, override); booking tables, guards and the service-role SQL functions; the public request form at `/book` (works without JavaScript) with an optional estimate; `/book/sent` and the private link `/b/<token>`; the staff bookings list, detail and confirm, decline and cancel at `/dashboard/bookings`; the month calendar at `/dashboard/calendar`; the new-request count on the overview; the `showPriceEstimate` setting; sample bookings in the Manor seed.
+
+Notes for M5: quick booking adds `awaiting_advance`, holds and a manager switch; the `no_overlap` status list then grows. A receipt or a redirect never confirms a booking.
+
 Notes for M8: stage themes are priced rows with photo keys; the public Packages section lists them, and the preview and picker are still to build.
 
 Not built yet: audit log screen, users and permissions UI, deactivation screens (M6), staff invite flow, phone OTP login, "See stage themes" (M8), menus as separate tables, hall delete, undo of a single draft change.
 
 Known limits:
+- With JavaScript off, a dashboard Server Action that returns an error re-renders into a Next 16.4 InvariantError about cookies in `createServerClient`. The staff dashboard works with JavaScript; the fix is planned in the access module.
+- The booking estimate action has no rate limit of its own; the production proxy fallback for Server Action redirects is verified against Next 16.4.2 source only, not on Vercel.
 - Uploads pass through the Next server (16 MB body limit); Vercel caps bodies at 4.5 MB, so switch to signed direct uploads before deploying there.
 - `require_publishing()` trusts `app.publishing`; a session with raw SQL as `authenticated` could set it (see `DECISIONS.md`).
 - The hours panel edits one window per day; a second window stored by hand is kept and noted, but cannot be edited there, and goes when the day is marked closed.

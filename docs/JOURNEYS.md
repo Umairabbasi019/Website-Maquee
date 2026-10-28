@@ -2,19 +2,20 @@
 
 ## Journeys
 
-### J1 Customer books a date (manual payment)
-1. Opens the venue site, taps "Check a date".
-2. Calendar shows free dates with prices; picks one.
-3. Picks event, guests, package; sees itemised estimate and advance.
-4. Taps "Reserve this date", enters name, phone, WhatsApp consent.
-5. Gets reference number, WhatsApp message and private booking link. Date is held 48 h.
-6. Manager is alerted, finalises the quote. Customer sees it on the booking link.
-7. Customer transfers the advance and uploads the receipt.
-8. Manager or Accounts verifies the money. Booking becomes Confirmed; customer and manager get WhatsApp confirmation.
-9. Reminders follow for balance, final guest count, menu lock.
+### J1 Customer requests a date
+Built in M4. Quick booking (pay and auto-book) comes in M5; the manual-payment steps after confirmation come with M5 and M7.
+1. Opens the venue site and taps "Request booking" (a package's button carries the choice into the form).
+2. Opens `/book`. Every future date is open; the form never shows whether a day is taken. Picks date, time (slot), event, guests, package and add-ons, then name, phone and WhatsApp consent. If the manager turned the estimate on, a live "Estimate" shows the price without hall hire (or "Price on call" with no package). Works without JavaScript.
+3. Submits and lands on `/book/sent`: "Request sent", the reference (for example `MA-2610-0042`) and a private link, with "The venue will contact you to confirm the details." A phone or IP over 5 requests in an hour sees "Too many requests from here. Please try again in an hour, or call the venue." for every date alike.
+4. Opens the link `/b/<token>` (noindex, no referrer, expires 60 days after the event; the phone is never shown in full). The page shows the reference, status, date, time, event, guests, package and add-ons, plus:
+   - **Requested:** "Requested. The venue will contact you."
+   - **Confirmed:** "Confirmed", the hall, the final locked total and the advance. After a price change by the manager, only the total and the advance show, never the calculated lines or the reason.
+   - **Declined or cancelled:** "This request was not confirmed. Please contact the venue." The staff reason is never shown.
+   - **Expired** (a request past its date, never confirmed): "This request has passed its date."
+5. An unknown or expired link, or one opened on another venue's host, gives the same 404.
 
 ### J2 Customer books with online payment (after the provider is connected)
-Steps 1–6 as J1 (or instant booking skips step 6). Customer pays on the booking link. The provider confirms to the server, and the booking becomes Confirmed automatically. If the hold had expired and the date was taken, the status becomes Refund pending and the manager is alerted.
+Planned for M5 with the quick-booking switch. The customer picks a date, sees the standard package price and pays on the booking link. The provider confirms to the server, and the booking becomes Confirmed automatically. A held date uses `holdHours`. If the hold had expired and the date was taken, the status becomes Refund pending and the manager is alerted.
 
 ### J3 Family shares a quote
 Customer taps "Share with family" on the estimate or booking link. Family members open a read-only quote page and can tap "Reserve this date" or contact the manager.
@@ -49,6 +50,16 @@ Dashboard → Media → Upload (JPEG, PNG or WebP, up to 15 MB) with alt text an
 ### J13 Seasonal price
 Dashboard → Settings → Date prices: a date range, all events or one event type, percent or rupees per guest, a label. Overlap in the same scope is refused. The pricing service uses these from M4.
 
+### J14 Manager confirms a request
+Built in M4.
+1. Signs in; the overview shows "New requests: N" and links to the list. (No alert is sent until M7.)
+2. Opens Bookings, filters by status (Requested, Expired, Confirmed, Declined, Cancelled) or opens the Calendar month, which shows confirmed bookings and pending requests per day and slot. Only staff ever see booked days.
+3. Opens a request: customer name and phone, choices, history. Calls the customer to settle details.
+4. In the confirm form, picks a hall. Halls that do not fit the guest count are shown disabled with the reason. The quote preview follows the hall (without JavaScript, "Update quote" reloads it). A package or add-on that was removed since the request is named in the preview.
+5. Optionally types a different final total with a reason of 3 to 300 characters. Only a holder of `quotes.override` sees these fields; the preview still shows the calculated total.
+6. Confirms. The booking gets its hall and time, quote version 1 is stored, and the customer link shows the final total. If another booking just took that hall and time, the form says "This hall and time were just confirmed for another booking." and nothing is saved. A request whose date has passed cannot be confirmed.
+7. To refuse, the manager declines a request with a reason (3 to 300 characters). To undo a confirmed booking, cancels it with a reason; the customer then sends a new request. A confirmed booking's price, date, slot and hall never change.
+
 ## Permission matrix
 
 Keys are checked on the server and in RLS. S = super admin, O = venue owner, M = manager, A = accounts, St = staff. ✓ = granted by default, ○ = off by default but super admin can grant, – = never.
@@ -56,14 +67,14 @@ Keys are checked on the server and in RLS. S = super admin, O = venue owner, M =
 | Permission key | S | O | M | A | St |
 |---|---|---|---|---|---|
 | `platform.tenants.manage` (create, pause, delete, domains, features, login limit) | ✓ | – | – | – | – |
-| `tenant.settings.edit` (identity, theme, sections, money rules) | ✓ | ○ | ○ | – | – |
+| `tenant.settings.edit` (identity, theme, sections, money rules except the estimate switch) | ✓ | ○ | ○ | – | – |
 | `users.manage` (invite, roles, deactivate within tenant) | ✓ | ○ | – | – | – |
-| `bookings.view` | ✓ | ✓ | ✓ | ✓ | – |
-| `bookings.edit` (status, quote, details) | ✓ | ✓ | ✓ | – | – |
-| `quotes.override` (with reason) | ✓ | ✓ | ✓ | – | – |
+| `bookings.view` (list, detail, calendar, new-request count; customer name and phone) | ✓ | ✓ | ✓ | ✓ | – |
+| `bookings.edit` (confirm, decline, cancel; a confirmed booking is locked) | ✓ | ✓ | ✓ | – | – |
+| `quotes.override` (set a final total different from the calculated one, with a reason, at confirm) | ✓ | ✓ | ✓ | – | – |
 | `calendar.manage` (block, hold, date pricing; edit date prices in Settings) | ✓ | ✓ | ✓ | – | – |
 | `catalogue.edit` (menus, packages, add-ons, stage themes, offers) | ✓ | ✓ | ✓ | – | – |
-| `prices.edit` | ✓ | ✓ | ✓ | – | – |
+| `prices.edit` (prices; also the customer estimate switch `showPriceEstimate`, and only that money rule) | ✓ | ✓ | ✓ | – | – |
 | `venue.info.edit` (phones, opening hours, address, manager card) | ✓ | ✓ | ✓ | – | – |
 | `media.manage` | ✓ | ✓ | ✓ | – | – |
 | `payments.view` | ✓ | ✓ | ✓ | ✓ | – |
@@ -77,7 +88,7 @@ Keys are checked on the server and in RLS. S = super admin, O = venue owner, M =
 
 Owner memberships (built-in owner role) are created, changed, deactivated and deleted only by the super admin, even when an owner holds `users.manage`. An owner with it manages the other staff.
 
-Customer (no login) with a valid booking token: view own booking, quote, payments; upload receipt; edit invite and final details until the cutoff. Nothing else.
+Customer (no login) with a valid booking token: view own booking and its final price (M4); later also payments, upload a receipt, edit invite and final details until the cutoff (M5, M8). Nothing else.
 
 Rules:
 - The super admin's grants per user override role defaults; "never" cells cannot be granted below super admin.
