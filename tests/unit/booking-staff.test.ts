@@ -85,8 +85,8 @@ vi.mock("@/modules/access", () => ({
     if (!held.has(key)) throw new ForbiddenError(key);
     return viewer;
   },
-  recordAudit: async (a: Row) => {
-    if (failAudit) throw new Error("audit down");
+  recordAuditAfterCommit: async (a: Row) => {
+    if (failAudit) return console.error(`audit ${a.action} failed for booking ${a.entityId}`, new Error("audit down"));
     audits.push(a);
   },
   createServerClient: async () => ({ from: query }),

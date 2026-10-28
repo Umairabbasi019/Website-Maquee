@@ -35,8 +35,12 @@ function sniff(b: Buffer): Format | null {
 }
 
 /** Reads the header only: size, real format, pixel count and frame count are checked before any pixels are decoded. */
-async function inspect(bytes: Buffer, formats: Format[]): Promise<{ meta: Metadata & { width: number; height: number } } | { error: ImageError }> {
-  if (bytes.length > MAX_BYTES) return { error: "tooLarge" };
+async function inspect(
+  bytes: Buffer,
+  formats: Format[],
+  maxBytes = MAX_BYTES,
+): Promise<{ meta: Metadata & { width: number; height: number } } | { error: ImageError }> {
+  if (bytes.length > maxBytes) return { error: "tooLarge" };
   const format = sniff(bytes);
   if (!format || !formats.includes(format)) return { error: "type" };
   let meta: Metadata;
@@ -52,6 +56,9 @@ async function inspect(bytes: Buffer, formats: Format[]): Promise<{ meta: Metada
   if ((meta.pages ?? 1) > 1) return { error: "animated" };
   return { meta: { ...meta, width, height } };
 }
+
+/** The same checks for a JPEG, PNG or WebP that is only stored (a payment receipt), with the caller's own size limit. */
+export const checkImage = (bytes: Buffer, maxBytes: number) => inspect(bytes, ["jpeg", "png", "webp"], maxBytes);
 
 /** Checks an uploaded file and makes its size variants: upright, metadata stripped, PNG only when it has transparency. */
 export async function processUpload(bytes: Buffer): Promise<{ ext: "jpg" | "png"; variants: Variant[] } | { error: ImageError }> {

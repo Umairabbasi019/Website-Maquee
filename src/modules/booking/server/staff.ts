@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { can, createServerClient, createServiceClient, recordAudit, requirePerm } from "@/modules/access";
+import { can, createServerClient, createServiceClient, recordAuditAfterCommit, requirePerm } from "@/modules/access";
 import { MoneyRulesSchema } from "@/modules/tenants/client";
 import { parseRupees } from "@/sections/shared/format";
 import { addDays } from "@/sections/shared/hours";
@@ -282,19 +282,6 @@ export async function previewQuote(tenantId: string, id: string, hallId: string)
 }
 
 /**
- * Records the audit entry once the change is committed. A failure is logged and not thrown: the manager must not see an
- * error for a change that went through.
- * shortcut: a failed audit write is lost (only logged); upgrade by writing the audit row in the same SQL transaction as the change.
- */
-async function auditAfterCommit(entry: Parameters<typeof recordAudit>[0]) {
-  try {
-    await recordAudit(entry);
-  } catch (e) {
-    console.error(`audit ${entry.action} failed for booking ${entry.entityId}`, e);
-  }
-}
-
-/**
  * Confirms a request in a hall at the calculated price, or at a different total with quotes.override and a reason.
  * One SQL call writes quote v1 and the booking together; a clash with another confirmed booking is `slotTaken`.
  */
@@ -348,7 +335,7 @@ export async function confirmBooking(
   if (error?.code === EXCLUSION) return { error: "slotTaken" };
   if (isTransitionError(error)) return { error: "state" };
   if (error) throw new Error(`confirm_booking: ${error.message}`);
-  await auditAfterCommit({
+  await recordAuditAfterCommit({
     tenantId,
     action: "booking.confirm",
     entity: "booking",
@@ -378,7 +365,7 @@ async function setStatus(
   if (isTransitionError(error)) return { error: "state" };
   if (error?.code === RAISED && error.message === "refund_choice_required") return { error: "refundChoice" };
   if (error) throw new Error(`${fn}: ${error.message}`);
-  await auditAfterCommit({
+  await recordAuditAfterCommit({
     tenantId,
     action: to === "declined" ? "booking.decline" : "booking.cancel",
     entity: "booking",

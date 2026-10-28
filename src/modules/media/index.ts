@@ -2,6 +2,7 @@ export { getPublicMedia, type MediaSize, type MediaView } from "./server/assets"
 export { mediaKeyFrom, objectPath, planVariants } from "./variants";
 export {
   categoriesFor,
+  checkImage,
   deleteMedia,
   MEDIA_CATEGORIES,
   processUpload,
