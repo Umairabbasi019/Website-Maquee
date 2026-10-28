@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 // Relative on purpose, like seed-site.ts: the module indexes pull in server-only and React code.
-import { priceQuote, type PriceInput, type QuoteSnapshot } from "../src/modules/booking/pricing";
+import { priceQuote, snapshotOf, type PriceInput } from "../src/modules/booking/pricing";
 import { MoneyRulesSchema } from "../src/modules/tenants/settings";
 import { assertLocalSupabaseUrl } from "./local-guard";
 
@@ -100,22 +100,12 @@ async function main() {
       advancePercent: rules.advancePercent,
     };
     const quote = priceQuote(inputs);
-    const snapshot: QuoteSnapshot = {
-      lines: quote.lines,
-      subtotalPaisa: quote.subtotalPaisa,
-      taxPaisa: quote.taxPaisa,
-      advancePaisa: quote.advancePaisa,
-      calculatedTotalPaisa: quote.totalPaisa,
-      finalTotalPaisa: quote.totalPaisa,
-      overrideReason: null,
-      inputs,
-    };
     const booking = check(await admin.from("bookings").select("id").eq("tenant_id", tenant.id).eq("reference", reference).single(), "booking");
     check(
       await admin.rpc("confirm_booking", {
         p_booking: booking.id,
         p_hall: hall.id,
-        p_snapshot: snapshot,
+        p_snapshot: snapshotOf(quote, inputs),
         p_total: quote.totalPaisa,
         p_advance: quote.advancePaisa,
         p_advance_due_on: dayInZone(rules.advanceDueDays, tenant.time_zone),

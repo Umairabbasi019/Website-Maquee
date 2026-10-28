@@ -5,7 +5,7 @@ import { can, createServerClient, createServiceClient, recordAudit, requirePerm 
 import { MoneyRulesSchema } from "@/modules/tenants/client";
 import { parseRupees } from "@/sections/shared/format";
 import { addDays } from "@/sections/shared/hours";
-import { applyOverride, priceQuote, quoteOverride, storedQuote, type PriceInput, type Quote, type QuoteSnapshot } from "../pricing";
+import { applyOverride, priceQuote, quoteOverride, snapshotOf, storedQuote, type PriceInput, type Quote, type QuoteSnapshot } from "../pricing";
 import { todayIn } from "../request";
 import { check, datePriceFor, MAX_INT4 } from "./request";
 
@@ -320,7 +320,7 @@ export async function confirmBooking(
   if (!/^-?\d{1,15}$/.test(previewedTotalPaisa ?? "") || Number(previewedTotalPaisa) !== c.quote.totalPaisa) return { error: "priceChanged" };
 
   let quote: Quote = c.quote;
-  let overrideReason: string | null = null;
+  let override: { calculatedTotalPaisa: number; reason: string } | null = null;
   const raw = finalTotalRupees?.trim();
   if (raw) {
     const finalPaisa = parseRupees(raw);
@@ -330,21 +330,12 @@ export async function confirmBooking(
       const why = Reason.safeParse(reason ?? "");
       if (!why.success) return { error: "invalid" };
       quote = applyOverride(c.quote, finalPaisa, c.rules.taxPercent, c.rules.advancePercent);
-      overrideReason = why.data;
+      override = { calculatedTotalPaisa: c.quote.totalPaisa, reason: why.data };
     }
   }
   // total_paisa and advance_paisa are int4: a negative or too large total would fail inside the RPC.
   if (quote.totalPaisa < 0 || quote.totalPaisa > MAX_INT4 || quote.advancePaisa < 0 || quote.advancePaisa > MAX_INT4) return { error: "outOfRange" };
-  const snapshot: QuoteSnapshot = {
-    lines: quote.lines,
-    subtotalPaisa: quote.subtotalPaisa,
-    taxPaisa: quote.taxPaisa,
-    advancePaisa: quote.advancePaisa,
-    calculatedTotalPaisa: c.quote.totalPaisa,
-    finalTotalPaisa: quote.totalPaisa,
-    overrideReason,
-    inputs: c.inputs,
-  };
+  const snapshot = snapshotOf(quote, c.inputs, override);
   const { error } = await db.rpc("confirm_booking", {
     p_booking: id,
     p_hall: hallId,
@@ -363,7 +354,7 @@ export async function confirmBooking(
     entity: "booking",
     entityId: id,
     after: { hallId, calculatedTotalPaisa: snapshot.calculatedTotalPaisa, finalTotalPaisa: snapshot.finalTotalPaisa },
-    reason: overrideReason ?? undefined,
+    reason: override?.reason,
   });
   return { ok: true };
 }

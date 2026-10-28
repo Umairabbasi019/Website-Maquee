@@ -78,6 +78,22 @@ export type QuoteSnapshot = Pick<Quote, "lines" | "subtotalPaisa" | "taxPaisa" |
   inputs: PriceInput;
 };
 
+/** The snapshot to store for `quote`, priced from `inputs`. Without an override the calculated total is the quote's own. */
+export const snapshotOf = (
+  quote: Quote,
+  inputs: PriceInput,
+  override: { calculatedTotalPaisa: number; reason: string } | null = null,
+): QuoteSnapshot => ({
+  lines: quote.lines,
+  subtotalPaisa: quote.subtotalPaisa,
+  taxPaisa: quote.taxPaisa,
+  advancePaisa: quote.advancePaisa,
+  calculatedTotalPaisa: override?.calculatedTotalPaisa ?? quote.totalPaisa,
+  finalTotalPaisa: quote.totalPaisa,
+  overrideReason: override?.reason ?? null,
+  inputs,
+});
+
 /** A stored quote for display: stored totals, never re-summed lines (after an override the lines no longer add up). */
 export const storedQuote = (
   s: Pick<Quote, "lines" | "subtotalPaisa" | "taxPaisa">,

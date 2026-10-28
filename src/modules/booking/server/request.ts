@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/modules/access";
 import { getPublicCatalogue } from "@/modules/catalogue";
 import { MoneyRulesSchema } from "@/modules/tenants/client";
-import { pickDatePrice, priceQuote, type PriceInput, type Quote, type QuoteSnapshot } from "../pricing";
+import { pickDatePrice, priceQuote, snapshotOf, type PriceInput, type Quote } from "../pricing";
 import { BookingRequestSchema, EstimateSchema, inBookingWindow, lastBookingDay, todayIn } from "../request";
 
 // Public requests have no session: the caller resolves the tenant from the host, and every read here goes through
@@ -58,6 +58,7 @@ async function readVenue(db: SupabaseClient, tenantId: string) {
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .order("name")
+      .order("id")
       .returns<Hall[]>(),
   ]);
   const active = check(halls, "halls");
@@ -140,7 +141,7 @@ export async function estimateFor(tenantId: string, input: unknown): Promise<Quo
 
 /**
  * Quick booking's halls to try: each active hall the guests fit, priced at the standard package price (no override).
- * A hall whose total does not fit the int4 columns (or is negative) is left out, so that booking falls back to a request.
+ * A hall whose total does not fit the int4 columns (or is negative), or whose advance is 0, is left out.
  */
 async function quickCandidates(
   db: SupabaseClient,
@@ -163,25 +164,16 @@ async function quickCandidates(
         advancePercent: choice.rules.advancePercent,
       };
       const q = priceQuote(inputs);
-      if (q.totalPaisa < 0 || q.totalPaisa > MAX_INT4) return [];
-      const snapshot: QuoteSnapshot = {
-        lines: q.lines,
-        subtotalPaisa: q.subtotalPaisa,
-        taxPaisa: q.taxPaisa,
-        advancePaisa: q.advancePaisa,
-        calculatedTotalPaisa: q.totalPaisa,
-        finalTotalPaisa: q.totalPaisa,
-        overrideReason: null,
-        inputs,
-      };
-      return [{ hall: h.id, snapshot, total: q.totalPaisa, advance: q.advancePaisa }];
+      // An advance that rounds to 0 (a small total, a low advance percent) could never be settled by a payment, so it is not held.
+      if (q.totalPaisa < 0 || q.totalPaisa > MAX_INT4 || q.advancePaisa <= 0) return [];
+      return [{ hall: h.id, snapshot: snapshotOf(q, inputs), total: q.totalPaisa, advance: q.advancePaisa }];
     });
 }
 
 /**
  * Saves a public booking request. `ipHash` is hashKey(request IP). The token is returned once and only its hash is stored.
  * In quick booking mode (instantBooking, an advance above 0 and a package) the booking holds the first free hall at
- * once (`held`); with none free it stays a request. The answer has the same shape either way.
+ * once (`held`); with no hall to try, or none free, it stays a request. The answer has the same shape either way.
  */
 export async function createBookingRequest(
   tenantId: string,
@@ -221,18 +213,13 @@ export async function createBookingRequest(
     p_key_hashes: [hashKey(r.phone), ipHash],
   };
   const { pkg, rules } = choice;
-  // Quick booking's package, or null in request mode.
-  const quick = rules.instantBooking && rules.advancePercent > 0 ? pkg : null;
+  // Quick booking's halls to try; none (request mode, no package, or no hall that can be held) is a plain request.
+  const candidates = rules.instantBooking && rules.advancePercent > 0 && pkg ? await quickCandidates(db, tenantId, r, choice, pkg) : [];
+  const quick = candidates.length > 0;
   const fn = quick ? "create_quick_booking" : "create_booking_request";
   const { data, error } = await db.rpc(
     fn,
-    quick
-      ? {
-          ...args,
-          p_candidates: await quickCandidates(db, tenantId, r, choice, quick),
-          p_hold_until: new Date(Date.now() + rules.holdHours * 3_600_000).toISOString(),
-        }
-      : args,
+    quick ? { ...args, p_candidates: candidates, p_hold_until: new Date(Date.now() + rules.holdHours * 3_600_000).toISOString() } : args,
   );
   if (error?.code === RAISED && error.message === "rate_limited") return { error: "limited" };
   if (error) throw new Error(`${fn}: ${error.message}`);

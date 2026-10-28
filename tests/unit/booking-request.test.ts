@@ -52,12 +52,18 @@ function resetTables() {
 function query(table: string) {
   reads.push(table);
   let rows = tables[table] ?? [];
+  const sortKeys: string[] = [];
   const q = {
     select: () => q,
     eq: (col: string, val: unknown) => ((rows = rows.filter((r) => r[col] === val)), q),
     lte: () => q,
     gte: () => q,
-    order: (col: string) => ((rows = [...rows].sort((a, b) => String(a[col]).localeCompare(String(b[col])))), q),
+    // Each order() call is a later tiebreak, as in SQL.
+    order: (col: string) => (
+      sortKeys.push(col),
+      (rows = [...rows].sort((a, b) => sortKeys.reduce((d, k) => d || String(a[k]).localeCompare(String(b[k])), 0))),
+      q
+    ),
     returns: () => q,
     single: async () => (rows.length === 1 ? { data: rows[0], error: null } : { data: null, error: { message: "not one row" } }),
     maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
@@ -274,6 +280,22 @@ describe("createBookingRequest quick booking", () => {
       taxPercent: 0,
       advancePercent: 50,
     });
+  });
+
+  it("leaves out a hall whose advance is 0, and makes a plain request when no hall is left", async () => {
+    tables.tenant_settings[0].money_rules = quick;
+    catalogues[T1].events[0].packages[0].pricePerGuestPaisa = 0;
+    try {
+      // A zero package price (the mock allows it) and no add-ons: only Main's Rs 10,000 hire leaves an advance to pay.
+      await createBookingRequest(T1, { ...valid, addonIds: [] }, "ip");
+      expect(rpcs[0].fn).toBe("create_quick_booking");
+      expect((rpcs[0].args.p_candidates as { hall: string }[]).map((c) => c.hall)).toEqual([HALL]);
+      tables.halls[0].hire_price_paisa = 0;
+      await expect(createBookingRequest(T1, { ...valid, addonIds: [] }, "ip")).resolves.toMatchObject({ ok: true, held: false });
+      expect(rpcs[1].fn).toBe("create_booking_request");
+    } finally {
+      catalogues[T1].events[0].packages[0].pricePerGuestPaisa = 400000;
+    }
   });
 
   it("maps the rate limit to limited", async () => {
