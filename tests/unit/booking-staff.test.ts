@@ -47,7 +47,7 @@ function reset(bookingOver: Row = {}) {
       { tenant_id: T2, id: OTHER_HALL, name: "Other", capacity_min: 0, capacity_max: 900, is_active: true, hire_price_paisa: 0 },
     ],
     // 200 guests x Rs 1,000 + Rs 50,000 flat = Rs 250,000.
-    packages: [{ tenant_id: T1, id: PKG, price_per_guest_paisa: 100_000 }],
+    packages: [{ tenant_id: T1, id: PKG, price_per_guest_paisa: 100_000, min_guests: 1 }],
     addons: [{ tenant_id: T1, id: ADDON, price_paisa: 5_000_000, basis: "flat" }],
     date_prices: [],
   });

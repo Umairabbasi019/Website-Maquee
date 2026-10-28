@@ -232,7 +232,7 @@ async function calculate(db: SupabaseClient, tenantId: string, id: string, hallI
   const rules = MoneyRulesSchema.parse(check(settings, "tenant_settings").money_rules);
   const [pkg, addons, datePrice] = await Promise.all([
     b.package_id
-      ? db.from("packages").select("price_per_guest_paisa").eq("tenant_id", tenantId).eq("id", b.package_id).maybeSingle<{ price_per_guest_paisa: number }>()
+      ? db.from("packages").select("price_per_guest_paisa, min_guests").eq("tenant_id", tenantId).eq("id", b.package_id).maybeSingle<{ price_per_guest_paisa: number; min_guests: number }>()
       : null,
     b.addon_ids.length
       ? db.from("addons").select("id, price_paisa, basis").eq("tenant_id", tenantId).in("id", b.addon_ids).returns<{ id: string; price_paisa: number; basis: "flat" | "per_guest" }[]>()
@@ -247,7 +247,7 @@ async function calculate(db: SupabaseClient, tenantId: string, id: string, hallI
   ];
   const inputs: PriceInput = {
     guests: b.guests,
-    pkg: p ? { name: b.package_name ?? "", pricePerGuestPaisa: p.price_per_guest_paisa } : null,
+    pkg: p ? { name: b.package_name ?? "", pricePerGuestPaisa: p.price_per_guest_paisa, minGuests: p.min_guests } : null,
     addons: b.addon_ids.flatMap((addonId, i) => {
       const a = live.get(addonId);
       return a ? [{ name: b.addon_names[i], pricePaisa: a.price_paisa, basis: a.basis }] : [];

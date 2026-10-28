@@ -3,7 +3,7 @@ import { applyOverride, customerQuote, pickDatePrice, priceQuote, quoteOverride,
 
 const base: PriceInput = {
   guests: 250,
-  pkg: { name: "Gold", pricePerGuestPaisa: 320000 },
+  pkg: { name: "Gold", pricePerGuestPaisa: 320000, minGuests: 100 },
   addons: [],
   hall: null,
   datePrice: null,
@@ -20,6 +20,23 @@ describe("roundHalfUpToRupee", () => {
 });
 
 describe("priceQuote", () => {
+  it("bills the package for its minimum guests, but per-guest add-ons for the real count", () => {
+    const q = priceQuote({
+      ...base,
+      guests: 50,
+      pkg: { name: "Gold", pricePerGuestPaisa: 320000, minGuests: 300 },
+      addons: [{ name: "Mehndi", pricePaisa: 10000, basis: "per_guest" }],
+    });
+    expect(q.lines).toEqual([
+      { kind: "package", label: "Gold (billed for 300 guests, package minimum)", amountPaisa: 96000000 },
+      { kind: "addon", label: "Mehndi", amountPaisa: 500000 },
+    ]);
+    expect(q.totalPaisa).toBe(96500000);
+  });
+  it("bills the real count at or above the minimum, with the plain label", () => {
+    const q = priceQuote({ ...base, guests: 300, pkg: { name: "Gold", pricePerGuestPaisa: 320000, minGuests: 300 } });
+    expect(q.lines).toEqual([{ kind: "package", label: "Gold", amountPaisa: 96000000 }]);
+  });
   it("prices a package with advance", () => {
     const q = priceQuote(base);
     expect(q.totalPaisa).toBe(80000000);
@@ -45,7 +62,7 @@ describe("priceQuote", () => {
   });
   it("taxes subtotal plus date line, rounded once", () => {
     const q = priceQuote({
-      ...base, taxPercent: 16, pkg: { name: "P", pricePerGuestPaisa: 1001 },
+      ...base, taxPercent: 16, pkg: { name: "P", pricePerGuestPaisa: 1001, minGuests: 1 },
       datePrice: { label: "Peak", kind: "per_guest", value: 1 },
     });
     // 250500 * 16% = 40080 -> 40100

@@ -60,7 +60,7 @@ async function main() {
     const slot = check(slots, "slots").find((x) => x.name === s.slot);
     if (!event || !slot) throw new Error(`manor has no ${s.event} event type or ${s.slot} slot; seed the catalogue first`);
     const pkg = check(
-      await admin.from("packages").select("id, name, price_per_guest_paisa").eq("tenant_id", tenant.id).eq("event_type_id", event.id).order("sort").limit(1).maybeSingle(),
+      await admin.from("packages").select("id, name, price_per_guest_paisa, min_guests").eq("tenant_id", tenant.id).eq("event_type_id", event.id).order("sort").limit(1).maybeSingle(),
       "package",
     );
     const reference = check(
@@ -92,7 +92,7 @@ async function main() {
     if (!hall) throw new Error(`manor has no active hall for ${s.guests} guests`);
     const inputs: PriceInput = {
       guests: s.guests,
-      pkg: pkg && { name: pkg.name, pricePerGuestPaisa: pkg.price_per_guest_paisa },
+      pkg: pkg && { name: pkg.name, pricePerGuestPaisa: pkg.price_per_guest_paisa, minGuests: pkg.min_guests },
       addons: [],
       hall: { name: hall.name, hirePricePaisa: hall.hire_price_paisa },
       datePrice: null,

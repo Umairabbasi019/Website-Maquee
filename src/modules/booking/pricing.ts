@@ -5,7 +5,7 @@
 
 export type PriceInput = {
   guests: number;
-  pkg: { name: string; pricePerGuestPaisa: number } | null;
+  pkg: { name: string; pricePerGuestPaisa: number; minGuests: number } | null;
   addons: { name: string; pricePaisa: number; basis: "flat" | "per_guest" }[];
   hall: { name: string; hirePricePaisa: number | null } | null;
   datePrice: { label: string; kind: "percent" | "per_guest"; value: number } | null;
@@ -29,7 +29,12 @@ export const roundHalfUpToRupee = (paisa: number): number => roundFraction(paisa
 export function priceQuote(i: PriceInput): Quote {
   const lines: QuoteLine[] = [];
   if (i.hall) lines.push({ kind: "hall", label: i.hall.name, amountPaisa: i.hall.hirePricePaisa ?? 0 });
-  if (i.pkg) lines.push({ kind: "package", label: i.pkg.name, amountPaisa: i.pkg.pricePerGuestPaisa * i.guests });
+  if (i.pkg) {
+    // The package is billed for at least its minimum guests, as the site advertises; per-guest add-ons and date prices use the real count.
+    const billed = Math.max(i.guests, i.pkg.minGuests);
+    const label = billed > i.guests ? `${i.pkg.name} (billed for ${billed} guests, package minimum)` : i.pkg.name;
+    lines.push({ kind: "package", label, amountPaisa: i.pkg.pricePerGuestPaisa * billed });
+  }
   for (const a of i.addons) {
     lines.push({ kind: "addon", label: a.name, amountPaisa: a.basis === "per_guest" ? a.pricePaisa * i.guests : a.pricePaisa });
   }
