@@ -124,12 +124,12 @@ export async function recordPayment(
   const parsed = RecordInput.safeParse(input);
   if (!parsed.success || !Uuid.safeParse(bookingId).success) return { error: "invalid" };
   if (!(await inTenant("bookings", tenantId, bookingId, "id"))) return { error: "notFound" };
-  const { kind, method, amountRupees, note } = parsed.data;
+  const { kind, method, amountRupees: amountPaisa, note } = parsed.data;
   const { data, error } = await callSql("record_payment", {
     p_booking: bookingId,
     p_kind: kind,
     p_method: method,
-    p_amount: amountRupees,
+    p_amount: amountPaisa,
     p_source: "staff",
     p_note: note || null,
     p_receipt_path: null,
@@ -143,7 +143,7 @@ export async function recordPayment(
     action: "payment.record",
     entity: "payment",
     entityId: String(data),
-    after: { bookingId, kind, method, amountPaisa: amountRupees },
+    after: { bookingId, kind, method, amountPaisa },
   });
   return { ok: true };
 }

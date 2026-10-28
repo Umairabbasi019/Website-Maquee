@@ -35,11 +35,11 @@ export function summarise(totalPaisa: number, advancePaisa: number, rows: Pick<P
 
 /**
  * The label for a confirmed booking's money. `today` and `advanceDueOn` are venue dates (YYYY-MM-DD); the due day itself is
- * not yet overdue. Once the advance is met, "advancePaid" holds until money beyond it arrives, then "balanceDue".
+ * not yet overdue. Once the advance is met, "advancePaid" holds while paid is exactly a positive advance; any other amount is "balanceDue".
  */
 export function paymentState(s: LedgerSummary, b: { advanceDueOn: string | null; payLater: boolean }, today: string): PaymentState {
   if (s.balancePaisa <= 0) return "fullyPaid";
-  if (s.advanceMet) return s.paidPaisa > s.advancePaisa ? "balanceDue" : "advancePaid";
+  if (s.advanceMet) return s.advancePaisa > 0 && s.paidPaisa === s.advancePaisa ? "advancePaid" : "balanceDue";
   if (b.payLater) return "paysLater";
   return b.advanceDueOn !== null && b.advanceDueOn < today ? "advanceOverdue" : "advanceDue";
 }

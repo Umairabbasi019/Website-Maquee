@@ -63,6 +63,16 @@ describe("paymentState", () => {
     expect(paymentState(sum(120_000), terms, "2027-02-01")).toBe("fullyPaid");
   });
 
+  it("is balanceDue, not advancePaid, for a zero advance", () => {
+    expect(paymentState(summarise(100_000, 0, []), terms, "2027-02-01")).toBe("balanceDue");
+    expect(paymentState(summarise(100_000, 0, [pay(1_000)]), terms, "2027-02-01")).toBe("balanceDue");
+  });
+
+  it("is advancePaid only when paid is exactly a positive advance", () => {
+    expect(paymentState(sum(50_000), terms, "2027-02-01")).toBe("advancePaid");
+    expect(paymentState(sum(50_001), terms, "2027-02-01")).toBe("balanceDue");
+  });
+
   it("lets the pay-later mark yield once the advance is met", () => {
     expect(paymentState(sum(60_000), { ...terms, payLater: true }, "2027-02-01")).toBe("balanceDue");
   });

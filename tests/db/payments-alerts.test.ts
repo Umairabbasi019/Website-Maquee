@@ -113,6 +113,8 @@ beforeAll(async () => {
   await booking("overpaid", "confirmed");
   await verified(ids.overpaid, 80_000);
   await verified(ids.overpaid, 30_000);
+  await booking("overpaidHeld", "awaiting_advance");
+  await verified(ids.overpaidHeld, TOTAL + 1);
   await booking("paidInFull", "confirmed");
   await verified(ids.paidInFull, TOTAL);
 
@@ -148,8 +150,8 @@ describe("getPaymentAlerts", () => {
     expect(names((await alertsFor(viewer("manager"))).advanceOverdue)).toEqual(["overdue"]);
   });
 
-  it("lists refund_pending, cancelled-and-owing and overpaid bookings, from one ledger read", async () => {
-    expect(names((await alertsFor(viewer("manager"))).refundDue)).toEqual(["cancelledOwing", "overpaid", "refundPending"]);
+  it("lists refund_pending, cancelled-and-owing and overpaid bookings, in any status", async () => {
+    expect(names((await alertsFor(viewer("manager"))).refundDue)).toEqual(["cancelledOwing", "overpaid", "overpaidHeld", "refundPending"]);
   });
 
   it("lists pending provider payments older than an hour", async () => {
