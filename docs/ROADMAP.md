@@ -8,7 +8,7 @@ One milestone at a time. Each ends with a code review, checks actually run, docs
 | M1 | Foundation and security | L | M0 | Done, merged |
 | M2 | Public site from config | L | M1 | Done, merged |
 | M3 | Venue configuration and catalogue | M | M1 | Done, merged |
-| M4 | Booking requests and pricing | L | M3 | Built on `feat/m4-booking-requests`, awaiting whole-branch review and merge |
+| M4 | Booking requests and pricing | L | M3 | Done, merged |
 | M5 | Payments | M | M4 | Not started |
 | M6 | Dashboard and operations | L | M4, M5 | Not started |
 | M7 | Notifications and jobs | M | M4 | Not started |
@@ -67,13 +67,13 @@ Scope: choose hosting, deploy, domains and HTTPS, backups, monitoring, security 
 Acceptance: every launch checklist item verified, not assumed.
 
 ## Handoff
-Current state: M0 to M3 are merged to `main`. M4 is built on branch `feat/m4-booking-requests` (Tasks 1-7 done) and awaits the whole-branch code review and your approval before merge.
+Current state: M0 to M4 are merged to `main`. Next is M5 (payments).
 
 Checks run on the M3 branch (2026-10-26, after `npm run db:seed`): lint and typecheck clean; 225 unit tests (26 files), 184 database tests (21 files) and 59 Playwright tests pass; `npm run build` passes.
 
 Built in M3: `venue.info.edit` key; add-ons, stage themes and offer discounts; hall hire price; field-level permissions (SQL triggers, TS mirror and one tested table); audited direct writes for halls, slots and date prices; date prices with an overlap rule; site drafts and atomic audited Publish; the on-page editor at `/dashboard/site` (draft, ✎ panels, phone preview, publish, discard); add-ons and stage themes on the public site; media library with uploads, size variants, alt text, replace, delete and depth maps; settings screen (halls, slots, date prices, money rules); the guard on `/dashboard?tenant=`.
 
-Checks run on the M4 branch (2026-10-28, after `npm run db:seed`): lint and typecheck clean; 299 unit tests (31 files), 254 database tests (25 files) and 73 Playwright tests pass.
+Checks run on the M4 branch before merge (2026-10-28, after `npm run db:seed`): lint and typecheck clean; 312 unit tests, 257 database tests (25 files) and 74 Playwright tests pass; `npm run build` passes.
 
 Built in M4: the pricing service (integer paisa, half-up rounding to the rupee once per line, date prices, tax, advance, override); booking tables, guards and the service-role SQL functions; the public request form at `/book` (works without JavaScript) with an optional estimate; `/book/sent` and the private link `/b/<token>`; the staff bookings list, detail and confirm, decline and cancel at `/dashboard/bookings`; the month calendar at `/dashboard/calendar`; the new-request count on the overview; the `showPriceEstimate` setting; sample bookings in the Manor seed.
 
