@@ -27,6 +27,7 @@ function check<T extends { data: unknown; error: { message: string } | null }>(
 
 // Far from the dates the e2e specs book (about 30 and 45 days out), so they never collide with these rows.
 // Phones are not the e2e ones (+92300555100x). A phone that already exists means the sample rows are there.
+// shortcut: a run that fails part way leaves customers without all bookings and later runs skip; db:seed resets first, so check bookings too if this ever runs without a reset.
 const SAMPLES = [
   { name: "Sample Customer A", phone: "+923001110001", days: 95, event: "barat", slot: "Dinner", guests: 300, confirm: false },
   { name: "Sample Customer B", phone: "+923001110002", days: 100, event: "valima", slot: "Lunch", guests: 200, confirm: false },

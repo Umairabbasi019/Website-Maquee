@@ -26,7 +26,7 @@ Postgres. Every tenant-owned table has `tenant_id uuid not null` (the venue's te
 - `audit_events` (id, tenant_id null for platform, actor_user_id, actor_kind `user|provider|system`, action, entity, entity_id, before jsonb, after jsonb, reason, created_at) — insert-only
 
 ### catalogue
-- Built: `event_types`, `packages` (per_guest_paisa, min_guests, event_type_id), `offers`, and in M3 `addons` (name, `price_paisa`, `basis` `flat|per_guest`, active, sort, sample) and `stage_themes` (name, description, `price_paisa`, `media_keys` text[], active, sort, sample). `offers` gained `discount_kind` (`percent|fixed`), `discount_value`, `starts_on`, `ends_on`, all null for a text-only offer.
+- Built: `event_types`, `packages` (price_per_guest_paisa, min_guests, event_type_id), `offers`, and in M3 `addons` (name, `price_paisa`, `basis` `flat|per_guest`, active, sort, sample) and `stage_themes` (name, description, `price_paisa`, `media_keys` text[], active, sort, sample). `offers` gained `discount_kind` (`percent|fixed`), `discount_value`, `starts_on`, `ends_on`, all null for a text-only offer.
 - Not built: `menu_categories`, `menu_items`, `package_items` (menus stay as the package's item list).
 - Writes on every catalogue table: RLS plus a column trigger that checks the permission key per column (price columns need `prices.edit`), and a publish-only trigger (see `DECISIONS.md`).
 

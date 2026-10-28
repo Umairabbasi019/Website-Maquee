@@ -7,7 +7,7 @@ One milestone at a time. Each ends with a code review, checks actually run, docs
 | M0 | Planning documents | S | – | Done, approved 2026-10-19 |
 | M1 | Foundation and security | L | M0 | Done, merged |
 | M2 | Public site from config | L | M1 | Done, merged |
-| M3 | Venue configuration and catalogue | M | M1 | Built on `feat/m3-venue-editing`, awaiting whole-branch review and merge |
+| M3 | Venue configuration and catalogue | M | M1 | Done, merged |
 | M4 | Booking requests and pricing | L | M3 | Built on `feat/m4-booking-requests`, awaiting whole-branch review and merge |
 | M5 | Payments | M | M4 | Not started |
 | M6 | Dashboard and operations | L | M4, M5 | Not started |
@@ -67,19 +67,11 @@ Scope: choose hosting, deploy, domains and HTTPS, backups, monitoring, security 
 Acceptance: every launch checklist item verified, not assumed.
 
 ## Handoff
-Current state: M0, M1 and M2 are merged to `main`. M4 is built on branch `feat/m4-booking-requests` (Tasks 1-7 done) and awaits the whole-branch code review and your approval before merge. M3 is built on branch `feat/m3-venue-editing` (Tasks 1-13 done) and awaits the whole-branch code review and your approval before merge.
+Current state: M0 to M3 are merged to `main`. M4 is built on branch `feat/m4-booking-requests` (Tasks 1-7 done) and awaits the whole-branch code review and your approval before merge.
 
-Checks run on the branch (2026-10-26, after `npm run db:seed`): lint and typecheck clean; 225 unit tests (26 files), 184 database tests (21 files) and 59 Playwright tests pass; `npm run build` passes.
+Checks run on the M3 branch (2026-10-26, after `npm run db:seed`): lint and typecheck clean; 225 unit tests (26 files), 184 database tests (21 files) and 59 Playwright tests pass; `npm run build` passes.
 
 Built in M3: `venue.info.edit` key; add-ons, stage themes and offer discounts; hall hire price; field-level permissions (SQL triggers, TS mirror and one tested table); audited direct writes for halls, slots and date prices; date prices with an overlap rule; site drafts and atomic audited Publish; the on-page editor at `/dashboard/site` (draft, ✎ panels, phone preview, publish, discard); add-ons and stage themes on the public site; media library with uploads, size variants, alt text, replace, delete and depth maps; settings screen (halls, slots, date prices, money rules); the guard on `/dashboard?tenant=`.
-
-Notes for M4:
-- Date prices are stored, not applied: `percent` (-90 to 300) or `per_guest` paisa; an event-specific range wins over an all-events one.
-- Add-on `basis` is `flat` or `per_guest`; price each accordingly.
-- Offer discounts (`discount_kind`, `discount_value`, `starts_on`, `ends_on`) are stored, not applied. A text-only offer has none.
-- Hall hire price (`halls.hire_price_paisa`) is optional and not yet in any quote.
-- Price columns are 4-byte integers, so one price tops out at 20,000,000 rupees; booking totals must use bigint.
-- Money rules (tax, advance, hold hours) are edited in Settings; M4 reads them.
 
 Checks run on the M4 branch (2026-10-28, after `npm run db:seed`): lint and typecheck clean; 299 unit tests (31 files), 254 database tests (25 files) and 73 Playwright tests pass.
 
