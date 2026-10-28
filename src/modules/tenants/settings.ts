@@ -34,6 +34,8 @@ export const SectionsSchema = z
     message: "each section key must appear exactly once",
   });
 
+const AccountField = z.string().trim().min(1).max(80);
+
 export const MoneyRulesSchema = z.object({
   currency: z.string().length(3).default("PKR"),
   timeZone: z.string().min(1).default("Asia/Karachi"),
@@ -43,6 +45,15 @@ export const MoneyRulesSchema = z.object({
   instantBooking: z.boolean().default(false),
   showPriceEstimate: z.boolean().default(true),
   paymentMethods: z.array(z.enum(["bank", "jazzcash", "easypaisa", "gateway"])).default([]),
+  advanceDueDays: z.number().int().min(0).max(60).default(3),
+  // Shown to customers, so not secret. The bank account number may be an IBAN.
+  paymentAccounts: z
+    .object({
+      bank: z.object({ bankName: AccountField, accountTitle: AccountField, accountNumber: AccountField }).optional(),
+      jazzcash: z.object({ accountTitle: AccountField, number: AccountField }).optional(),
+      easypaisa: z.object({ accountTitle: AccountField, number: AccountField }).optional(),
+    })
+    .default({}),
 });
 
 export const MessagingSchema = z.object({

@@ -28,6 +28,7 @@ const REASON_ERRORS: Record<Extract<StatusResult, { error: string }>["error"], T
   forbidden: "editor.forbidden",
   notFound: "bookings.error.notFound",
   state: "bookings.error.changed",
+  refundChoice: "bookings.error.refundChoice",
 };
 // The field each error is about; the others point at the alert alone.
 const HALL_ERRORS = new Set<ConfirmError>(["slotTaken", "capacity", "notFound"]);
@@ -176,11 +177,13 @@ export function ConfirmForm({ bookingId, halls, hallId, preview, canOverride, ac
 type ReasonProps = {
   bookingId: string;
   kind: "decline" | "cancel";
+  /** Verified money on the booking. Above 0, cancelling needs the choice to keep it or refund it. */
+  paidPaisa?: number;
   action: (state: ReasonFormState, fd: FormData) => Promise<ReasonFormState>;
 };
 
 /** Decline or cancel, with a staff-only reason. */
-export function ReasonForm({ bookingId, kind, action }: ReasonProps) {
+export function ReasonForm({ bookingId, kind, paidPaisa = 0, action }: ReasonProps) {
   const [state, formAction, pending] = useActionState(action, null);
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -205,6 +208,17 @@ export function ReasonForm({ bookingId, kind, action }: ReasonProps) {
           {...marked(state?.error === "invalid", errorId)}
         />
       </label>
+      {kind === "cancel" && paidPaisa > 0 && (
+        <fieldset role="radiogroup" {...marked(state?.error === "refundChoice", errorId)}>
+          <legend>{t("bookings.cancel.money", { amount: formatRs(paidPaisa) })}</legend>
+          <label className="block">
+            <input type="radio" name="refundDue" value="true" required /> {t("bookings.cancel.refundDue")}
+          </label>
+          <label className="block">
+            <input type="radio" name="refundDue" value="false" required /> {t("bookings.cancel.keep")}
+          </label>
+        </fieldset>
+      )}
       <button type="submit" disabled={pending} className={buttonClass}>
         {t(`bookings.${kind}.submit`)}
       </button>

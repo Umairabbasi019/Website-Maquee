@@ -118,6 +118,7 @@ async function main() {
         p_snapshot: snapshot,
         p_total: quote.totalPaisa,
         p_advance: quote.advancePaisa,
+        p_advance_due_on: dayInZone(rules.advanceDueDays, tenant.time_zone),
         p_actor: null,
       }),
       `confirm ${reference}`,

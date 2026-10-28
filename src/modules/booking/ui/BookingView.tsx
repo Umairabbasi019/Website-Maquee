@@ -6,13 +6,17 @@ import { longDate } from "./labels";
 
 const STATUS = {
   requested: "booking.status.requested",
+  awaiting_advance: "booking.status.awaiting_advance",
   confirmed: "booking.status.confirmed",
+  hold_expired: "booking.status.hold_expired",
+  refund_pending: "booking.status.refund_pending",
+  refunded: "booking.status.refunded",
   expired: "booking.status.expired",
   declined: "booking.notConfirmed",
   cancelled: "booking.cancelled",
 } as const;
 
-/** What the customer's private link shows. The price appears only once confirmed: the stored total and advance, never a re-sum of the lines. */
+/** What the customer's private link shows. The price appears once a hall is held or confirmed: the stored total and advance, never a re-sum of the lines. */
 export function BookingView({ view }: { view: CustomerBookingView }) {
   const facts: [string, string][] = [
     [t("booking.date"), longDate(view.eventDate)],

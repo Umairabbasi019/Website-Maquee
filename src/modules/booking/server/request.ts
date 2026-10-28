@@ -4,15 +4,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/modules/access";
 import { getPublicCatalogue } from "@/modules/catalogue";
 import { MoneyRulesSchema } from "@/modules/tenants/client";
-import { pickDatePrice, priceQuote, type Quote } from "../pricing";
+import { pickDatePrice, priceQuote, type PriceInput, type Quote, type QuoteSnapshot } from "../pricing";
 import { BookingRequestSchema, EstimateSchema, inBookingWindow, lastBookingDay, todayIn } from "../request";
 
 // Public requests have no session: the caller resolves the tenant from the host, and every read here goes through
-// the service client filtered by that tenant. Nothing here reads bookings, so a taken date looks like a free one.
+// the service client filtered by that tenant. Nothing here reads bookings, so a taken date looks like a free one; only in
+// quick booking mode does `held` tell the customer a hall was free (the spec's "the manager will reply" fallback).
 
 /** Postgres raise_exception: create_booking_request's rate limit. */
 const RAISED = "P0001";
 const TOKEN_DAYS = 60;
+/** The largest value of the int4 total and advance columns. */
+export const MAX_INT4 = 2_147_483_647;
 const DEV_SECRET = "dev-only-booking-hash-secret";
 let warned = false;
 
@@ -41,17 +44,28 @@ export function check<T extends { data: unknown; error: { message: string } | nu
 
 type Choice = { date: string; eventTypeId: string; guests: number; packageId?: string; addonIds: string[] };
 
-/** The venue row, its money rules and the guest cap (the largest active hall). */
+type Hall = { id: string; name: string; capacity_min: number; capacity_max: number; hire_price_paisa: number | null };
+
+/** The venue row, its money rules, its active halls (by name, the order quick booking tries them) and the guest cap (the largest). */
 async function readVenue(db: SupabaseClient, tenantId: string) {
   const [tenant, settings, halls] = await Promise.all([
     db.from("tenants").select("slug, time_zone, status").eq("id", tenantId).single<{ slug: string; time_zone: string; status: string }>(),
     db.from("tenant_settings").select("money_rules").eq("tenant_id", tenantId).single<{ money_rules: unknown }>(),
-    db.from("halls").select("capacity_max").eq("tenant_id", tenantId).eq("is_active", true).returns<{ capacity_max: number }[]>(),
+    // shortcut: halls have no sort column, so quick booking tries them by name; add halls.sort_order if venues need to choose.
+    db
+      .from("halls")
+      .select("id, name, capacity_min, capacity_max, hire_price_paisa")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("name")
+      .returns<Hall[]>(),
   ]);
+  const active = check(halls, "halls");
   return {
     venue: check(tenant, "tenants"),
     rules: MoneyRulesSchema.parse(check(settings, "tenant_settings").money_rules),
-    maxGuests: Math.max(0, ...check(halls, "halls").map((h) => h.capacity_max)),
+    halls: active,
+    maxGuests: Math.max(0, ...active.map((h) => h.capacity_max)),
   };
 }
 
@@ -71,7 +85,7 @@ export async function getRequestOptions(tenantId: string) {
  * (empty when the refusal is not about one field, like a venue that is not live).
  */
 async function resolveChoice(db: SupabaseClient, tenantId: string, c: Choice) {
-  const [{ venue, rules, maxGuests }, catalogue] = await Promise.all([readVenue(db, tenantId), getPublicCatalogue(tenantId)]);
+  const [{ venue, rules, halls, maxGuests }, catalogue] = await Promise.all([readVenue(db, tenantId), getPublicCatalogue(tenantId)]);
   // Only a live venue takes requests: setup is a preview, paused is closed.
   if (venue.status !== "live" || !inBookingWindow(c.date, todayIn(venue.time_zone))) return { ok: false as const, fields: [] };
 
@@ -85,7 +99,7 @@ async function resolveChoice(db: SupabaseClient, tenantId: string, c: Choice) {
     ...(!eventType ? ["eventTypeId"] : pkg === undefined ? ["packageId"] : []),
   ];
   if (fields.length || !eventType || addons.length !== addonIds.length) return { ok: false as const, fields };
-  return { ok: true as const, venue, rules, eventType, pkg, addons };
+  return { ok: true as const, venue, rules, halls, eventType, pkg, addons };
 }
 
 /** The date price row for this date and event type (null id: only the all-events row applies). */
@@ -124,12 +138,56 @@ export async function estimateFor(tenantId: string, input: unknown): Promise<Quo
   });
 }
 
-/** Saves a public booking request. `ipHash` is hashKey(request IP). The token is returned once and only its hash is stored. */
+/**
+ * Quick booking's halls to try: each active hall the guests fit, priced at the standard package price (no override).
+ * A hall whose total does not fit the int4 columns (or is negative) is left out, so that booking falls back to a request.
+ */
+async function quickCandidates(
+  db: SupabaseClient,
+  tenantId: string,
+  r: { date: string; eventTypeId: string; guests: number },
+  choice: Extract<Awaited<ReturnType<typeof resolveChoice>>, { ok: true }>,
+  pkg: NonNullable<typeof choice.pkg>,
+) {
+  const datePrice = await datePriceFor(db, tenantId, r.date, r.eventTypeId);
+  return choice.halls
+    .filter((h) => r.guests >= h.capacity_min && r.guests <= h.capacity_max)
+    .flatMap((h) => {
+      const inputs: PriceInput = {
+        guests: r.guests,
+        pkg: { name: pkg.name, pricePerGuestPaisa: pkg.pricePerGuestPaisa, minGuests: pkg.minGuests },
+        addons: choice.addons.map((a) => ({ name: a.name, pricePaisa: a.pricePaisa, basis: a.basis })),
+        hall: { name: h.name, hirePricePaisa: h.hire_price_paisa },
+        datePrice: datePrice && { label: datePrice.label, kind: datePrice.kind, value: datePrice.value },
+        taxPercent: choice.rules.taxPercent,
+        advancePercent: choice.rules.advancePercent,
+      };
+      const q = priceQuote(inputs);
+      if (q.totalPaisa < 0 || q.totalPaisa > MAX_INT4) return [];
+      const snapshot: QuoteSnapshot = {
+        lines: q.lines,
+        subtotalPaisa: q.subtotalPaisa,
+        taxPaisa: q.taxPaisa,
+        advancePaisa: q.advancePaisa,
+        calculatedTotalPaisa: q.totalPaisa,
+        finalTotalPaisa: q.totalPaisa,
+        overrideReason: null,
+        inputs,
+      };
+      return [{ hall: h.id, snapshot, total: q.totalPaisa, advance: q.advancePaisa }];
+    });
+}
+
+/**
+ * Saves a public booking request. `ipHash` is hashKey(request IP). The token is returned once and only its hash is stored.
+ * In quick booking mode (instantBooking, an advance above 0 and a package) the booking holds the first free hall at
+ * once (`held`); with none free it stays a request. The answer has the same shape either way.
+ */
 export async function createBookingRequest(
   tenantId: string,
   input: unknown,
   ipHash: string,
-): Promise<{ ok: true; reference: string; token: string } | { error: "limited" } | { error: "invalid"; fields?: string[] }> {
+): Promise<{ ok: true; reference: string; token: string; held: boolean } | { error: "limited" } | { error: "invalid"; fields?: string[] }> {
   const parsed = BookingRequestSchema.safeParse(input);
   if (!parsed.success) return { error: "invalid" };
   const r = parsed.data;
@@ -144,7 +202,7 @@ export async function createBookingRequest(
   const token = randomBytes(32).toString("base64url");
   // shortcut: expiry counts from UTC midnight, up to 5 hours off venue-local midnight; use the venue time zone if links must end exactly.
   const expires = new Date(Date.parse(`${r.date}T00:00:00Z`) + TOKEN_DAYS * 86_400_000);
-  const { data, error } = await db.rpc("create_booking_request", {
+  const args = {
     p_tenant: tenantId,
     p_customer: { name: r.name, phone_e164: r.phone, whatsapp_consent: r.whatsappConsent },
     p_booking: {
@@ -161,8 +219,23 @@ export async function createBookingRequest(
     p_token_hash: sha256Hex(token),
     p_expires: expires.toISOString(),
     p_key_hashes: [hashKey(r.phone), ipHash],
-  });
+  };
+  const { pkg, rules } = choice;
+  // Quick booking's package, or null in request mode.
+  const quick = rules.instantBooking && rules.advancePercent > 0 ? pkg : null;
+  const fn = quick ? "create_quick_booking" : "create_booking_request";
+  const { data, error } = await db.rpc(
+    fn,
+    quick
+      ? {
+          ...args,
+          p_candidates: await quickCandidates(db, tenantId, r, choice, quick),
+          p_hold_until: new Date(Date.now() + rules.holdHours * 3_600_000).toISOString(),
+        }
+      : args,
+  );
   if (error?.code === RAISED && error.message === "rate_limited") return { error: "limited" };
-  if (error) throw new Error(`create_booking_request: ${error.message}`);
-  return { ok: true, reference: data as string, token };
+  if (error) throw new Error(`${fn}: ${error.message}`);
+  const saved: { reference: string; held: boolean } = quick ? data : { reference: data, held: false };
+  return { ok: true, reference: saved.reference, token, held: saved.held };
 }

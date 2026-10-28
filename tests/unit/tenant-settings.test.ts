@@ -44,7 +44,22 @@ describe("tenant settings schemas", () => {
       currency: "PKR",
       timeZone: "Asia/Karachi",
       showPriceEstimate: true,
+      advanceDueDays: 3,
+      paymentAccounts: {},
     });
+  });
+
+  it("bounds the advance due days and trims payment account fields to 1..80 characters", () => {
+    for (const advanceDueDays of [-1, 61, 1.5]) expect(MoneyRulesSchema.safeParse({ advanceDueDays }).success).toBe(false);
+    const bank = { bankName: " Meezan ", accountTitle: "Manor Marquee", accountNumber: "PK36SCBL0000001123456702" };
+    expect(MoneyRulesSchema.parse({ paymentAccounts: { bank, jazzcash: { accountTitle: "Manor", number: "03001234567" } } }).paymentAccounts).toEqual({
+      bank: { ...bank, bankName: "Meezan" },
+      jazzcash: { accountTitle: "Manor", number: "03001234567" },
+    });
+    for (const number of ["   ", "x".repeat(81)]) {
+      expect(MoneyRulesSchema.safeParse({ paymentAccounts: { easypaisa: { accountTitle: "Manor", number } } }).success).toBe(false);
+    }
+    expect(MoneyRulesSchema.safeParse({ paymentAccounts: { bank: { bankName: "Meezan", accountTitle: "Manor" } } }).success).toBe(false);
   });
 });
 

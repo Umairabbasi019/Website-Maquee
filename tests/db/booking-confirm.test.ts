@@ -32,7 +32,7 @@ const request = (slotId: string, date = "2027-03-10") =>
 
 const SNAPSHOT = { lines: [], subtotalPaisa: 100_000, taxPaisa: 0, calculatedTotalPaisa: 100_000, finalTotalPaisa: 100_000 };
 const confirm = (db: pg.Pool | pg.Client, booking: string, actor: string | null = null) =>
-  db.query("select public.confirm_booking($1, $2, $3, 100000, 50000, $4)", [booking, hall, SNAPSHOT, actor]);
+  db.query("select public.confirm_booking($1, $2, $3, 100000, 50000, '2027-01-01', $4)", [booking, hall, SNAPSHOT, actor]);
 
 beforeAll(async () => {
   const account = await one("insert into accounts (name) values ('Confirm test') returning id");
@@ -130,7 +130,7 @@ describe("decline_booking and cancel_booking", () => {
     const actor = randomUUID();
     await pool.query("select public.decline_booking($1, 'Date full', $2)", [declined, actor]);
     await confirm(pool, confirmed);
-    await pool.query("select public.cancel_booking($1, 'Family change', $2)", [confirmed, actor]);
+    await pool.query("select public.cancel_booking($1, 'Family change', null, $2)", [confirmed, actor]);
     const rows = await pool.query("select status, status_reason from bookings where id = any($1) order by event_date", [[declined, confirmed]]);
     expect(rows.rows).toEqual([
       { status: "declined", status_reason: "Date full" },
@@ -149,9 +149,9 @@ describe("decline_booking and cancel_booking", () => {
 
 describe("staff booking functions access", () => {
   it.each([
-    "public.confirm_booking(uuid, uuid, jsonb, int, int, uuid)",
+    "public.confirm_booking(uuid, uuid, jsonb, int, int, date, uuid)",
     "public.decline_booking(uuid, text, uuid)",
-    "public.cancel_booking(uuid, text, uuid)",
+    "public.cancel_booking(uuid, text, boolean, uuid)",
   ])("%s is executable by service_role only", async (fn) => {
     for (const role of ["anon", "authenticated"]) {
       expect(await one<boolean>("select has_function_privilege($1, $2, 'execute')", [role, fn])).toBe(false);

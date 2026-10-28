@@ -142,6 +142,38 @@ describe("create_booking_request", () => {
   });
 });
 
+describe("quick booking", () => {
+  it("holds the hall at the package price and the link shows the hold with its quote", async () => {
+    const pkg = await one(
+      "insert into packages (tenant_id, event_type_id, name, price_per_guest_paisa, min_guests, items) values ($1, $2, 'Gold', 1000, 1, '{Food}') returning id",
+      [tenant, eventType],
+    );
+    await pool.query(`update tenant_settings set money_rules = '{"instantBooking": true, "holdHours": 2}' where tenant_id = $1`, [tenant]);
+    try {
+      const r = await createBookingRequest(tenant, { ...input(), packageId: pkg }, `ip-${fresh()}`);
+      if (!("ok" in r)) throw new Error(`request refused: ${r.error}`);
+      expect(r.held).toBe(true);
+      const view = await getBookingByToken(r.token, tenant);
+      expect(view).toMatchObject({ status: "awaiting_advance", hall: "Main", quote: { totalPaisa: 200_000, advancePaisa: 100_000 } });
+      expect(Date.parse(view!.holdExpiresAt!) - Date.now()).toBeGreaterThan(110 * 60_000);
+      // Past its time the hold reads as expired, though the row is unchanged. The guard locks hold_expires_at, so this
+      // session skips triggers to move it back.
+      const c = await pool.connect();
+      try {
+        await c.query("set session_replication_role = replica");
+        await c.query("update bookings set hold_expires_at = now() - interval '1 minute' where id = $1", [view!.id]);
+      } finally {
+        await c.query("reset session_replication_role");
+        c.release();
+      }
+      expect((await getBookingByToken(r.token, tenant))?.status).toBe("hold_expired");
+      expect(await one("select status from bookings where id = $1", [view!.id])).toBe("awaiting_advance");
+    } finally {
+      await pool.query(`update tenant_settings set money_rules = '{}' where tenant_id = $1`, [tenant]);
+    }
+  });
+});
+
 describe("getBookingByToken", () => {
   it("resolves only its own booking, never with the phone", async () => {
     const a = await request("0333 7654321");

@@ -70,5 +70,8 @@ export async function declineAction(_prev: ReasonFormState, fd: FormData): Promi
 }
 
 export async function cancelAction(_prev: ReasonFormState, fd: FormData): Promise<ReasonFormState> {
-  return reasonAction(fd, cancelBooking);
+  // Only "true" or "false" is a choice; anything else is none, which a booking with money paid refuses.
+  const choice = fd.get("refundDue");
+  const refundDue = choice === "true" ? true : choice === "false" ? false : undefined;
+  return reasonAction(fd, (tenantId, id, reason) => cancelBooking(tenantId, id, reason, refundDue));
 }

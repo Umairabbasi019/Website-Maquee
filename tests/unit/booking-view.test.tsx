@@ -6,6 +6,7 @@ const { BookingView } = await import("@/modules/booking/ui/BookingView");
 type CustomerBookingView = Parameters<typeof BookingView>[0]["view"];
 
 const view = (status: CustomerBookingView["status"]): CustomerBookingView => ({
+  id: "00000000-0000-4000-8000-000000000001",
   reference: "VE-2610-0001",
   status,
   eventDate: "2026-12-15",
@@ -16,6 +17,8 @@ const view = (status: CustomerBookingView["status"]): CustomerBookingView => ({
   guests: 300,
   hall: null,
   quote: null,
+  holdExpiresAt: null,
+  advanceDueOn: null,
   venueName: "Venue",
 });
 

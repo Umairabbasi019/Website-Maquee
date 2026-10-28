@@ -10,7 +10,7 @@ export {
   type RequestFormValues,
 } from "./request";
 export { createBookingRequest, estimateFor, getRequestOptions, hashKey } from "./server/request";
-export { getBookingByToken, type CustomerBookingView } from "./server/token";
+export { getBookingByToken, resolveBookingToken, type CustomerBookingView } from "./server/token";
 export {
   cancelBooking,
   confirmBooking,

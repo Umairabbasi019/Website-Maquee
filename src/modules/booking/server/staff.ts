@@ -4,9 +4,10 @@ import { z } from "zod";
 import { can, createServerClient, createServiceClient, recordAudit, requirePerm } from "@/modules/access";
 import { MoneyRulesSchema } from "@/modules/tenants/client";
 import { parseRupees } from "@/sections/shared/format";
+import { addDays } from "@/sections/shared/hours";
 import { applyOverride, priceQuote, quoteOverride, storedQuote, type PriceInput, type Quote, type QuoteSnapshot } from "../pricing";
 import { todayIn } from "../request";
-import { check, datePriceFor } from "./request";
+import { check, datePriceFor, MAX_INT4 } from "./request";
 
 // Staff paths. `tenantId` always comes from getDashboard() in the calling server action, never from the browser.
 // Reads for lists and details use the session client (RLS). Confirm, decline and cancel check permissions here,
@@ -39,7 +40,7 @@ export type StaffBookingDetail = StaffBookingRow & {
   timeZone: string;
 };
 
-export type StatusResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "state" };
+export type StatusResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "state" | "refundChoice" };
 export type ConfirmResult =
   | { ok: true }
   | { error: "invalid" | "forbidden" | "notFound" | "slotTaken" | "capacity" | "state" | "outOfRange" | "priceChanged" };
@@ -65,8 +66,6 @@ const ConfirmInput = z.object({
   reason: z.string().optional(),
   previewedTotalPaisa: z.string().optional(),
 });
-/** The largest value of the int4 total and advance columns. */
-const MAX_INT4 = 2_147_483_647;
 
 const ROW_COLUMNS =
   "id, reference, status, event_date, guests, event_type_name, package_name, addon_names, current_quote_id, " +
@@ -352,6 +351,7 @@ export async function confirmBooking(
     p_snapshot: snapshot,
     p_total: quote.totalPaisa,
     p_advance: quote.advancePaisa,
+    p_advance_due_on: addDays(c.today, c.rules.advanceDueDays),
     p_actor: viewer.userId,
   });
   if (error?.code === EXCLUSION) return { error: "slotTaken" };
@@ -368,16 +368,24 @@ export async function confirmBooking(
   return { ok: true };
 }
 
-async function setStatus(tenantId: string, id: string, reason: string, to: "declined" | "cancelled"): Promise<StatusResult> {
+async function setStatus(
+  tenantId: string,
+  id: string,
+  reason: string,
+  change: { to: "declined" } | { to: "cancelled"; refundDue?: boolean },
+): Promise<StatusResult> {
   const viewer = await requirePerm(tenantId, "bookings.edit");
   const why = Reason.safeParse(reason);
   if (!why.success || !Uuid.safeParse(id).success) return { error: "invalid" };
   const db = createServiceClient();
   const found = check(await db.from("bookings").select("status").eq("tenant_id", tenantId).eq("id", id).maybeSingle<{ status: string }>(), "bookings");
   if (!found) return { error: "notFound" };
+  const { to, ...choice } = change;
   const fn = to === "declined" ? "decline_booking" : "cancel_booking";
-  const { error } = await db.rpc(fn, { p_booking: id, p_reason: why.data, p_actor: viewer.userId });
+  const refund = "refundDue" in choice ? { p_refund_due: choice.refundDue ?? null } : {};
+  const { error } = await db.rpc(fn, { p_booking: id, p_reason: why.data, ...refund, p_actor: viewer.userId });
   if (isTransitionError(error)) return { error: "state" };
+  if (error?.code === RAISED && error.message === "refund_choice_required") return { error: "refundChoice" };
   if (error) throw new Error(`${fn}: ${error.message}`);
   await auditAfterCommit({
     tenantId,
@@ -385,14 +393,18 @@ async function setStatus(tenantId: string, id: string, reason: string, to: "decl
     entity: "booking",
     entityId: id,
     before: { status: found.status },
-    after: { status: to },
+    after: { status: to, ...choice },
     reason: why.data,
   });
   return { ok: true };
 }
 
 /** Declines a request. The reason (3 to 300 characters) is for staff only. */
-export const declineBooking = (tenantId: string, id: string, reason: string) => setStatus(tenantId, id, reason, "declined");
+export const declineBooking = (tenantId: string, id: string, reason: string) => setStatus(tenantId, id, reason, { to: "declined" });
 
-/** Cancels a request or a confirmed booking. The reason (3 to 300 characters) is for staff only. */
-export const cancelBooking = (tenantId: string, id: string, reason: string) => setStatus(tenantId, id, reason, "cancelled");
+/**
+ * Cancels a request, a hold or a confirmed booking. The reason (3 to 300 characters) is for staff only. With money paid,
+ * `refundDue` is required: true owes it back, false keeps it; without it the answer is `refundChoice`.
+ */
+export const cancelBooking = (tenantId: string, id: string, reason: string, refundDue?: boolean) =>
+  setStatus(tenantId, id, reason, { to: "cancelled", refundDue });
