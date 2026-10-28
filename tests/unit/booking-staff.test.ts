@@ -59,12 +59,14 @@ function query(table: string) {
     select: () => q,
     eq: (col: string, val: unknown) => ((rows = rows.filter((r) => r[col] === val)), q),
     in: (col: string, vals: unknown[]) => ((rows = rows.filter((r) => vals.includes(r[col]))), q),
-    lte: () => q,
-    gte: () => q,
+    lte: (col: string, val: string) => ((rows = rows.filter((r) => String(r[col]) <= val)), q),
+    gte: (col: string, val: string) => ((rows = rows.filter((r) => String(r[col]) >= val)), q),
+    lt: (col: string, val: string) => ((rows = rows.filter((r) => String(r[col]) < val)), q),
+    order: () => q,
     returns: () => q,
     single: async () => (rows.length === 1 ? { data: rows[0], error: null } : { data: null, error: { message: "not one row" } }),
     maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
-    then: (resolve: (r: { data: Row[]; error: null }) => unknown) => resolve({ data: rows, error: null }),
+    then: (resolve: (r: { data: Row[]; error: null; count: number }) => unknown) => resolve({ data: rows, error: null, count: rows.length }),
   };
   return q;
 }
@@ -87,7 +89,7 @@ vi.mock("@/modules/access", () => ({
   }),
 }));
 
-const { cancelBooking, confirmBooking, declineBooking, previewQuote } = await import("@/modules/booking/server/staff");
+const { cancelBooking, confirmBooking, countNewRequests, declineBooking, listBookings, previewQuote } = await import("@/modules/booking/server/staff");
 
 beforeEach(() => {
   reset();
@@ -114,9 +116,60 @@ describe("previewQuote", () => {
     await expect(previewQuote(T1, BOOKING, OTHER_HALL)).resolves.toBeNull();
   });
 
-  it("leaves out a package the venue removed", async () => {
+  it("leaves out a package the venue removed, and names it", async () => {
     reset({ package_id: null });
-    expect((await previewQuote(T1, BOOKING, HALL))?.totalPaisa).toBe(5_000_000);
+    const q = await previewQuote(T1, BOOKING, HALL);
+    expect(q?.totalPaisa).toBe(5_000_000);
+    expect(q?.missing).toEqual(["Gold"]);
+  });
+
+  it("names a removed add-on and a package whose row is gone, and nothing when all are there", async () => {
+    expect((await previewQuote(T1, BOOKING, HALL))?.missing).toEqual([]);
+    tables.addons = [];
+    tables.packages = [];
+    const q = await previewQuote(T1, BOOKING, HALL);
+    expect(q?.missing).toEqual(["Gold", "Stage"]);
+    expect(q?.totalPaisa).toBe(0);
+  });
+
+  it("names nothing for a request made without a package", async () => {
+    reset({ package_id: null, package_name: null, addon_ids: [], addon_names: [] });
+    expect((await previewQuote(T1, BOOKING, HALL))?.missing).toEqual([]);
+  });
+});
+
+describe("listBookings and countNewRequests", () => {
+  const past = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
+  const row = (n: number, over: Row) => ({
+    ...booking({ id: id(n), reference: `R-${n}`, current_quote_id: null, slot: { name: "Dinner" }, hall: null }),
+    customer: { name: "A", phone_e164: "+923001234567" },
+    ...over,
+  });
+  beforeEach(() => {
+    held.add("bookings.view");
+    tables.bookings = [
+      row(11, {}),
+      row(12, { event_date: past }),
+      row(13, { status: "declined" }),
+      row(14, { tenant_id: T2 }),
+    ];
+  });
+  const refs = async (status?: string) => (await listBookings(T1, { status })).map((b) => [b.reference, b.status]);
+
+  it("splits requests into waiting (requested) and past (expired), and shows the past one as expired", async () => {
+    expect(await refs("requested")).toEqual([["R-11", "requested"]]);
+    expect(await refs("expired")).toEqual([["R-12", "expired"]]);
+    expect(await refs("declined")).toEqual([["R-13", "declined"]]);
+    expect(await refs()).toEqual([
+      ["R-11", "requested"],
+      ["R-12", "expired"],
+      ["R-13", "declined"],
+    ]);
+  });
+
+  it("drops a bad filter, and counts only waiting requests of this venue", async () => {
+    expect(await refs("nope")).toHaveLength(3);
+    await expect(countNewRequests(T1)).resolves.toBe(1);
   });
 });
 

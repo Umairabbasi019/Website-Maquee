@@ -19,9 +19,14 @@ export {
   listBookings,
   previewQuote,
   type ConfirmResult,
+  type QuotePreview,
   type StaffBookingDetail,
   type StaffBookingRow,
+  type StatusResult,
 } from "./server/staff";
 export { BookingView, RequestSent } from "./ui/BookingView";
+export { ConfirmForm, QuoteLines, ReasonForm, type ConfirmFormState, type ReasonFormState } from "./ui/ConfirmForm";
+export { longDate, statusLabel } from "./ui/labels";
+export { MonthCalendar } from "./ui/MonthCalendar";
 export { RequestForm } from "./ui/RequestForm";
 export type { EstimateAction } from "./ui/Estimate";

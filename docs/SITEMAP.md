@@ -27,10 +27,10 @@ Tenant is resolved from the host name (custom domain or `slug.<platform-domain>`
 Each screen appears only if the user has its permission.
 | Route | Screen | Permission |
 |---|---|---|
-| `/dashboard` | Overview | `bookings.view` |
-| `/dashboard/bookings` | Bookings table, CSV import/export | `bookings.view` |
-| `/dashboard/bookings/[id]` | Booking detail, timeline, ledger, messages | `bookings.view` |
-| `/dashboard/calendar` | Calendar, dates to fill | `bookings.view` / `calendar.manage` |
+| `/dashboard` | Overview: count of new requests, linking to the Requested list | `bookings.view` |
+| `/dashboard/bookings` | Bookings table filtered by `?status=` (requested, expired, confirmed, declined, cancelled); CSV import/export later | `bookings.view` |
+| `/dashboard/bookings/[id]` | Booking detail: customer, choices, stored quote, history; Confirm (hall, quote preview, override with `quotes.override`), Decline and Cancel with a staff-only reason (`bookings.edit`); ledger and messages later | `bookings.view` |
+| `/dashboard/calendar` | Month calendar `?month=YYYY-MM` of requests and confirmed bookings (a list below md); dates to fill later | `bookings.view` / `calendar.manage` |
 | `/dashboard/enquiries` | Enquiry tracker | `enquiries.handle` |
 | `/dashboard/payments` | Receipts to verify, ledger | `payments.view` |
 | `/dashboard/events/[id]/run-sheet` | Run sheet | own event or `bookings.view` |

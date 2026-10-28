@@ -4,6 +4,7 @@ import { t, type TranslationKey } from "@/ui/i18n";
 import type { RequestFormState, RequestFormValues } from "../client";
 import styles from "./booking.module.css";
 import { Estimate, type EstimateAction } from "./Estimate";
+import { focusFirstInvalid } from "./labels";
 
 type Option = { id: string; name: string };
 type Props = {
@@ -27,14 +28,9 @@ export function RequestForm({ action, estimate, events, addons, slots, maxGuests
   const [state, formAction, pending] = useActionState(action, null);
   const v = state?.values ?? prefill;
   const form = useRef<HTMLFormElement>(null);
-  // The answer re-mounts the form (see the key), which drops focus: move it to the first marked field, else the message.
+  // The answer re-mounts the form (see the key), which drops focus.
   useEffect(() => {
-    if (!state) return;
-    const el = form.current;
-    const marked = el?.querySelector<HTMLElement>('[aria-invalid="true"]');
-    // A marked radio group takes focus on its first radio.
-    const target = marked?.matches('[role="radiogroup"]') ? marked.querySelector("input") : marked;
-    (target ?? el?.querySelector<HTMLElement>('[role="alert"]'))?.focus();
+    if (state) focusFirstInvalid(form.current);
   }, [state]);
   const invalid = new Set(state?.errors);
   // aria-invalid and aria-describedby for a field, and its message.

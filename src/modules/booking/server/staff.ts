@@ -33,12 +33,16 @@ export type StaffBookingDetail = StaffBookingRow & {
   addons: string[];
   history: { from: string | null; to: string; at: string; reason: string | null }[];
   quote: Quote | null;
+  /** The venue's time zone, for showing history times. */
+  timeZone: string;
 };
 
-type StatusResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "state" };
+export type StatusResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "state" };
 export type ConfirmResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "slotTaken" | "capacity" | "state" };
 
 const STATUSES = ["requested", "confirmed", "declined", "cancelled"] as const;
+/** List filters: the stored statuses plus "expired", a request whose date has passed. */
+const FILTERS = [...STATUSES, "expired"] as const;
 /** Postgres exclusion_violation: the no_overlap constraint. */
 const EXCLUSION = "23P01";
 /** Postgres raise_exception, as the transition guard and confirm_booking raise it. */
@@ -49,7 +53,7 @@ const Reason = z.string().trim().min(3).max(300);
 // Bad filters from the URL are dropped, not errors: the list just shows everything.
 const ListQuery = z.object({
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional().catch(undefined),
-  status: z.enum(STATUSES).optional().catch(undefined),
+  status: z.enum(FILTERS).optional().catch(undefined),
 });
 const ConfirmInput = z.object({ hallId: z.uuid(), finalTotalRupees: z.string().optional(), reason: z.string().optional() });
 
@@ -75,10 +79,10 @@ type BookingRow = {
 const isTransitionError = (e: { code?: string; message: string } | null) =>
   e?.code === RAISED && e.message.startsWith("invalid_transition");
 
-async function venueToday(db: SupabaseClient, tenantId: string): Promise<string> {
-  const t = check(await db.from("tenants").select("time_zone").eq("id", tenantId).single<{ time_zone: string }>(), "tenants");
-  return todayIn(t.time_zone);
+async function venueZone(db: SupabaseClient, tenantId: string): Promise<string> {
+  return check(await db.from("tenants").select("time_zone").eq("id", tenantId).single<{ time_zone: string }>(), "tenants").time_zone;
 }
+const venueToday = async (db: SupabaseClient, tenantId: string) => todayIn(await venueZone(db, tenantId));
 
 function toRow(b: BookingRow, totalPaisa: number | null, today: string): StaffBookingRow {
   return {
@@ -106,9 +110,12 @@ export async function listBookings(tenantId: string, q: { month?: string; status
     const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
     query = query.gte("event_date", `${month}-01`).lt("event_date", `${next}-01`);
   }
-  if (status) query = query.eq("status", status);
-  const [rows, today] = await Promise.all([query.order("event_date").order("created_at").returns<BookingRow[]>(), venueToday(db, tenantId)]);
-  const bookings = check(rows, "bookings");
+  const today = await venueToday(db, tenantId);
+  // "requested" means still waiting, as countNewRequests counts it; a passed request is "expired" (as toRow labels it).
+  if (status === "expired") query = query.eq("status", "requested").lt("event_date", today);
+  else if (status === "requested") query = query.eq("status", "requested").gte("event_date", today);
+  else if (status) query = query.eq("status", status);
+  const bookings = check(await query.order("event_date").order("created_at").returns<BookingRow[]>(), "bookings");
   const quoteIds = bookings.flatMap((b) => (b.current_quote_id ? [b.current_quote_id] : []));
   const totals = new Map<string, number>();
   if (quoteIds.length) {
@@ -127,7 +134,7 @@ export async function getBookingDetail(tenantId: string, id: string): Promise<St
   await requirePerm(tenantId, "bookings.view");
   if (!Uuid.safeParse(id).success) return null;
   const db = await createServerClient();
-  const [booking, history, today] = await Promise.all([
+  const [booking, history, timeZone] = await Promise.all([
     db.from("bookings").select(ROW_COLUMNS).eq("tenant_id", tenantId).eq("id", id).maybeSingle<BookingRow>(),
     db
       .from("booking_status_history")
@@ -137,7 +144,7 @@ export async function getBookingDetail(tenantId: string, id: string): Promise<St
       .order("at")
       .order("id")
       .returns<{ from_status: string | null; to_status: string; at: string; reason: string | null }[]>(),
-    venueToday(db, tenantId),
+    venueZone(db, tenantId),
   ]);
   const b = check(booking, "bookings");
   if (!b) return null;
@@ -153,11 +160,12 @@ export async function getBookingDetail(tenantId: string, id: string): Promise<St
       )
     : null;
   return {
-    ...toRow(b, q?.total_paisa ?? null, today),
+    ...toRow(b, q?.total_paisa ?? null, todayIn(timeZone)),
     packageName: b.package_name,
     addons: b.addon_names,
     history: check(history, "booking_status_history").map((h) => ({ from: h.from_status, to: h.to_status, at: h.at, reason: h.reason })),
     quote: q && storedQuote(q.snapshot, q.total_paisa, q.advance_paisa),
+    timeZone,
   };
 }
 
@@ -189,8 +197,8 @@ type PricingHall = { name: string; capacity_min: number; capacity_max: number; i
 
 /**
  * The calculated quote for confirming a booking in a hall, from live catalogue prices and the names snapshotted on the
- * booking. A package or add-on removed since the request (package_id set null, add-on row gone) is left out: the
- * manager sees that in the preview and can override. Null when the booking or hall is not this venue's.
+ * booking. A package or add-on removed since the request (package_id set null, add-on row gone) is left out and named
+ * in `missing`, so the manager sees the gap in the preview and can override. Null when the booking or hall is not this venue's.
  */
 async function calculate(db: SupabaseClient, tenantId: string, id: string, hallId: string) {
   const [booking, hall, tenant, settings] = await Promise.all([
@@ -224,6 +232,10 @@ async function calculate(db: SupabaseClient, tenantId: string, id: string, hallI
   ]);
   const p = pkg && check(pkg, "packages");
   const live = new Map((addons ? check(addons, "addons") : []).map((a) => [a.id, a]));
+  const missing = [
+    ...(b.package_name && !p ? [b.package_name] : []),
+    ...b.addon_names.filter((_, i) => !live.has(b.addon_ids[i])),
+  ];
   const inputs: PriceInput = {
     guests: b.guests,
     pkg: p ? { name: b.package_name ?? "", pricePerGuestPaisa: p.price_per_guest_paisa } : null,
@@ -236,14 +248,20 @@ async function calculate(db: SupabaseClient, tenantId: string, id: string, hallI
     taxPercent: rules.taxPercent,
     advancePercent: rules.advancePercent,
   };
-  return { booking: b, hall: h, rules, inputs, quote: priceQuote(inputs), today: todayIn(check(tenant, "tenants").time_zone) };
+  return { booking: b, hall: h, rules, inputs, missing, quote: priceQuote(inputs), today: todayIn(check(tenant, "tenants").time_zone) };
 }
 
+export type QuotePreview = Quote & {
+  /** Snapshot names of the booking's package or add-ons no longer in the catalogue: their price is not in the total. */
+  missing: string[];
+};
+
 /** The quote the confirm form shows for this hall. Null when the booking or hall is not this venue's. */
-export async function previewQuote(tenantId: string, id: string, hallId: string): Promise<Quote | null> {
+export async function previewQuote(tenantId: string, id: string, hallId: string): Promise<QuotePreview | null> {
   await requirePerm(tenantId, "bookings.edit");
   if (!Uuid.safeParse(id).success || !Uuid.safeParse(hallId).success) return null;
-  return (await calculate(createServiceClient(), tenantId, id, hallId))?.quote ?? null;
+  const c = await calculate(createServiceClient(), tenantId, id, hallId);
+  return c && { ...c.quote, missing: c.missing };
 }
 
 /**

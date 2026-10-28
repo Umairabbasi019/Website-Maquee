@@ -2,6 +2,7 @@ import { formatRs } from "@/sections/shared/format";
 import { t } from "@/ui/i18n";
 import type { CustomerBookingView } from "../server/token";
 import styles from "./booking.module.css";
+import { longDate } from "./labels";
 
 const STATUS = {
   requested: "booking.status.requested",
@@ -10,10 +11,6 @@ const STATUS = {
   declined: "booking.notConfirmed",
   cancelled: "booking.notConfirmed",
 } as const;
-
-// The venue's calendar date as written, not shifted by any time zone.
-const longDate = (iso: string) =>
-  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-PK", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
 /** What the customer's private link shows. The price appears only once confirmed: the stored total and advance, never a re-sum of the lines. */
 export function BookingView({ view }: { view: CustomerBookingView }) {

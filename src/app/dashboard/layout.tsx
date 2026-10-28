@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import { dashboardNav } from "@/modules/access";
 import { TenantBanner } from "@/modules/tenants";
 import { t } from "@/ui/i18n";
@@ -9,7 +8,9 @@ import { signOut } from "../login/actions";
 import { changeVenue, selectVenue } from "./actions";
 import { getDashboard } from "./context";
 
-// Permissions are read fresh on every request (deactivation must bite at once), so navigation may block.
+// Permissions are read fresh on every request (deactivation must bite at once), so navigation may block. No Suspense
+// boundary: React outlines a large completed boundary into a hidden segment only JavaScript reveals (see app/page.tsx),
+// and the dashboard forms must work without JavaScript.
 export const instant = false;
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -27,7 +28,7 @@ function SignOutButton() {
   );
 }
 
-async function Shell({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { viewer, venues, venue, paused } = await getDashboard();
 
   if (paused || !venue) {
@@ -88,14 +89,5 @@ async function Shell({ children }: { children: React.ReactNode }) {
         <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
       </div>
     </>
-  );
-}
-
-// Every dashboard request reads the session, so the whole shell streams behind one boundary.
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <Suspense fallback={<p className="p-8">{t("loading")}</p>}>
-      <Shell>{children}</Shell>
-    </Suspense>
   );
 }
