@@ -114,7 +114,7 @@ describe("getBookingByToken", () => {
   it("resolves only its own booking, never with the phone", async () => {
     const a = await request("0333 7654321");
     const b = await request();
-    const view = await getBookingByToken(a.token);
+    const view = await getBookingByToken(a.token, tenant);
     expect(view).toMatchObject({
       reference: a.reference,
       status: "requested",
@@ -129,7 +129,9 @@ describe("getBookingByToken", () => {
       venueName: "Zq Hall",
     });
     expect(JSON.stringify(view)).not.toMatch(/phone|7654321/i);
-    expect((await getBookingByToken(b.token))?.reference).toBe(b.reference);
+    expect((await getBookingByToken(b.token, tenant))?.reference).toBe(b.reference);
+    // A link opened on another venue's host finds nothing.
+    await expect(getBookingByToken(a.token, crypto.randomUUID())).resolves.toBeNull();
   });
 
   it("keeps the chosen add-on names after the add-on row is deleted, and locks them once confirmed", async () => {
@@ -137,7 +139,7 @@ describe("getBookingByToken", () => {
     const r = await createBookingRequest(tenant, { ...input(), addonIds: [addon] }, `ip-${fresh()}`);
     if (!("ok" in r)) throw new Error(`request refused: ${r.error}`);
     await pool.query("delete from addons where id = $1", [addon]);
-    expect((await getBookingByToken(r.token))?.addons).toEqual(["Fireworks"]);
+    expect((await getBookingByToken(r.token, tenant))?.addons).toEqual(["Fireworks"]);
     const b = await one("select id from bookings where tenant_id = $1 and reference = $2", [tenant, r.reference]);
     const q = await one(
       "insert into quotes (tenant_id, booking_id, version, snapshot, total_paisa, advance_paisa) values ($1, $2, 1, '{}', 1, 1) returning id",
@@ -151,27 +153,27 @@ describe("getBookingByToken", () => {
   });
 
   it("gives null for a wrong, expired or revoked token", async () => {
-    await expect(getBookingByToken("x".repeat(43))).resolves.toBeNull();
-    await expect(getBookingByToken("not a token")).resolves.toBeNull();
+    await expect(getBookingByToken("x".repeat(43), tenant)).resolves.toBeNull();
+    await expect(getBookingByToken("not a token", tenant)).resolves.toBeNull();
     const expired = await request();
     const revoked = await request();
     const hash = (t: string) => one("select encode(sha256(convert_to($1, 'utf8')), 'hex')", [t]);
     await pool.query("update access_tokens set expires_at = now() - interval '1 second' where token_hash = $1", [await hash(expired.token)]);
     await pool.query("update access_tokens set revoked_at = now() where token_hash = $1", [await hash(revoked.token)]);
-    await expect(getBookingByToken(expired.token)).resolves.toBeNull();
-    await expect(getBookingByToken(revoked.token)).resolves.toBeNull();
+    await expect(getBookingByToken(expired.token, tenant)).resolves.toBeNull();
+    await expect(getBookingByToken(revoked.token, tenant)).resolves.toBeNull();
   });
 
   it("shows expired for a past request, and no reason for a declined one", async () => {
     const past = await request();
     await pool.query("update bookings set event_date = current_date - 2 where tenant_id = $1 and reference = $2", [tenant, past.reference]);
-    expect((await getBookingByToken(past.token))?.status).toBe("expired");
+    expect((await getBookingByToken(past.token, tenant))?.status).toBe("expired");
     const declined = await request();
     await pool.query("update bookings set status = 'declined', status_reason = 'Secret staff note' where tenant_id = $1 and reference = $2", [
       tenant,
       declined.reference,
     ]);
-    const view = await getBookingByToken(declined.token);
+    const view = await getBookingByToken(declined.token, tenant);
     expect(view).toMatchObject({ status: "declined", quote: null });
     expect(JSON.stringify(view)).not.toContain("Secret staff note");
   });
@@ -188,7 +190,7 @@ describe("getBookingByToken", () => {
       "update bookings set status = 'confirmed', hall_id = $2, during = tstzrange(now() + interval '1 day', now() + interval '25 hours'), current_quote_id = $3 where id = $1",
       [b, hall, q],
     );
-    const view = await getBookingByToken(r.token);
+    const view = await getBookingByToken(r.token, tenant);
     expect(view).toMatchObject({ status: "confirmed", hall: "Main", quote: { lines: snapshot.lines, totalPaisa: 90000, advancePaisa: 45000 } });
   });
 });

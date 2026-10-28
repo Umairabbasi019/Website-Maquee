@@ -34,8 +34,11 @@ type BookingRow = {
 
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
-/** The booking a private link opens. Unknown, expired and revoked tokens all give null, so none can be told apart. */
-export async function getBookingByToken(token: string): Promise<CustomerBookingView | null> {
+/**
+ * The booking a private link opens, only on its own venue's host (`tenantId` from the host, never the browser).
+ * Unknown, expired, revoked and other-venue tokens all give null, so none can be told apart.
+ */
+export async function getBookingByToken(token: string, tenantId: string): Promise<CustomerBookingView | null> {
   if (!TOKEN.test(token)) return null;
   const db = createServiceClient();
   const access = check(
@@ -43,6 +46,7 @@ export async function getBookingByToken(token: string): Promise<CustomerBookingV
       .from("access_tokens")
       .select("tenant_id, target_id")
       .eq("token_hash", sha256Hex(token))
+      .eq("tenant_id", tenantId)
       .eq("kind", "booking")
       .is("revoked_at", null)
       .gt("expires_at", new Date().toISOString())

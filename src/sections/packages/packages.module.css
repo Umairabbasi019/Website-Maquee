@@ -106,6 +106,17 @@
 .pkg li {
   padding: 7px 0;
 }
+.request {
+  display: block;
+  width: fit-content;
+  margin-top: 14px;
+  color: var(--color-accent);
+  font-size: 14px;
+}
+.request:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
 .fine {
   margin-top: 18px;
   font-size: 13.5px;

@@ -86,11 +86,14 @@ export function PackageTabs({ events, selected: initial, canChoose }: Props) {
                 <a
                   className={p.featured ? "pill" : "pill ghost"}
                   href="#contact"
-                  onClick={() => choosePackage({ eventSlug: ev.slug, name: p.name, pricePerGuestPaisa: p.pricePerGuestPaisa, minGuests: p.minGuests })}
+                  onClick={() => choosePackage({ id: p.id, eventSlug: ev.slug, name: p.name, pricePerGuestPaisa: p.pricePerGuestPaisa, minGuests: p.minGuests })}
                 >
                   {t("packages.choose", { name: p.name })}
                 </a>
               )}
+              <a className={styles.request} href={`/book?event=${ev.slug}&package=${p.id}`} aria-label={`${t("booking.request")}: ${p.name}`}>
+                {t("booking.request")}
+              </a>
             </div>
           ))}
           {ev.newEdit && <div {...ev.newEdit} />}

@@ -5,7 +5,7 @@ import { createServiceClient } from "@/modules/access";
 import { getPublicCatalogue } from "@/modules/catalogue";
 import { MoneyRulesSchema } from "@/modules/tenants/client";
 import { pickDatePrice, priceQuote, type Quote } from "../pricing";
-import { BookingRequestSchema, EstimateSchema, inBookingWindow, todayIn } from "../request";
+import { BookingRequestSchema, EstimateSchema, inBookingWindow, lastBookingDay, todayIn } from "../request";
 
 // Public requests have no session: the caller resolves the tenant from the host, and every read here goes through
 // the service client filtered by that tenant. Nothing here reads bookings, so a taken date looks like a free one.
@@ -41,17 +41,34 @@ export function check<T extends { data: unknown; error: { message: string } | nu
 
 type Choice = { date: string; eventTypeId: string; guests: number; packageId?: string; addonIds: string[] };
 
-/** The venue's own active rows for the chosen ids, or null when any id is not one of them or a limit is broken. */
-async function resolveChoice(db: SupabaseClient, tenantId: string, c: Choice) {
-  const [tenant, settings, halls, catalogue] = await Promise.all([
+/** The venue row, its money rules and the guest cap (the largest active hall). */
+async function readVenue(db: SupabaseClient, tenantId: string) {
+  const [tenant, settings, halls] = await Promise.all([
     db.from("tenants").select("slug, time_zone, status").eq("id", tenantId).single<{ slug: string; time_zone: string; status: string }>(),
     db.from("tenant_settings").select("money_rules").eq("tenant_id", tenantId).single<{ money_rules: unknown }>(),
     db.from("halls").select("capacity_max").eq("tenant_id", tenantId).eq("is_active", true).returns<{ capacity_max: number }[]>(),
-    getPublicCatalogue(tenantId),
   ]);
-  const venue = check(tenant, "tenants");
-  const rules = MoneyRulesSchema.parse(check(settings, "tenant_settings").money_rules);
-  const maxGuests = Math.max(0, ...check(halls, "halls").map((h) => h.capacity_max));
+  return {
+    venue: check(tenant, "tenants"),
+    rules: MoneyRulesSchema.parse(check(settings, "tenant_settings").money_rules),
+    maxGuests: Math.max(0, ...check(halls, "halls").map((h) => h.capacity_max)),
+  };
+}
+
+/** What the public form offers beyond the catalogue: slots, the guest cap, the date range and whether to show the estimate. */
+export async function getRequestOptions(tenantId: string) {
+  const db = createServiceClient();
+  const [{ venue, rules, maxGuests }, slots] = await Promise.all([
+    readVenue(db, tenantId),
+    db.from("slots").select("id, name").eq("tenant_id", tenantId).order("start_time").returns<{ id: string; name: string }[]>(),
+  ]);
+  const today = todayIn(venue.time_zone);
+  return { slots: check(slots, "slots"), maxGuests, today, lastDay: lastBookingDay(today), showEstimate: rules.showPriceEstimate };
+}
+
+/** The venue's own active rows for the chosen ids, or null when any id is not one of them or a limit is broken. */
+async function resolveChoice(db: SupabaseClient, tenantId: string, c: Choice) {
+  const [{ venue, rules, maxGuests }, catalogue] = await Promise.all([readVenue(db, tenantId), getPublicCatalogue(tenantId)]);
   if (venue.status === "paused" || !inBookingWindow(c.date, todayIn(venue.time_zone)) || c.guests > maxGuests) return null;
 
   const eventType = catalogue.events.find((e) => e.id === c.eventTypeId);

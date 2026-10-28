@@ -7,7 +7,8 @@ Tenant is resolved from the host name (custom domain or `slug.<platform-domain>`
 |---|---|
 | `/` | Cinematic one-page site (sections from config) |
 | `/dates` | Live date and price calendar, start of booking |
-| `/book` | Booking flow (event, guests, package, estimate, reserve) |
+| `/book` | Booking request form (date, time, event, guests, package, add-ons, name, mobile; live estimate when the venue shows it). Prefilled from `?date=&event=<slug>&slot=<name>&guests=&package=<id>` (the Contact and Packages "Request booking" links); indexed unless the site is setup or sample |
+| `/book/sent?t=<token>` | Request sent: the reference (read from the stored booking) and the private link. noindex, nofollow, no referrer |
 | `/stage-themes` | Stage theme preview |
 | `/privacy`, `/terms`, `/cancellation` | Policies from tenant config |
 | `/sitemap.xml`, `/robots.txt` | SEO |
@@ -16,7 +17,7 @@ Tenant is resolved from the host name (custom domain or `slug.<platform-domain>`
 ## Customer pages (token links, noindex)
 | Route | Page |
 |---|---|
-| `/b/[token]` | Booking: status, quote, payments, receipt upload, final details |
+| `/b/[token]` | Booking: status, details, and once confirmed the locked total and advance (M4); later payments, receipt upload, final details. Only on its own venue's host; unknown, expired or foreign tokens are the same 404. noindex, nofollow, no referrer |
 | `/b/[token]/pay` | Online payment start (when a provider is connected) |
 | `/q/[token]` | Shareable family quote |
 | `/i/[token]` | Invite and RSVP |

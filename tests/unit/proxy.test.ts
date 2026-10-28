@@ -70,6 +70,14 @@ describe("proxy session refresh", () => {
     expect(res.headers.get("x-middleware-request-x-tenant-status")).toBe("paused");
   });
 
+  it("refuses Next's internal render of a Server Action redirect on public pages, so the browser fetches it itself", async () => {
+    const req = request("/book/sent?t=x");
+    req.headers.set("x-action-redirect", "/book/sent?t=x;push");
+    const res = await proxy(req);
+    expect(res.status).toBe(404);
+    expect(res.headers.get("x-middleware-request-x-tenant-id")).toBeNull();
+  });
+
   it("never forwards a tenant status the browser sent on private routes", async () => {
     const res = await proxy(request("/dashboard"));
     expect(res.headers.get("x-middleware-request-x-tenant-status")).toBeNull();

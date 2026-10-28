@@ -32,9 +32,54 @@ export const EstimateSchema = BookingRequestSchema.pick({ date: true, eventTypeI
 /** Today's date (YYYY-MM-DD) in the venue's time zone. */
 export const todayIn = (timeZone: string): string => new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date());
 
-/** A request may be for today up to 18 months ahead. */
-export function inBookingWindow(date: string, today: string): boolean {
+/** The last date a request may be for: 18 months after `today`. */
+export function lastBookingDay(today: string): string {
   const [y, m, d] = today.split("-").map(Number);
-  const last = new Date(Date.UTC(y, m - 1 + 18, d)).toISOString().slice(0, 10);
-  return date >= today && date <= last;
+  return new Date(Date.UTC(y, m - 1 + 18, d)).toISOString().slice(0, 10);
+}
+
+/** A request may be for today up to 18 months ahead. */
+export const inBookingWindow = (date: string, today: string): boolean => date >= today && date <= lastBookingDay(today);
+
+/** The form's fields as text, the way the browser posts them; the add-ons are a list and the WhatsApp box is ticked or not. */
+export type RequestFormValues = {
+  date: string;
+  slotId: string;
+  eventTypeId: string;
+  guests: string;
+  packageId: string;
+  addonIds: string[];
+  name: string;
+  phone: string;
+  whatsappConsent: boolean;
+  website: string;
+};
+
+/** The field names that fail the schema, or a general message ("invalid": a choice the venue refused; "limited": too many requests). */
+export type RequestFormState = {
+  values: RequestFormValues;
+  errors: string[];
+  message: "invalid" | "limited";
+} | null;
+
+export function readRequestForm(fd: FormData): RequestFormValues {
+  const text = (key: string) => String(fd.get(key) ?? "");
+  return {
+    date: text("date"),
+    slotId: text("slotId"),
+    eventTypeId: text("eventTypeId"),
+    guests: text("guests"),
+    packageId: text("packageId"),
+    addonIds: fd.getAll("addonIds").map(String),
+    name: text("name"),
+    phone: text("phone"),
+    whatsappConsent: fd.get("whatsappConsent") === "on",
+    website: text("website"),
+  };
+}
+
+/** Which fields fail the schema's shape checks, for messages beside each field. */
+export function requestFieldErrors(values: RequestFormValues): string[] {
+  const r = BookingRequestSchema.safeParse(values);
+  return r.success ? [] : [...new Set(r.error.issues.map((i) => String(i.path[0])))];
 }

@@ -6,18 +6,19 @@ const imageUrl = (view: SiteView) => {
   return urls?.m ?? urls?.s ?? urls?.l;
 };
 
+// Sample copy and prices must never be indexed as the venue's real offer.
+export const indexable = (view: SiteView): boolean => !(view.status === "setup" || view.content.sample || view.catalogue.hasSample);
+
 export function siteMetadata(view: SiteView, primaryHost: string): Metadata {
   const { title, description } = view.content.seo;
   const url = `https://${primaryHost}/`;
   const image = imageUrl(view);
-  // Sample copy and prices must never be indexed as the venue's real offer.
-  const noindex = view.status === "setup" || view.content.sample || view.catalogue.hasSample;
   return {
     title,
     description,
     alternates: { canonical: url },
     openGraph: { title, description, url, images: image ? [image] : undefined },
-    robots: { index: !noindex },
+    robots: { index: indexable(view) },
   };
 }
 

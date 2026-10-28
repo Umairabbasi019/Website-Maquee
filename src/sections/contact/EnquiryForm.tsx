@@ -47,6 +47,15 @@ export function EnquiryForm({ className, events, defaultEvent, otherEvent, slots
     name: name.trim() || undefined,
   });
 
+  // The same choices prefill the booking request form, which checks them again.
+  const book = new URLSearchParams({
+    ...(dateValue && { date: dateValue }),
+    ...(ev && { event: ev }),
+    ...(slot && { slot }),
+    guests: String(guests),
+    ...(pick?.eventSlug === ev && { package: pick.id }),
+  });
+
   return (
     <form className={className}>
       <div className={styles.two}>
@@ -112,6 +121,11 @@ export function EnquiryForm({ className, events, defaultEvent, otherEvent, slots
           )}
         </div>
       )}
+      <div className={styles.acts}>
+        <a className="pill ghost" href={`/book?${book}`}>
+          {t("booking.request")}
+        </a>
+      </div>
       {compare && (
         <a className={styles.compare} href="#packages">
           {compare}
