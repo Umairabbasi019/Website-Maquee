@@ -2,8 +2,8 @@
 -- through the service role. Each takes the hall lock, then the booking row lock, so money and status move together.
 -- The transition guard in 20261028000100_payments.sql still refuses any status change outside its table.
 
--- Locks a booking the M4 way: hall turn first, then the row. Payments are refused on requested bookings, the only
--- status whose hall can change, so the unlocked hall read cannot go stale for a booking a payment can touch.
+-- Locks a booking the M4 way: hall turn first, then the row. The hall is read without a lock, so a request confirmed
+-- in between gains a hall we did not lock; then that hall is locked too and the row read again.
 create function public.lock_booking(p_booking uuid) returns public.bookings
 language plpgsql set search_path = '' as $$
 declare
@@ -17,6 +17,11 @@ begin
   select * into v_row from public.bookings where id = p_booking for update;
   if not found then
     raise exception using errcode = 'P0001', message = 'not_found';
+  end if;
+  -- Once set under its hall lock, the hall only changes on a request, so one re-read is enough.
+  if v_row.hall_id is distinct from v_hall and v_row.hall_id is not null then
+    perform pg_advisory_xact_lock(hashtextextended('confirm_booking:' || v_row.hall_id::text, 0));
+    select * into v_row from public.bookings where id = p_booking for update;
   end if;
   return v_row;
 end $$;
@@ -93,6 +98,10 @@ declare
   v_id uuid;
 begin
   perform set_config('app.actor', coalesce(p_actor::text, ''), true);
+  -- A staff row is verified at once, so it must say who verified it.
+  if v_staff and p_actor is null then
+    raise exception using errcode = 'P0001', message = 'invalid_actor';
+  end if;
   v_booking := public.lock_booking(p_booking);
   if not (v_booking.status in ('confirmed', 'awaiting_advance', 'hold_expired', 'refund_pending')
     or (p_kind = 'refund' and v_booking.status = 'cancelled')) then
@@ -163,7 +172,8 @@ begin
     raise exception using errcode = 'P0001', message = 'invalid_reason';
   end if;
   v_payment := public.lock_payment(p_payment);
-  if v_payment.status <> 'pending' then
+  -- Only the provider decides an online payment; a staff reject could hide money the provider later takes.
+  if v_payment.status <> 'pending' or v_payment.source = 'provider' then
     raise exception using errcode = 'P0001', message = 'payment_state';
   end if;
   update public.payments set status = 'rejected', reject_reason = p_reason where id = p_payment;
@@ -182,6 +192,7 @@ end $$;
 
 -- A provider webhook after its signature passed. The event row goes in first, so a replay (even a concurrent one,
 -- which waits on the unique key) is a duplicate, and unknown or mismatched events are kept for audit.
+-- A paid event wins over an earlier failed one: the money was taken, so it must reach the ledger.
 create function public.apply_provider_event(
   p_provider text,
   p_event_id text,
@@ -198,6 +209,9 @@ declare
   v_result text;
 begin
   perform set_config('app.actor', '', true);
+  if p_status is null or p_status not in ('paid', 'failed') then
+    raise exception using errcode = 'P0001', message = 'invalid_status';
+  end if;
   -- result is a placeholder until the end of this function sets the real one.
   insert into public.provider_events (provider, event_id, payload, result)
   values (p_provider, p_event_id, p_payload, 'unknown')
@@ -215,18 +229,17 @@ begin
     if p_amount is distinct from v_payment.amount_paisa
       or p_currency is distinct from (select currency from public.tenants where id = v_payment.tenant_id) then
       v_result := 'mismatch';
-    elsif v_payment.status <> 'pending' then
-      -- Another event already settled this payment.
-      v_result := 'duplicate';
-    elsif p_status = 'paid' then
-      update public.payments set status = 'verified', verified_by = null, verified_at = now() where id = v_payment.id;
+    elsif p_status = 'paid' and v_payment.status <> 'verified' then
+      update public.payments set status = 'verified', reject_reason = null, verified_by = null, verified_at = now()
+      where id = v_payment.id;
       perform public.settle_booking(v_payment.booking_id);
       v_result := 'applied';
-    elsif p_status = 'failed' then
+    elsif p_status = 'failed' and v_payment.status = 'pending' then
       update public.payments set status = 'rejected', reject_reason = 'Payment failed' where id = v_payment.id;
       v_result := 'applied';
     else
-      raise exception using errcode = 'P0001', message = 'invalid_status';
+      -- An earlier event already decided this payment.
+      v_result := 'duplicate';
     end if;
   end if;
 

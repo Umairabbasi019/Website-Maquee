@@ -109,6 +109,13 @@ describe("record_payment amount limits", () => {
       expect(row).toEqual({ status: "verified", verified_by: ACTOR, at: true });
     }));
 
+  it("refuses a staff payment without an actor", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      const b = await s.at("confirmed");
+      await expectReject(c, RECORD, [b, "payment", "cash", 100, "staff", null], /invalid_actor/);
+    }));
+
   it("writes a staff payment verified, with who and when", () =>
     withDb(async (c) => {
       const s = await seed(c);
@@ -173,6 +180,7 @@ describe("payment state", () => {
         randomUUID(),
       ]);
       await expectReject(c, "select public.verify_payment($1, 100, $2)", [online, ACTOR], /payment_state/);
+      await expectReject(c, "select public.reject_payment($1, 'Wrong', $2)", [online, ACTOR], /payment_state/);
     }));
 
   it("rejects a pending receipt with a 3 to 300 character reason", () =>

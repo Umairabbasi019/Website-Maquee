@@ -10,6 +10,7 @@ const one = async <T = string>(sql: string, params: unknown[] = [], db: pg.Pool 
 
 const PROVIDER = `test-${randomUUID()}`;
 const ADVANCE = 50_000;
+let account = "";
 let tenant = "";
 let hall = "";
 let slot = "";
@@ -59,7 +60,7 @@ const state = async (b: string, payment: string) =>
   ).rows[0];
 
 beforeAll(async () => {
-  const account = await one("insert into accounts (name) values ('Provider test') returning id");
+  account = await one("insert into accounts (name) values ('Provider test') returning id");
   tenant = await one("insert into tenants (account_id, slug, name, status) values ($1, $2, 'Zp Hall', 'live') returning id", [
     account,
     `zp-${randomUUID()}`,
@@ -74,6 +75,7 @@ afterAll(async () => {
   // Bookings first: their slot key is on delete restrict.
   await pool.query("delete from bookings where tenant_id = $1", [tenant]);
   await pool.query("delete from tenants where id = $1", [tenant]);
+  await pool.query("delete from accounts where id = $1", [account]);
   await pool.end();
 });
 
@@ -127,6 +129,23 @@ describe("apply_provider_event", () => {
     const { b, ref, payment } = await heldWithOnlinePayment();
     expect(await apply(ref)).toBe("applied");
     expect(await apply(ref, { status: "failed" })).toBe("duplicate");
+    expect(await apply(ref)).toBe("duplicate");
     expect(await state(b, payment)).toMatchObject({ booking: "confirmed", payment: "verified" });
+    expect(await one<number>("select count(*)::int from payments where booking_id = $1 and status = 'verified'", [b])).toBe(1);
+  });
+
+  it("verifies and settles a payment on a paid event after a failed one", async () => {
+    const { b, ref, payment } = await heldWithOnlinePayment();
+    expect(await apply(ref, { status: "failed" })).toBe("applied");
+    expect(await apply(ref)).toBe("applied");
+    expect(await state(b, payment)).toEqual({ booking: "confirmed", payment: "verified", verified_by: null, reject_reason: null });
+  });
+
+  it("refuses an unknown status before anything else, storing nothing", async () => {
+    const { b, ref, payment } = await heldWithOnlinePayment();
+    const event = randomUUID();
+    await expect(apply(ref, { event, status: "refunded", amount: 1 })).rejects.toThrow(/invalid_status/);
+    expect(await one<number>("select count(*)::int from provider_events where provider = $1 and event_id = $2", [PROVIDER, event])).toBe(0);
+    expect((await state(b, payment)).payment).toBe("pending");
   });
 });
