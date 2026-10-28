@@ -63,6 +63,7 @@ function query(table: string) {
     gte: (col: string, val: string) => ((rows = rows.filter((r) => String(r[col]) >= val)), q),
     lt: (col: string, val: string) => ((rows = rows.filter((r) => String(r[col]) < val)), q),
     order: () => q,
+    limit: (n: number) => ((rows = rows.slice(0, n)), q),
     returns: () => q,
     single: async () => (rows.length === 1 ? { data: rows[0], error: null } : { data: null, error: { message: "not one row" } }),
     maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
@@ -154,7 +155,7 @@ describe("listBookings and countNewRequests", () => {
       row(14, { tenant_id: T2 }),
     ];
   });
-  const refs = async (status?: string) => (await listBookings(T1, { status })).map((b) => [b.reference, b.status]);
+  const refs = async (status?: string) => (await listBookings(T1, { status })).rows.map((b) => [b.reference, b.status]);
 
   it("splits requests into waiting (requested) and past (expired), and shows the past one as expired", async () => {
     expect(await refs("requested")).toEqual([["R-11", "requested"]]);
@@ -165,6 +166,16 @@ describe("listBookings and countNewRequests", () => {
       ["R-12", "expired"],
       ["R-13", "declined"],
     ]);
+  });
+
+  it("returns the embedded quote total, and caps at 200 with more set", async () => {
+    tables.bookings = [row(11, { quote: { total_paisa: 123 } }), row(12, {})];
+    expect((await listBookings(T1, {})).rows.map((b) => b.totalPaisa)).toEqual([123, null]);
+    tables.bookings = Array.from({ length: 201 }, (_, i) => row(100 + i, {}));
+    const capped = await listBookings(T1, {});
+    expect([capped.rows.length, capped.more]).toEqual([200, true]);
+    const month = await listBookings(T1, { month: future.slice(0, 7) });
+    expect([month.rows.length, month.more]).toEqual([201, false]);
   });
 
   it("drops a bad filter, and counts only waiting requests of this venue", async () => {

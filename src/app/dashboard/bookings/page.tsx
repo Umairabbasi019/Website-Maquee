@@ -18,7 +18,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
   if (!canAny(viewer, venue.id, screen.perm)) return <Forbidden />;
   const { status } = await searchParams;
   const current = typeof status === "string" && FILTERS.includes(status) ? status : undefined;
-  const rows = await listBookings(venue.id, { status: current });
+  const { rows, more } = await listBookings(venue.id, { status: current });
 
   return (
     <section>
@@ -38,6 +38,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
           ))}
         </ul>
       </nav>
+      {more && <p className="mt-4">{t("bookings.more")}</p>}
       {rows.length === 0 ? (
         <p className="mt-6">{t("bookings.none")}</p>
       ) : (

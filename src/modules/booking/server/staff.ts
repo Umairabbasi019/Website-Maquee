@@ -63,6 +63,11 @@ const ROW_COLUMNS =
   "id, reference, status, event_date, guests, event_type_name, package_name, addon_names, current_quote_id, " +
   "slot:slots(name), hall:halls(name), customer:customers(name, phone_e164)";
 
+// The current quote's total comes in the same request, so the list needs no second query; the hint is needed because quotes also references bookings.
+const LIST_COLUMNS = `${ROW_COLUMNS}, quote:quotes!bookings_id_current_quote_id_fkey(total_paisa)`;
+/** The most rows the unfiltered-by-month list returns. */
+const LIST_LIMIT = 200;
+
 type BookingRow = {
   id: string;
   reference: string;
@@ -77,6 +82,8 @@ type BookingRow = {
   hall: { name: string } | null;
   customer: { name: string; phone_e164: string };
 };
+
+type ListedBooking = BookingRow & { quote: { total_paisa: number } | null };
 
 const isTransitionError = (e: { code?: string; message: string } | null) =>
   e?.code === RAISED && e.message.startsWith("invalid_transition");
@@ -108,11 +115,11 @@ function toRow(b: BookingRow, totalPaisa: number | null, today: string): StaffBo
   };
 }
 
-export async function listBookings(tenantId: string, q: { month?: string; status?: string }): Promise<StaffBookingRow[]> {
+export async function listBookings(tenantId: string, q: { month?: string; status?: string }): Promise<{ rows: StaffBookingRow[]; more: boolean }> {
   await requirePerm(tenantId, "bookings.view");
   const { month, status } = ListQuery.parse(q);
   const db = await createServerClient();
-  let query = db.from("bookings").select(ROW_COLUMNS).eq("tenant_id", tenantId);
+  let query = db.from("bookings").select(LIST_COLUMNS).eq("tenant_id", tenantId);
   if (month) {
     const [y, m] = month.split("-").map(Number);
     const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
@@ -123,19 +130,12 @@ export async function listBookings(tenantId: string, q: { month?: string; status
   if (status === "expired") query = query.eq("status", "requested").lt("event_date", today);
   else if (status === "requested") query = query.eq("status", "requested").gte("event_date", today);
   else if (status) query = query.eq("status", status);
-  const bookings = check(await query.order("event_date").order("created_at").returns<BookingRow[]>(), "bookings");
-  const quoteIds = bookings.flatMap((b) => (b.current_quote_id ? [b.current_quote_id] : []));
-  const totals = new Map<string, number>();
-  if (quoteIds.length) {
-    const quotes = await db
-      .from("quotes")
-      .select("id, total_paisa")
-      .eq("tenant_id", tenantId)
-      .in("id", quoteIds)
-      .returns<{ id: string; total_paisa: number }[]>();
-    for (const r of check(quotes, "quotes")) totals.set(r.id, r.total_paisa);
-  }
-  return bookings.map((b) => toRow(b, totals.get(b.current_quote_id ?? "") ?? null, today));
+  query = query.order("event_date").order("created_at");
+  // shortcut: the list stops at LIST_LIMIT rows (the calendar's month is never capped); upgrade to real pagination in the M6 bookings table.
+  if (!month) query = query.limit(LIST_LIMIT + 1);
+  const bookings = check(await query.returns<ListedBooking[]>(), "bookings");
+  const more = !month && bookings.length > LIST_LIMIT;
+  return { rows: (more ? bookings.slice(0, LIST_LIMIT) : bookings).map((b) => toRow(b, b.quote?.total_paisa ?? null, today)), more };
 }
 
 export async function getBookingDetail(tenantId: string, id: string): Promise<StaffBookingDetail | null> {

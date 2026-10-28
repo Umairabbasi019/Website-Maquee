@@ -200,6 +200,7 @@ export const en = {
   "bookings.status.declined": "Declined",
   "bookings.status.cancelled": "Cancelled",
   "bookings.none": "No bookings to show.",
+  "bookings.more": "Showing the first 200 bookings. Choose a status to narrow the list.",
   "bookings.col.reference": "Reference",
   "bookings.col.customer": "Customer",
   "bookings.col.phone": "Phone",

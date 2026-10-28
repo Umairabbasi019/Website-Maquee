@@ -25,7 +25,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const { month: asked } = await searchParams;
   // No (or a bad) month opens the venue's current month.
   const month = typeof asked === "string" && MONTH.test(asked) ? asked : (await venueToday(venue.id)).slice(0, 7);
-  const entries = (await listBookings(venue.id, { month })).filter((b) => SHOWN.has(b.status));
+  const entries = (await listBookings(venue.id, { month })).rows.filter((b) => SHOWN.has(b.status));
   const nav = "rounded-md border border-muted/40 px-3 py-1 hover:bg-accent/30 focus-visible:outline-2 focus-visible:outline-text";
 
   return (
