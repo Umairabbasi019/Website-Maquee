@@ -39,7 +39,7 @@ export default async function SettingsPage() {
     setup ? listSlots(venue.id) : null,
     dates ? listDatePrices(venue.id) : null,
     dates ? getPublicCatalogue(venue.id) : null,
-    setup ? getMoneyRules(venue.id) : null,
+    halls ? getMoneyRules(venue.id) : null,
   ]);
 
   return (
@@ -63,7 +63,7 @@ export default async function SettingsPage() {
       )}
       {rules && (
         <Section id="settings-money" title="settings.moneyRules">
-          <MoneyRulesForm rules={rules} />
+          <MoneyRulesForm rules={rules} full={setup} />
         </Section>
       )}
     </section>

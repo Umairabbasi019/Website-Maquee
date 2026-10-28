@@ -291,3 +291,23 @@
     display: none;
   }
 }
+
+/* SitePage: a single page beside the one-page site (booking form, private link). */
+.pageHead {
+  padding: 28px 16px;
+  display: flex;
+  justify-content: center;
+}
+.pageHead a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+.pageHead a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 4px;
+}
+.pageMain {
+  width: min(680px, 100%);
+  margin: 0 auto;
+  padding: 0 16px 96px;
+}

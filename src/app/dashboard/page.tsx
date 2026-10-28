@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { can, dashboardNav } from "@/modules/access";
+import { countNewRequests } from "@/modules/booking";
 import { t } from "@/ui/i18n";
-import { ComingSoon, Forbidden } from "@/ui/notices";
+import { Forbidden } from "@/ui/notices";
 import { getDashboard } from "./context";
 
 export const instant = false; // see layout.tsx
@@ -15,5 +17,16 @@ export default async function OverviewPage() {
     if (first) redirect(first.href);
     return <Forbidden />;
   }
-  return <ComingSoon title={t("nav.overview")} />;
+  const count = await countNewRequests(venue.id);
+  return (
+    <section>
+      <h1 className="text-2xl font-semibold">{t("nav.overview")}</h1>
+      <Link
+        href="/dashboard/bookings?status=requested"
+        className="mt-6 inline-block rounded-lg border border-muted/40 p-6 text-lg font-medium hover:bg-accent/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text"
+      >
+        {t("bookings.overview.new", { count })}
+      </Link>
+    </section>
+  );
 }

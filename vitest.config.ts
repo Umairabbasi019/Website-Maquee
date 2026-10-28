@@ -4,6 +4,8 @@ import { existsSync } from "node:fs";
 
 // DB tests need the same .env.local the app reads (Supabase URL and keys). Already-set variables win.
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
+// Test-only value, so booking hashing does not warn about the development fallback.
+process.env.BOOKING_HASH_SECRET ??= "test-only-booking-hash-secret";
 
 const alias = {
   "@": fileURLToPath(new URL("./src", import.meta.url)),

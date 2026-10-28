@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useMemo, useReducer, type ReactNode } from "react";
 
-export type PackagePick = { eventSlug: string; name: string; pricePerGuestPaisa: number; minGuests: number };
+export type PackagePick = { id: string; eventSlug: string; name: string; pricePerGuestPaisa: number; minGuests: number };
 
 type State = {
   eventSlug: string | null;

@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { can, ForbiddenError, type Viewer } from "@/modules/access";
 import { deleteDatePrice, listDatePrices, saveDatePrice, type DatePrice } from "@/modules/calendar";
-import { deleteSlot, listHalls, saveHall, saveMoneyRules, saveSlot } from "@/modules/tenants";
+import { deleteSlot, getMoneyRules, listHalls, saveHall, saveMoneyRules, saveSlot } from "@/modules/tenants";
 import { parseRupees } from "@/sections/shared/format";
 import type { TranslationKey } from "@/ui/i18n";
 import { getDashboard } from "../context";
@@ -14,6 +14,7 @@ const ERRORS = {
   forbidden: "editor.forbidden",
   notFound: "settings.error.notFound",
   overlap: "settings.error.overlap",
+  inUse: "settings.error.slotInUse",
 } as const satisfies Record<string, TranslationKey>;
 
 const text = (fd: FormData, name: string) => String(fd.get(name) ?? "").trim();
@@ -123,15 +124,22 @@ export async function deleteDatePriceAction(_prev: FormState, fd: FormData): Pro
 }
 
 export async function saveMoneyRulesAction(_prev: FormState, fd: FormData): Promise<FormState> {
-  return inVenue(async (tenantId) =>
-    done(
-      await saveMoneyRules(tenantId, {
-        taxPercent: num(fd, "taxPercent"),
-        advancePercent: num(fd, "advancePercent"),
-        holdHours: num(fd, "holdHours"),
-        instantBooking: fd.get("instantBooking") === "on",
-        paymentMethods: fd.getAll("paymentMethods").map(String),
-      }),
-    ),
-  );
+  const showPriceEstimate = fd.get("showPriceEstimate") === "on";
+  return inVenue(async (tenantId, viewer) => {
+    if (can(viewer, tenantId, "tenant.settings.edit")) {
+      return done(
+        await saveMoneyRules(tenantId, {
+          taxPercent: num(fd, "taxPercent"),
+          advancePercent: num(fd, "advancePercent"),
+          holdHours: num(fd, "holdHours"),
+          instantBooking: fd.get("instantBooking") === "on",
+          showPriceEstimate,
+          paymentMethods: fd.getAll("paymentMethods").map(String),
+        }),
+      );
+    }
+    // A prices-only editor sends just the estimate toggle; the rest is the stored rules (the schema drops currency and
+    // time zone), so nothing else can change.
+    return done(await saveMoneyRules(tenantId, { ...(await getMoneyRules(tenantId)), showPriceEstimate }));
+  });
 }

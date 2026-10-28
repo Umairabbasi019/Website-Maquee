@@ -6,10 +6,12 @@ import { MoneyRulesSchema, TimeSchema, type TenantSettings } from "../settings";
 // Halls and slots save on the user's session after a requirePerm check here; RLS, the column-permission trigger and
 // the audit trigger (supabase/migrations/20261026000300_settings_m3.sql) check again. Money rules go through the service client.
 
-export type SetupResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" };
+export type SetupResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "inUse" };
 
 /** Postgres insufficient_privilege: RLS on insert, or the column-permission trigger. */
 const INSUFFICIENT_PRIVILEGE = "42501";
+/** Postgres foreign_key_violation: a booking still points at the slot (on delete restrict). */
+const FOREIGN_KEY_VIOLATION = "23503";
 
 const HallSchema = z
   .object({
@@ -39,6 +41,7 @@ type Write = { error: { code?: string; message: string } | null; data: unknown[]
 // An update RLS hides (or another tenant's id) changes no rows and returns no error, so the row count decides.
 function result(r: Write, what: string): SetupResult {
   if (r.error?.code === INSUFFICIENT_PRIVILEGE) return { error: "forbidden" };
+  if (r.error?.code === FOREIGN_KEY_VIOLATION) return { error: "inUse" };
   if (r.error) throw new Error(`${what}: ${r.error.message}`);
   return r.data?.length ? { ok: true } : { error: "notFound" };
 }
@@ -130,17 +133,28 @@ async function readMoneyRules(tenantId: string): Promise<{ stored: unknown; rule
   return { stored: data.money_rules, rules: MoneyRulesSchema.parse(data.money_rules) };
 }
 
+// Money rules are venue setup (tenant.settings.edit); the customer price estimate is a price setting (prices.edit).
+const setupOrPrices = (tenantId: string) =>
+  requirePerm(tenantId, "tenant.settings.edit").catch(() => requirePerm(tenantId, "prices.edit"));
+
 export async function getMoneyRules(tenantId: string): Promise<TenantSettings["moneyRules"]> {
-  await requirePerm(tenantId, "tenant.settings.edit");
+  await setupOrPrices(tenantId);
   return (await readMoneyRules(tenantId)).rules;
 }
 
-/** Currency and time zone are not stored here (they live on the tenant), so they are not accepted. */
+/**
+ * Currency and time zone are not stored here (they live on the tenant), so they are not accepted.
+ * A prices.edit holder may change only showPriceEstimate; any other change needs tenant.settings.edit.
+ */
 export async function saveMoneyRules(tenantId: string, input: unknown): Promise<SetupResult> {
-  await requirePerm(tenantId, "tenant.settings.edit");
+  await setupOrPrices(tenantId);
   const parsed = MoneyRulesInputSchema.safeParse(input);
   if (!parsed.success) return { error: "invalid" };
-  const { stored } = await readMoneyRules(tenantId);
+  const { stored, rules } = await readMoneyRules(tenantId);
+  const restChanged = Object.entries(parsed.data).some(
+    ([key, value]) => key !== "showPriceEstimate" && JSON.stringify(value) !== JSON.stringify(rules[key as keyof typeof rules]),
+  );
+  if (restChanged) await requirePerm(tenantId, "tenant.settings.edit");
   const { error } = await createServiceClient().from("tenant_settings").update({ money_rules: parsed.data }).eq("tenant_id", tenantId);
   if (error) throw new Error(`money_rules: ${error.message}`);
   await recordAudit({

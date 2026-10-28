@@ -64,7 +64,7 @@ test("a manager changes the Gold Barat price and menu, previews it on a phone an
   // Keyboard: Tab reaches the ✎, Enter opens the panel, Escape closes it and focus is back on the ✎.
   const panel = page.locator("#packages-panel-barat");
   const edit = panel.getByRole("button", { name: "Edit Gold package" });
-  await panel.getByRole("link", { name: "Choose Silver" }).focus();
+  await panel.getByRole("link", { name: `${en["booking.request"]}: Silver` }).focus();
   await page.keyboard.press("Tab");
   await expect(edit).toBeFocused();
   await page.keyboard.press("Enter");

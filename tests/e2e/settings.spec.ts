@@ -36,7 +36,7 @@ test("the public page before any settings change", async ({ page }) => {
   expect(saved.publicText.length).toBeGreaterThan(0);
 });
 
-test("a manager sets the hall hire price and date prices, but sees no slots or money rules", async ({ page }) => {
+test("a manager sets the hall hire price, date prices and the estimate switch, but no slots or other money rules", async ({ page }) => {
   await signIn(page, "manager1@manor.test");
   await expect(page).toHaveURL(/\/dashboard/);
   await page.getByRole("link", { name: en["nav.settings"] }).click();
@@ -45,7 +45,21 @@ test("a manager sets the hall hire price and date prices, but sees no slots or m
   await expect(page.getByRole("heading", { name: en["settings.halls"] })).toBeVisible();
   await expect(page.getByRole("heading", { name: en["settings.datePrices"] })).toBeVisible();
   await expect(page.getByRole("heading", { name: en["settings.slots"] })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: en["settings.moneyRules"] })).toHaveCount(0);
+  // prices.edit shows Money rules with only the estimate switch editable.
+  await expect(page.getByRole("heading", { name: en["settings.moneyRules"] })).toBeVisible();
+  const money = page.getByRole("form", { name: en["settings.moneyRules"] });
+  await expect(money).toContainText(en["settings.money.estimateOnly"]);
+  for (const label of ["settings.money.tax", "settings.money.advance", "settings.money.hold", "settings.money.instant", "settings.money.method.bank"] as const) {
+    await expect(money.getByLabel(en[label])).toBeDisabled();
+  }
+  const estimate = money.getByLabel(en["settings.money.estimate"]);
+  await expect(estimate).toBeEnabled();
+  await expect(estimate).toBeChecked();
+  await estimate.uncheck();
+  await money.getByRole("button", { name: en["settings.save"] }).click();
+  await expect(money.getByRole("status")).toHaveText(en["settings.saved"]);
+  const ruled = await db.query("select money_rules from tenant_settings where tenant_id = $1", [manor]);
+  expect(ruled.rows[0].money_rules).toMatchObject({ showPriceEstimate: false, advancePercent: 50 });
 
   const hall = page.getByRole("form", { name: "Main hall" });
   for (const label of ["settings.hall.name", "settings.hall.capacityMin", "settings.hall.capacityMax", "settings.hall.active"] as const) {

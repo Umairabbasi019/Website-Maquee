@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { enquiryReducer } from "@/sections/shared/enquiry-state";
 
-const gold = { eventSlug: "barat", name: "Gold", pricePerGuestPaisa: 420000, minGuests: 300 };
+const gold = { id: "gold", eventSlug: "barat", name: "Gold", pricePerGuestPaisa: 420000, minGuests: 300 };
 const start = { eventSlug: null, pick: null, guests: 400 };
 
 describe("enquiryReducer", () => {

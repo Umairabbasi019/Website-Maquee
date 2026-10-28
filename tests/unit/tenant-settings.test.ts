@@ -38,11 +38,12 @@ describe("tenant settings schemas", () => {
     expect(SectionsSchema.safeParse([...sections.slice(1), sections[1]]).success).toBe(false);
   });
 
-  it("defaults hold hours, currency and time zone", () => {
+  it("defaults hold hours, currency, time zone and the price estimate", () => {
     expect(MoneyRulesSchema.parse({})).toMatchObject({
       holdHours: 48,
       currency: "PKR",
       timeZone: "Asia/Karachi",
+      showPriceEstimate: true,
     });
   });
 });

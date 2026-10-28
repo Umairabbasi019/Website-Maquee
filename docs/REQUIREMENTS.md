@@ -32,14 +32,14 @@ IDs are referenced by the roadmap and tests. "Must" items are MVP.
 - WEB-7 Content strings in a locale layer (Urdu later).
 
 ### Booking (BKG)
-- BKG-1 Live date and price calendar: free, held, booked (no customer data) and price per free date.
-- BKG-2 Flow: date → event → guests → package → itemised estimate → Reserve (name, phone, WhatsApp consent).
-- BKG-3 Hold for a configurable time (default 48 h), expired on the server.
-- BKG-4 Double booking impossible at database level, including two people reserving at once.
+- BKG-1 The public date picker shows no availability: every future date is open for a request. The staff calendar shows confirmed bookings and pending requests (customer details for staff only).
+- BKG-2 Flow: date → event → guests → package → estimate (only when the manager's `showPriceEstimate` setting is on; hall hire not included) → Request booking (name, phone, WhatsApp consent).
+- BKG-3 No holds in request mode. Holds come back with quick booking in M5, using the existing `holdHours` (default 48 h), expired on the server.
+- BKG-4 Double booking impossible at database level: two `confirmed` bookings cannot overlap in one hall, including two managers confirming at once. Requests never conflict.
 - BKG-5 Private, expiring, unguessable booking link for the customer.
 - BKG-6 Controlled state machine (spec §6) recording who, when, why.
-- BKG-7 Optional instant booking at standard package price (tenant setting).
-- BKG-8 Shareable family quote page (read-only, expiring, no phone numbers, noindex).
+- BKG-7 Optional quick booking (pay and auto-book) at standard package price, a manager switch. Built in M5.
+- BKG-8 Shareable family quote page (read-only, expiring, no phone numbers, noindex). Moved to M8.
 
 ### Pricing (PRC)
 - PRC-1 One tested server-side pricing service; browser totals never trusted.

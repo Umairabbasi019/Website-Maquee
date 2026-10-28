@@ -5,6 +5,7 @@ import { VENUE_COOKIE, venueCookieOptions } from "./app/dashboard/venue-cookie";
 
 const TENANT_HEADER = "x-tenant-id";
 const STATUS_HEADER = "x-tenant-status";
+const ACTION_REDIRECT_HEADER = "x-action-redirect";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Signed-in routes: refresh the Supabase session here, because Server Components cannot write cookies.
 const SESSION_PREFIXES = ["/dashboard", "/site-preview", "/admin", "/mfa", "/login", "/auth"];
@@ -39,6 +40,10 @@ export async function proxy(request: NextRequest) {
   if (under(path, SESSION_PREFIXES)) return refreshSession(request, headers);
 
   if (!under(path, NO_TENANT_PREFIXES)) {
+    // A Server Action's redirect target is rendered by an internal fetch to the server's own origin (localhost), so
+    // its host is not the visitor's and the page would get no tenant. Refusing it makes Next tell the browser to fetch
+    // the target itself, through this proxy with its real host. A browser sending this header only gets the 404.
+    if (request.headers.has(ACTION_REDIRECT_HEADER)) return new NextResponse(null, { status: 404 });
     try {
       const tenant = await resolveTenantByHost(request.headers.get("host") ?? "");
       if (tenant) {

@@ -26,7 +26,7 @@ Postgres. Every tenant-owned table has `tenant_id uuid not null` (the venue's te
 - `audit_events` (id, tenant_id null for platform, actor_user_id, actor_kind `user|provider|system`, action, entity, entity_id, before jsonb, after jsonb, reason, created_at) — insert-only
 
 ### catalogue
-- Built: `event_types`, `packages` (per_guest_paisa, min_guests, event_type_id), `offers`, and in M3 `addons` (name, `price_paisa`, `basis` `flat|per_guest`, active, sort, sample) and `stage_themes` (name, description, `price_paisa`, `media_keys` text[], active, sort, sample). `offers` gained `discount_kind` (`percent|fixed`), `discount_value`, `starts_on`, `ends_on`, all null for a text-only offer.
+- Built: `event_types`, `packages` (price_per_guest_paisa, min_guests, event_type_id), `offers`, and in M3 `addons` (name, `price_paisa`, `basis` `flat|per_guest`, active, sort, sample) and `stage_themes` (name, description, `price_paisa`, `media_keys` text[], active, sort, sample). `offers` gained `discount_kind` (`percent|fixed`), `discount_value`, `starts_on`, `ends_on`, all null for a text-only offer.
 - Not built: `menu_categories`, `menu_items`, `package_items` (menus stay as the package's item list).
 - Writes on every catalogue table: RLS plus a column trigger that checks the permission key per column (price columns need `prices.edit`), and a publish-only trigger (see `DECISIONS.md`).
 
@@ -35,12 +35,19 @@ Postgres. Every tenant-owned table has `tenant_id uuid not null` (the venue's te
 - `date_prices` (id, tenant_id, starts_on, ends_on inclusive, event_type_id null = all events, kind `percent|per_guest`, value int non-zero, label; M3). `percent` is -90..300; `per_guest` is paisa per guest. An exclusion constraint refuses overlap within one scope (all events, or one event type). Read with `bookings.view`, write with `calendar.manage`, writes audited by trigger. The pricing service applies them in M4.
 
 ### booking
-- `customers` (id, tenant_id, name, phone_e164, whatsapp_consent_at, marketing_consent_at, opted_out_at)
-- `enquiries` (id, tenant_id, customer_id, source, received_at, first_reply_at, assigned_to, status)
-- `bookings` (id, tenant_id, reference unique per tenant, customer_id, hall_id, slot_id, during tstzrange, event_type_id, guests, status, hold_expires_at, current_quote_id, referral_code_id)
-- `booking_status_history` (booking_id, from, to, actor, reason, at)
-- `quotes` (id, tenant_id, booking_id, version, snapshot jsonb, total_paisa, advance_paisa, created_by, created_at) — immutable
-- `access_tokens` (id, tenant_id, kind `booking|quote|invite`, target_id, token_hash unique, expires_at, revoked_at)
+Built in M4 (`supabase/migrations/20261027000100_booking.sql`). Only the server (service role) writes these tables; staff with `bookings.view` read their own venue's rows.
+- `customers` (id, tenant_id, name, phone_e164, whatsapp_consent_at, marketing_consent_at, opted_out_at, created_at) unique (tenant_id, phone_e164). A returning phone keeps its first name; consent is only added.
+- `bookings` (id, tenant_id, reference unique per tenant, customer_id, event_date, slot_id, `event_type_id` null, `event_type_name`, `package_id` null, `package_name` null, `addon_ids` uuid[], `addon_names` text[], guests, hall_id null until confirm, `during` tstzrange null until confirm, status, status_reason, current_quote_id, created_at). The names are snapshots: Publish may remove an event type or package, which sets its id to null (`on delete set null`) while the name stays. Add-on ids carry no foreign key for the same reason. A `confirmed` row must have a hall, a range and a quote.
+- `booking_status_history` (id, tenant_id, booking_id, from_status, to_status, actor, reason, at). A trigger writes a row on insert and on every status change; `actor` is the `app.actor` the SQL functions set, null for a customer request.
+- `quotes` (id, tenant_id, booking_id, version, snapshot jsonb, total_paisa, advance_paisa, created_by, created_at) unique (booking_id, version), insert-only (trigger). M4 writes version 1 at confirm. The snapshot holds the lines, tax, calculated and final totals, the override reason (null when unchanged) and the pricing inputs. The totals are `int`, checked `>= 0`.
+- `access_tokens` (id, tenant_id, kind `booking|quote|invite`, target_id, token_hash unique, expires_at, revoked_at, created_at). Only the sha256 of the link token is stored; the booking link expires 60 days after the event date.
+- `booking_ref_counters` (tenant_id, yymm, n) pk (tenant_id, yymm). Gives the `<PREFIX>-<YYMM>-<NNNN>` reference; PREFIX is the first two letters of the tenant slug, and NNNN is at least four digits (it widens past 9999, never fails).
+- `booking_request_hits` (tenant_id, key_hash, at). Rate limit: 5 requests per hour per phone or IP-bucket hash, and 30 per hour per venue (rows with the fixed key_hash `venue`). Rows are never pruned in M4; the M7 job runner will.
+- Not built yet: `enquiries`, `hold_expires_at`, `referral_code_id` (holds come with quick booking in M5, referrals in M9).
+
+Statuses in M4: `requested`, `confirmed`, `declined`, `cancelled`. Allowed moves: `requested` to `confirmed`, `declined` or `cancelled`; `confirmed` to `cancelled`. The trigger `check_booking_update()` refuses any other move, and once a booking leaves `requested` its details are locked: a confirmed one can only be cancelled, and a declined or cancelled one never changes. The one exception is the event type and package ids, which may become null when Publish removes the row. A decline or cancel needs a reason. A request whose date has passed shows as "expired" on read; no status is stored. M5 adds `awaiting_advance`.
+
+Status changes go through the service-role functions `confirm_booking()` (writes quote v1 and confirms in one transaction), `decline_booking()` and `cancel_booking()` (`20261027000300_booking_staff_fns.sql`). A public request goes through `create_booking_request()` (`20261027000200_booking_request_fn.sql`): rate limit, customer, reference, booking and token in one transaction. None of these is callable by browsers.
 
 ### payments
 - `payments` (id, tenant_id, booking_id, kind `advance|balance|refund|adjustment`, method, amount_paisa, status `pending|verified|failed|refund_pending|refunded`, provider, provider_ref, recorded_by, verified_by, created_at) unique (provider, provider_ref)
@@ -68,16 +75,17 @@ Postgres. Every tenant-owned table has `tenant_id uuid not null` (the venue's te
 create extension if not exists btree_gist;
 alter table bookings add constraint no_overlap
   exclude using gist (hall_id with =, during with &&)
-  where (status in ('held','quote_prepared','awaiting_advance','confirmed','planning','ready'));
+  where (status = 'confirmed');
 ```
-Reserving runs in one transaction: first mark this hall's expired holds as `hold_expired`, then insert. Two people reserving at once: one insert wins, the other gets a clean "date just taken" message. Availability reads treat a hold past `hold_expires_at` as free. The job runner also expires holds every minute.
+Only `confirmed` bookings count in M4. A request has no hall and no range, so requests never conflict and a taken date is accepted like any other. `during` is the slot on the event date in the venue time zone, widened by the slot's `buffer_minutes` at both ends; a slot whose end is not after its start ends the next day. Two slots whose buffered ranges overlap block each other in the same hall. Two managers confirming at once: `confirm_booking()` takes a per-hall advisory lock, so the second sees the first's committed row, gets `23P01` and the server turns it into a plain "slot just taken" message with nothing kept. When quick booking arrives in M5, the status list grows (`awaiting_advance`, with holds and `hold_expires_at`) and the constraint changes with it.
 
 ## RLS strategy
 
 - RLS on every table. Helper functions (security definer, stable): `is_platform_admin()`, `auth_has_perm(tenant_id, key)` = active membership + role permission ± overrides.
 - Select policy: `is_platform_admin() or auth_has_perm(tenant_id, '<module>.view')`. Write policies use the edit key.
-- Public data (site config, catalogue, free/held/booked per date with no customer fields) is read through server-side views or functions, not open tables.
-- Token pages resolve on the server with the service role after hashing and checking the token; they return only that booking's fields.
+- Public data (site config, catalogue) is read through server-side views or functions, not open tables. Availability is never public.
+- Token pages resolve on the server with the service role after hashing and checking the token; they return only that booking's fields, never the full phone or a staff reason.
+- Booking tables (M4): RLS is on for all seven. `customers`, `bookings`, `quotes` and `booking_status_history` have a select policy for `bookings.view` and no client write policy. `access_tokens`, `booking_ref_counters` and `booking_request_hits` have no policy and all rights are revoked from `anon` and `authenticated`. The trigger functions are revoked from clients too.
 - `tenant_secrets` and `provider_events` have no client policies; `tenant_secrets` is also revoked from client roles. `audit_events` has a read-only policy for holders of `audit.view`; rows are added only through `record_audit()` and update/delete are blocked by trigger.
 - Owner protection: below the super admin, an owner membership cannot be deactivated, deleted, re-roled or have its overrides edited, and nobody can assign the owner role. Only the super admin changes owners (`supabase/migrations/20261020000700_owner_protection.sql`).
 - Published site content (event types, packages, offers, add-ons, stage themes, `tenant_settings`) cannot be written by a client outside Publish: a trigger refuses it unless `publish_site()` set `app.publishing`. Hall, slot and date price writes are direct but audited by trigger.
@@ -85,7 +93,7 @@ Reserving runs in one transaction: first mark this hall's expired holds as `hold
 
 ## Indexes
 
-`(tenant_id, …)` on every foreign-key lookup; `bookings (tenant_id, status, during)`; `enquiries (tenant_id, first_reply_at) where first_reply_at is null`; `messages (status, scheduled_for)`; `payments (tenant_id, booking_id)`; `access_tokens (token_hash)`.
+`(tenant_id, …)` on every foreign-key lookup; `bookings (tenant_id, event_date)`; `enquiries (tenant_id, first_reply_at) where first_reply_at is null`; `messages (status, scheduled_for)`; `payments (tenant_id, booking_id)`; `access_tokens (token_hash)`.
 
 ## Retention
 
@@ -93,4 +101,4 @@ Bookings and payments kept for accounting (tenant-configurable, default 7 years)
 
 ## Seeds
 
-Two demo tenants (Manor with sample prices labelled "sample", and a fictional second venue with a different theme), demo users per role, sample bookings across statuses.
+Two demo tenants (Manor with sample prices labelled "sample", and a fictional second venue with a different theme), demo users per role, two sample `requested` bookings and one `confirmed` booking (with quote) for Manor, at 90 to 100 days out, written by `scripts/seed-bookings.ts`. More statuses come with later milestones.

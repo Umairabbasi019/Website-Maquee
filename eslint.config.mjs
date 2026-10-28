@@ -3,7 +3,7 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 // Add a name here when a new module is created under src/modules.
-const modules = ["tenants", "access", "catalogue", "media", "site", "calendar", "editor"];
+const modules = ["tenants", "access", "catalogue", "media", "site", "calendar", "editor", "booking"];
 
 const restrictModuleInternals = (allowedModule) => [
   "error",
