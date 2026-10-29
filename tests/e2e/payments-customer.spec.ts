@@ -130,9 +130,10 @@ test("a Manor receipt form posted on another venue's host saves nothing", async 
   const count = async () => (await db.query("select count(*)::int n from payments where tenant_id = $1", [tenant])).rows[0].n;
   const before = await count();
   const other = "http://demo.localhost:3000";
-  const res = await customer.request.post(`${other}${link}`, {
+  // Node cannot resolve *.localhost, so the request goes to the loopback address and names the other venue in Host.
+  const res = await customer.request.post(`http://127.0.0.1:3000${link}`, {
     multipart: { ...hidden, method: "bank", amount: "500", receipt: { name: "r.jpg", mimeType: "image/jpeg", buffer: await jpeg() } },
-    headers: { Origin: other },
+    headers: { Host: "demo.localhost:3000", Origin: other },
     maxRedirects: 0,
   });
   expect(res.headers()["location"]).toMatch(/err=invalid$/);
@@ -152,7 +153,8 @@ test("quick booking lands on the held page, and opening ?paid=1 without paying s
   link = new URL(page.url()).pathname;
 
   await page.getByRole("button", { name: en["pay.online"] }).click();
-  await expect(page).toHaveURL(/\/pay\/sandbox\/[^/?]+$/);
+  // The first visit compiles the sandbox route on the dev server, which can take longer than the default wait.
+  await expect(page).toHaveURL(/\/pay\/sandbox\/[^/?]+$/, { timeout: 15_000 });
   sandboxUrl = page.url();
 
   // Review Focus 3: the return redirect proves nothing. Only a pending online row says Checking.

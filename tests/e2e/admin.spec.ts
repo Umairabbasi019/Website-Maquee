@@ -26,7 +26,8 @@ test.afterAll(async () => {
     manorLimits.login_limit,
     manorLimits.manager_limit,
   ]);
-  await db.query("delete from tenant_secrets where tenant_id = (select id from tenants where slug = 'manor')");
+  // Only the WhatsApp secret this file saves; the seeded payments key must survive for the payments specs.
+  await db.query("delete from tenant_secrets where kind = 'whatsapp' and tenant_id = (select id from tenants where slug = 'manor')");
   await db.end();
 });
 
