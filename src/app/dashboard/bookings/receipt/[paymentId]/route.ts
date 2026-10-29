@@ -13,7 +13,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ payment
   if (!venue) return new Response(null, { status: 404 });
   try {
     const url = await receiptUrl(venue.id, (await params).paymentId);
-    return url ? NextResponse.redirect(url, { headers: { "Cache-Control": "no-store" } }) : new Response(null, { status: 404 });
+    return url ? NextResponse.redirect(url, { headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex", "Referrer-Policy": "no-referrer" } }) : new Response(null, { status: 404 });
   } catch (e) {
     if (e instanceof ForbiddenError) return new Response(null, { status: 403 });
     throw e;

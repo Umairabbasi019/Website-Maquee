@@ -156,7 +156,7 @@ export default async function BookingPage({ params, searchParams }: Props) {
       )}
       {edit && CANCELLABLE.includes(b.status) && (
         <Section id="booking-cancel" title="bookings.cancel.heading">
-          <ReasonForm bookingId={b.id} kind="cancel" paidPaisa={ledger?.summary.paidPaisa} action={cancelAction} />
+          <ReasonForm bookingId={b.id} kind="cancel" paidPaisa={!b.quote ? 0 : ledger ? ledger.summary.paidPaisa : null} action={cancelAction} />
         </Section>
       )}
       <Section id="booking-history" title="bookings.detail.history">

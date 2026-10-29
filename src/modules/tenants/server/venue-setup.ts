@@ -143,7 +143,7 @@ export async function getMoneyRules(tenantId: string): Promise<TenantSettings["m
   return (await readMoneyRules(tenantId)).rules;
 }
 
-const withoutGateway = (methods: string[]) => methods.filter((m) => m !== "gateway");
+const withoutGateway = (methods: string[]) => methods.filter((m) => m !== "gateway").sort();
 // Changing these is the venue's mode switch (instant booking, card gateway), not venue setup.
 const MODE_PERMS = ["bookings.edit", "payments.verify"] as const;
 

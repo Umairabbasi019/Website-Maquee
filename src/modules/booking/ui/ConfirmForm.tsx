@@ -177,8 +177,8 @@ export function ConfirmForm({ bookingId, halls, hallId, preview, canOverride, ac
 type ReasonProps = {
   bookingId: string;
   kind: "decline" | "cancel";
-  /** Verified money on the booking. Above 0, cancelling needs the choice to keep it or refund it. */
-  paidPaisa?: number;
+  /** Verified money on the booking. Above 0, cancelling needs the choice to keep it or refund it. Null: unknown (the viewer cannot see payments), so the choice shows anyway. */
+  paidPaisa?: number | null;
   action: (state: ReasonFormState, fd: FormData) => Promise<ReasonFormState>;
 };
 
@@ -208,9 +208,9 @@ export function ReasonForm({ bookingId, kind, paidPaisa = 0, action }: ReasonPro
           {...marked(state?.error === "invalid", errorId)}
         />
       </label>
-      {kind === "cancel" && paidPaisa > 0 && (
+      {kind === "cancel" && (paidPaisa === null || paidPaisa > 0) && (
         <fieldset role="radiogroup" {...marked(state?.error === "refundChoice", errorId)}>
-          <legend>{t("bookings.cancel.money", { amount: formatRs(paidPaisa) })}</legend>
+          <legend>{paidPaisa === null ? t("bookings.cancel.moneyUnknown") : t("bookings.cancel.money", { amount: formatRs(paidPaisa) })}</legend>
           <label className="block">
             <input type="radio" name="refundDue" value="true" required /> {t("bookings.cancel.refundDue")}
           </label>

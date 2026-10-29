@@ -105,7 +105,7 @@ test("a manager confirms with an override and the customer link shows the final 
 
   await expect(page.getByText(en["bookings.status.confirmed"], { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("form", { name: en["bookings.confirm.heading"] })).toHaveCount(0);
-  await expect(page.getByText("Rs 700,000").first()).toBeVisible();
+  await expect(page.getByRole("region", { name: en["bookings.detail.quote"] }).getByText("Rs 700,000")).toBeVisible();
   // Staff see why the total differs from the calculated lines.
   await expect(page.getByText(/^Changed from Rs [\d,]+: Agreed on the phone$/)).toBeVisible();
 

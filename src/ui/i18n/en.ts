@@ -244,6 +244,7 @@ export const en = {
   "bookings.cancel.reason": "Reason for cancelling (staff only)",
   "bookings.cancel.submit": "Cancel booking",
   "bookings.cancel.money": "{amount} has been paid. What happens to it?",
+  "bookings.cancel.moneyUnknown": "If money has been paid, what happens to it?",
   "bookings.cancel.refundDue": "Refund due",
   "bookings.cancel.keep": "Keep the money",
   "bookings.error.invalid": "Enter the final total in rupees, like 700,000, and a reason of 3 to 300 characters.",

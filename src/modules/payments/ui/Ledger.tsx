@@ -1,11 +1,10 @@
 import { formatRs, rupeesInput } from "@/sections/shared/format";
 import { buttonClass, inputClass } from "@/ui/form-styles";
 import { t, type TranslationKey } from "@/ui/i18n";
-import type { LedgerSummary, PaymentRow, PaymentState } from "../ledger";
+import { STAFF_METHODS, type LedgerSummary, PaymentRow, PaymentState } from "../ledger";
 
 const LEDGER_ERRORS = ["invalid", "forbidden", "notFound", "state", "amount", "limit"];
 const ROW_STATUS = { pending: "pay.row.checking", verified: "pay.row.verified", rejected: "pay.row.rejected" } as const;
-const STAFF_METHODS = ["bank", "jazzcash", "easypaisa", "cash"] as const;
 
 type Action = (fd: FormData) => Promise<void>;
 type Actions = { verify: Action; reject: Action; record: Action; terms: Action; check: Action };

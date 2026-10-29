@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createServerClient, createServiceClient, recordAuditAfterCommit, requirePerm } from "@/modules/access";
 import { check } from "@/modules/booking";
 import { parseRupees } from "@/sections/shared/format";
-import type { PaymentRow } from "../ledger";
+import { STAFF_METHODS, type PaymentRow } from "../ledger";
 
 // Staff payment actions. `tenantId` always comes from getDashboard() in the calling Server Action, never from the browser.
 // Reads use the session client (RLS). Writes check payments.verify here, confirm the row is this venue's, then call a
@@ -17,8 +17,6 @@ const DEADLOCK = "40P01";
 const RECEIPT_SECONDS = 300;
 const BUCKET = "payment-receipts";
 
-// Staff never record an online payment: only the provider does.
-const STAFF_METHODS = ["bank", "jazzcash", "easypaisa", "cash"] as const;
 export const Uuid = z.uuid();
 const Rupees = z.string().transform((s) => parseRupees(s)).pipe(z.number());
 const RecordInput = z.object({

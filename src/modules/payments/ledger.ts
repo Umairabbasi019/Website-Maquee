@@ -1,3 +1,6 @@
+/** The methods staff may record by hand; only the provider records an online payment. */
+export const STAFF_METHODS = ["bank", "jazzcash", "easypaisa", "cash"] as const;
+
 export type PaymentRow = {
   id: string;
   kind: "payment" | "refund";
