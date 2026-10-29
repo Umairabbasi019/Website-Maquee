@@ -15,7 +15,7 @@ const tables: Record<string, Row[]> = {};
 const rpcs: { fn: string; args: Row }[] = [];
 const audits: Row[] = [];
 const held = new Set<string>();
-let secret: string | null = "venue-secret";
+const secrets: Record<string, string | null> = {};
 let rpcResult = "applied";
 
 function reset() {
@@ -70,7 +70,7 @@ vi.mock("@/modules/booking", () => ({
 }));
 vi.mock("@/modules/tenants", async () => ({
   MoneyRulesSchema: (await import("@/modules/tenants/settings")).MoneyRulesSchema,
-  readTenantSecret: async () => secret,
+  readTenantSecret: async (tenantId: string) => secrets[tenantId] ?? null,
 }));
 
 const { handleWebhook, startOnlinePayment, checkOnlineStatus, sandboxCheckout, completeSandbox } = await import("@/modules/payments/server/online");
@@ -88,7 +88,8 @@ beforeEach(() => {
   audits.length = 0;
   held.clear();
   held.add("payments.verify");
-  secret = "venue-secret";
+  secrets[T1] = "venue-secret";
+  secrets[T2] = "other-venue-secret";
   rpcResult = "applied";
   vi.stubEnv("PAYMENTS_SANDBOX", "1");
 });
@@ -125,11 +126,23 @@ describe("handleWebhook", () => {
     expect(rpcs).toEqual([]);
   });
 
+  it("answers 400 for a body signed with another venue's key, and writes nothing", async () => {
+    await expect(handleWebhook("sandbox", body, signedHeaders(body, "other-venue-secret"))).resolves.toEqual({ status: 400 });
+    expect(rpcs).toEqual([]);
+  });
+
+  it("answers 400 when the signed event is for a different payment than the one that chose the key", async () => {
+    tables.payments.push({ tenant_id: T1, id: id(4), booking_id: BOOKING, kind: "payment", status: "pending", amount_paisa: 50_000, provider: "sandbox", provider_ref: "sbx_ref2" });
+    vi.spyOn(sandboxProvider, "peekRef").mockReturnValueOnce("sbx_ref2");
+    await expect(handleWebhook("sandbox", body, signedHeaders())).resolves.toEqual({ status: 400 });
+    expect(rpcs).toEqual([]);
+  });
+
   it("answers 400 for an unknown reference, an unreadable body and a venue with no secret", async () => {
     const other = JSON.stringify({ ...EVENT, providerRef: "sbx_none" });
     await expect(handleWebhook("sandbox", other, signedHeaders(other))).resolves.toEqual({ status: 400 });
     await expect(handleWebhook("sandbox", "nope", signedHeaders("nope"))).resolves.toEqual({ status: 400 });
-    secret = null;
+    secrets[T1] = null;
     await expect(handleWebhook("sandbox", body, signedHeaders())).resolves.toEqual({ status: 400 });
     expect(rpcs).toEqual([]);
   });
@@ -149,6 +162,14 @@ describe("webhook route", () => {
     expect((await call("nope", body, signedHeaders())).status).toBe(404);
   });
 
+  it("returns 413 for a body over 64 KB, by Content-Length or by actual size, without calling the webhook code", async () => {
+    const big = "x".repeat(64 * 1024 + 1);
+    expect((await call("sandbox", big, signedHeaders())).status).toBe(413);
+    const lying = new Headers({ "content-length": String(64 * 1024 + 1) });
+    expect((await call("sandbox", "{}", lying)).status).toBe(413);
+    expect(rpcs).toEqual([]);
+  });
+
   it("returns 200 and the result for a good delivery", async () => {
     const res = await call("sandbox", body, signedHeaders());
     expect(res.status).toBe(200);
@@ -163,9 +184,9 @@ describe("startOnlinePayment", () => {
     tables.tenant_settings[0].money_rules = { paymentMethods: ["bank"] };
     await expect(start()).resolves.toEqual({ error: "off" });
     reset();
-    secret = null;
+    secrets[T1] = null;
     await expect(start()).resolves.toEqual({ error: "off" });
-    secret = "venue-secret";
+    secrets[T1] = "venue-secret";
     vi.stubEnv("PAYMENTS_SANDBOX", "");
     await expect(start()).resolves.toEqual({ error: "off" });
     expect(rpcs).toEqual([]);
@@ -198,7 +219,8 @@ describe("startOnlinePayment", () => {
 
   it("refuses a booking that is fully paid, one that cannot take payment, and another venue", async () => {
     await expect(start(id(2))).resolves.toEqual({ error: "state" });
-    await expect(startOnlinePayment(T2, BOOKING, "/b/tok")).resolves.toEqual({ error: "off" });
+    tables.tenant_settings.push({ tenant_id: T2, money_rules: { paymentMethods: ["gateway"] } });
+    await expect(startOnlinePayment(T2, BOOKING, "/b/tok")).resolves.toEqual({ error: "state" });
     tables.payments.push({ tenant_id: T1, id: id(7), booking_id: BOOKING, kind: "payment", status: "verified", amount_paisa: 100_000 });
     await expect(start()).resolves.toEqual({ error: "amount" });
     expect(rpcs).toEqual([]);

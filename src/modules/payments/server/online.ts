@@ -117,7 +117,8 @@ export async function handleWebhook(providerId: string, rawBody: string, headers
   const payment = ref && (await paymentByRef(provider.id, ref));
   const secret = payment && (await readTenantSecret(payment.tenant_id, "payments"));
   const event = secret ? provider.verifyWebhook(rawBody, headers, secret) : null;
-  if (!event) return { status: 400 };
+  // The key was chosen by the ref peeked before verifying; the signed event must be for that same payment.
+  if (!event || event.providerRef !== ref) return { status: 400 };
   return { status: 200, result: await applyEvent(provider.id, event, event) };
 }
 
@@ -131,6 +132,7 @@ export async function checkOnlineStatus(tenantId: string, paymentId: string): Pr
   const ref = row.provider_ref;
   const secret = await readTenantSecret(tenantId, "payments");
   if (!provider || typeof ref !== "string" || secret === null) return { error: "state" };
+  // shortcut: getStatus is status-only so amount/currency mismatch cannot be detected on this path; widen getStatus to return amount+currency when the first real adapter lands
   const status = await provider.getStatus(ref, secret);
   if (status === "pending") return { ok: true };
   const result = await applyEvent(

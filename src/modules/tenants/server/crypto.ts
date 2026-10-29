@@ -21,7 +21,7 @@ export function encryptSecret(plain: string): string {
   return [VERSION, ...[iv, cipher.getAuthTag(), data].map((b) => b.toString("base64"))].join(":");
 }
 
-/** For future server-side providers only. Never call from UI or route code that returns the value. */
+/** Server only (through readTenantSecret). Never return the value to the UI or a response. */
 export function decryptSecret(cipher: string): string {
   const [version, iv, tag, data] = cipher.split(":");
   if (version !== VERSION || !iv || !tag || data === undefined) throw new Error("Malformed secret ciphertext");
