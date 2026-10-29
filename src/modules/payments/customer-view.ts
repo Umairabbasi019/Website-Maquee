@@ -26,6 +26,8 @@ type Input = {
   methods: string[];
   accounts: Accounts;
   onlineEnabled: boolean;
+  /** An expired hold whose range another booking now holds: money paid now could only be refunded. */
+  slotTaken: boolean;
 };
 
 // Before a hall is held (or after the request was turned down) there is nothing to pay.
@@ -37,7 +39,7 @@ const PAYABLE = ["awaiting_advance", "confirmed", "hold_expired"];
 export function customerPayments(i: Input): CustomerPayments | null {
   if (NOTHING_TO_PAY.includes(i.status)) return null;
   const summary = summarise(i.totalPaisa, i.advancePaisa, i.rows);
-  const payable = PAYABLE.includes(i.status) && summary.balancePaisa > 0;
+  const payable = PAYABLE.includes(i.status) && !(i.status === "hold_expired" && i.slotTaken) && summary.balancePaisa > 0;
   const { bank, jazzcash, easypaisa } = i.accounts;
   const accounts = [
     ...(i.methods.includes("bank") && bank ? [{ method: "bank" as const, lines: [bank.bankName, bank.accountTitle, bank.accountNumber] }] : []),

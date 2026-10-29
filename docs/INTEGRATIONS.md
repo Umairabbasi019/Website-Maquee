@@ -23,5 +23,6 @@ Until a service is connected, the app shows "not connected" or "ready to send" a
 
 - Online payment uses one `PaymentProvider` per deployment, chosen by `availableProvider()`. Today that is the sandbox, only when `PAYMENTS_SANDBOX=1` and not a production build, so the `gateway` method cannot be switched on in production until a real adapter exists.
 - To add a gateway: implement `PaymentProvider` in `src/modules/payments/providers/<vendor>.ts` (`newRef`, `createPayment`, `peekRef`, `verifyWebhook`, `getStatus`), register it in `availableProvider()`, save the venue's key as its `payments` secret, and point the gateway's webhook at `POST /api/payments/webhook/<provider id>`. Widen `getStatus` to return amount and currency at the same time (see `DECISIONS.md`).
+- A webhook for a reference with no payment row answers 400 before anything is stored: there is no venue key to check it with. If a real gateway keeps retrying those, answer 200 with nothing stored instead.
 - The sandbox signs the raw webhook body with HMAC-SHA256 using the venue's secret, header `x-sandbox-signature`. `npm run db:seed` gives Manor a random local key.
 - Receipts are stored in the private `payment-receipts` bucket; no third-party storage is involved.

@@ -104,6 +104,8 @@ create policy payments_read on payments for select to authenticated
   using (public.auth_has_perm(tenant_id, 'payments.view'));
 
 revoke all on provider_events from anon, authenticated;
+-- Clients only read payments (RLS above); every write goes through the service-role functions.
+revoke insert, update, delete, truncate on payments from anon, authenticated;
 
 -- No storage policies: the bucket is private, and the server reads and writes it with the service role only.
 insert into storage.buckets (id, name, public) values ('payment-receipts', 'payment-receipts', false);

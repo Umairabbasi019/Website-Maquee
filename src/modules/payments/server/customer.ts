@@ -6,7 +6,7 @@ import { checkImage } from "@/modules/media";
 import { MoneyRulesSchema } from "@/modules/tenants";
 import { parseRupees } from "@/sections/shared/format";
 import { customerPayments, type CustomerPayments } from "../customer-view";
-import { onlineEnabled } from "./online";
+import { onlineEnabled, slotTaken } from "./online";
 import { callSql, fail, inTenant, refusal } from "./staff";
 
 // The customer's side of a payment, behind the private booking link. `tenantId` is the host's venue, never the browser's.
@@ -28,14 +28,15 @@ type DbRow = {
 
 /** A booking's money as the customer sees it; null while the booking is a request, declined or expired. */
 export async function getCustomerPayments(tenantId: string, bookingId: string): Promise<CustomerPayments | null> {
-  const booking = await inTenant("bookings", tenantId, bookingId, "status, current_quote_id");
+  const booking = await inTenant("bookings", tenantId, bookingId, "id, status, current_quote_id, hall_id, during");
   if (!booking || typeof booking.current_quote_id !== "string") return null;
   const db = createServiceClient();
-  const [quote, rows, settings, online] = await Promise.all([
+  const [quote, rows, settings, online, taken] = await Promise.all([
     db.from("quotes").select("total_paisa, advance_paisa").eq("tenant_id", tenantId).eq("id", booking.current_quote_id).single<{ total_paisa: number; advance_paisa: number }>(),
     db.from("payments").select("id, kind, method, amount_paisa, status, reject_reason, created_at").eq("tenant_id", tenantId).eq("booking_id", bookingId).order("created_at").returns<DbRow[]>(),
     db.from("tenant_settings").select("money_rules").eq("tenant_id", tenantId).maybeSingle<{ money_rules: unknown }>(),
     onlineEnabled(tenantId),
+    booking.status === "hold_expired" && slotTaken(tenantId, booking as { id: string; hall_id: string | null; during: string | null }),
   ]);
   const q = check(quote, "quotes");
   const rules = MoneyRulesSchema.parse(check(settings, "tenant_settings")?.money_rules ?? {});
@@ -55,6 +56,7 @@ export async function getCustomerPayments(tenantId: string, bookingId: string): 
     methods: rules.paymentMethods,
     accounts: rules.paymentAccounts,
     onlineEnabled: online,
+    slotTaken: taken,
   });
 }
 

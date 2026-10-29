@@ -24,10 +24,17 @@ const input = (over = {}) => ({
   methods: ["bank", "jazzcash", "easypaisa"],
   accounts,
   onlineEnabled: false,
+  slotTaken: false,
   ...over,
 });
 
 describe("customerPayments", () => {
+  it("offers nothing to pay on an expired hold whose slot another booking took, but still shows its money", () => {
+    const view = customerPayments(input({ status: "hold_expired", slotTaken: true, onlineEnabled: true, rows: [row({ status: "verified" })] }));
+    expect(view).toMatchObject({ online: false, canUpload: false, summary: { paidPaisa: 10_000 } });
+    expect(customerPayments(input({ status: "hold_expired", onlineEnabled: true }))).toMatchObject({ online: true, canUpload: true });
+  });
+
   it("lists accounts only for enabled methods that have details", () => {
     const p = customerPayments(input({ methods: ["bank", "easypaisa", "gateway"], accounts: { bank: accounts.bank, jazzcash: accounts.jazzcash } }));
     expect(p?.accounts).toEqual([{ method: "bank", lines: ["Meezan", "Manor Marquee", "PK00MEZN0000000000"] }]);

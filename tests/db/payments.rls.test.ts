@@ -73,13 +73,16 @@ describe("payments RLS", () => {
       expect(rows.rows.map((r) => r.tenant_id)).toEqual([s.B.tenant]);
     }));
 
-  it("refuses insert, and update or delete reach no row", () =>
+  it("refuses insert, update and delete to every client role", () =>
     withDb(async (c) => {
       const s = await seed(c);
-      await asUser(c, s.manager);
-      await expectReject(c, PAYMENT, [s.A.tenant, s.A.booking], /row-level security/);
-      expect((await c.query("update payments set note = 'x'")).rowCount).toBe(0);
-      expect((await c.query("delete from payments")).rowCount).toBe(0);
+      for (const user of [null, s.manager]) {
+        await asUser(c, user);
+        await expectReject(c, PAYMENT, [s.A.tenant, s.A.booking], /permission denied/);
+        await expectReject(c, "update payments set note = 'x'", [], /permission denied/);
+        await expectReject(c, "delete from payments", [], /permission denied/);
+        await c.query("reset role");
+      }
     }));
 
   it("refuses every client role on provider_events", () =>

@@ -31,14 +31,35 @@ export async function onlineEnabled(tenantId: string): Promise<boolean> {
   return !!row && MoneyRulesSchema.parse(row.money_rules).paymentMethods.includes("gateway") && (await readTenantSecret(tenantId, "payments")) !== null;
 }
 
+/** True when an expired hold's range is now held or confirmed by another booking in its hall, as `settle_booking` checks. */
+export async function slotTaken(tenantId: string, booking: { id: string; hall_id: string | null; during: string | null }): Promise<boolean> {
+  if (!booking.hall_id || !booking.during) return false;
+  const { count, error } = await db()
+    .from("bookings")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("hall_id", booking.hall_id)
+    .overlaps("during", booking.during)
+    .in("status", ["confirmed", "awaiting_advance"])
+    .neq("id", booking.id);
+  if (error) throw new Error(`bookings: ${error.message}`);
+  return (count ?? 0) > 0;
+}
+
 /** What to ask for: the rest of the advance, or the balance once the advance is met. A word when the booking cannot take money. */
 async function amountDue(tenantId: string, bookingId: string): Promise<number | "state" | "amount"> {
   if (!Uuid.safeParse(bookingId).success) return "state";
   const booking = check(
-    await db().from("bookings").select("status, current_quote_id").eq("tenant_id", tenantId).eq("id", bookingId).maybeSingle<{ status: string; current_quote_id: string | null }>(),
+    await db()
+      .from("bookings")
+      .select("id, status, current_quote_id, hall_id, during")
+      .eq("tenant_id", tenantId)
+      .eq("id", bookingId)
+      .maybeSingle<{ id: string; status: string; current_quote_id: string | null; hall_id: string | null; during: string | null }>(),
     "bookings",
   );
   if (!booking?.current_quote_id || !PAYABLE.includes(booking.status)) return "state";
+  if (booking.status === "hold_expired" && (await slotTaken(tenantId, booking))) return "state";
   const quote = check(
     await db().from("quotes").select("total_paisa, advance_paisa").eq("tenant_id", tenantId).eq("id", booking.current_quote_id).single<{ total_paisa: number; advance_paisa: number }>(),
     "quotes",
@@ -65,6 +86,8 @@ export async function startOnlinePayment(
   if (!provider || !(await onlineEnabled(tenantId))) return { error: "off" };
   const due = await amountDue(tenantId, bookingId);
   if (typeof due === "string") return { error: due };
+  // shortcut: each start makes a new pending row, so two finished checkouts overpay (the overpaid alert lists it); reuse a
+  // recent pending row for the same amount once the first real gateway says whether a merchant reference may be sent twice.
   const providerRef = provider.newRef();
   const { data, error } = await callSql("record_payment", {
     p_booking: bookingId,

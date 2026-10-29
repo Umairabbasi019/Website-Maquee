@@ -157,6 +157,8 @@ async function tenantTables(c: Client): Promise<string[]> {
 
 // Revoked from client roles outright (tests/db/tenant-secrets.test.ts, tests/db/booking.rls.test.ts), so RLS count checks do not apply.
 const REVOKED_TABLES = new Set(["tenant_secrets", "access_tokens", "booking_ref_counters", "booking_request_hits", "provider_events"]);
+// Readable through RLS but with no client write grant; their write refusals are tested in their own RLS file.
+const READ_ONLY_TABLES = new Set(["payments"]);
 
 async function allTables(c: Client): Promise<string[]> {
   const r = await c.query(
@@ -187,6 +189,7 @@ describe("access RLS", () => {
       expect(await count(c, "select count(*) from tenant_settings where tenant_id = $1", [s.A])).toBe(1);
       for (const t of tables.filter((t) => !REVOKED_TABLES.has(t))) {
         expect(await count(c, `select count(*) from public.${t} where tenant_id = $1`, [s.B]), t).toBe(0);
+        if (READ_ONLY_TABLES.has(t)) continue;
         expect((await c.query(`update public.${t} set tenant_id = tenant_id where tenant_id = $1`, [s.B])).rowCount, t).toBe(0);
         expect((await c.query(`delete from public.${t} where tenant_id = $1`, [s.B])).rowCount, t).toBe(0);
       }

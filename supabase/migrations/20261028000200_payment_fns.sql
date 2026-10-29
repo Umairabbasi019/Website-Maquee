@@ -103,9 +103,10 @@ begin
     raise exception using errcode = 'P0001', message = 'invalid_actor';
   end if;
   v_booking := public.lock_booking(p_booking);
-  if not (v_booking.status in ('confirmed', 'awaiting_advance', 'hold_expired', 'refund_pending')
-    -- A refunded booking can still take a refund: late money from a webhook that finished after the last refund.
-    or (p_kind = 'refund' and v_booking.status in ('cancelled', 'refunded'))) then
+  -- Money comes in only while the booking can still use it. A refund can follow any money paid, including late money
+  -- from a webhook that finished after the last refund.
+  if not (v_booking.status in ('confirmed', 'awaiting_advance', 'hold_expired')
+    or (p_kind = 'refund' and v_booking.status in ('refund_pending', 'cancelled', 'refunded'))) then
     raise exception using errcode = 'P0001', message = 'payment_state';
   end if;
   v_paid := public.booking_paid(p_booking);
