@@ -19,10 +19,13 @@ $$;
 
 -- No job runner yet: a hold past its time only frees the range when another write needs it. Called with the hall lock held.
 -- shortcut: holds expire only on a clash here, so the stored status lags; the M7 job runner expires them on time.
+-- The caller is taking the range, so an expired hold with money paid has lost its slot and goes to refund_pending.
 create function public.expire_holds(p_hall uuid, p_during tstzrange) returns void
 language sql set search_path = '' as $$
   update public.bookings set status = 'hold_expired'
   where hall_id = p_hall and during && p_during and status = 'awaiting_advance' and hold_expires_at < now();
+  update public.bookings set status = 'refund_pending'
+  where hall_id = p_hall and during && p_during and status = 'hold_expired' and public.booking_paid(id) > 0;
 $$;
 
 drop function public.confirm_booking(uuid, uuid, jsonb, int, int, uuid);

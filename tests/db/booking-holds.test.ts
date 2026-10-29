@@ -142,6 +142,18 @@ describe("confirm_booking with holds", () => {
       expect(await one(c, "select status || ' ' || advance_due_on::text from bookings where id = $1", [b])).toBe("confirmed 2027-01-05");
     }));
 
+  it("sends an expired hold with part of its advance paid to refund_pending when another booking takes the slot", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      const old = await s.quick([s.first], new Date(Date.now() - 3_600_000).toISOString());
+      await c.query("select public.record_payment($1, 'payment', 'cash', 20000, 'staff', null, null, null, null, $2)", [old.id, ACTOR]);
+      expect(await row(c, old.id)).toMatchObject({ status: "awaiting_advance" });
+      const b = await s.request();
+      await c.query(CONFIRM, [b, s.first, SNAPSHOT, "2027-01-05", ACTOR]);
+      expect(await row(c, old.id)).toMatchObject({ status: "refund_pending" });
+      expect(await row(c, b)).toMatchObject({ status: "confirmed" });
+    }));
+
   it("refuses a slot held by an unexpired hold", () =>
     withDb(async (c) => {
       const s = await seed(c);
