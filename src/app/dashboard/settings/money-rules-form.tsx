@@ -1,6 +1,6 @@
 "use client";
 import { useActionState, useId } from "react";
-import { MoneyRulesSchema, type TenantSettings } from "@/modules/tenants/client";
+import { ACCOUNT_FIELDS, MoneyRulesSchema, type TenantSettings } from "@/modules/tenants/client";
 import { buttonClass, inputClass } from "@/ui/form-styles";
 import { t } from "@/ui/i18n";
 import { saveMoneyRulesAction } from "./actions";
@@ -34,6 +34,10 @@ export function MoneyRulesForm({ rules, full, mode }: { rules: TenantSettings["m
           {t("settings.money.hold")}
           <input name="holdHours" type="number" min={1} required defaultValue={rules.holdHours} {...field} />
         </label>
+        <label className="block">
+          {t("settings.money.dueDays")}
+          <input name="advanceDueDays" type="number" min={0} max={60} required defaultValue={rules.advanceDueDays} {...field} />
+        </label>
       </div>
       <label className="flex items-center gap-2">
         <input name="instantBooking" type="checkbox" disabled={!mode} defaultChecked={rules.instantBooking} />
@@ -52,6 +56,18 @@ export function MoneyRulesForm({ rules, full, mode }: { rules: TenantSettings["m
           </label>
         ))}
       </fieldset>
+      <p className="text-sm">{t("settings.money.accountsNote")}</p>
+      {(Object.keys(ACCOUNT_FIELDS) as (keyof typeof ACCOUNT_FIELDS)[]).map((m) => (
+        <fieldset key={m} className="grid gap-3 sm:grid-cols-3">
+          <legend>{t(`settings.money.method.${m}`)}</legend>
+          {ACCOUNT_FIELDS[m].map((f) => (
+            <label key={f} className="block">
+              {t(`settings.money.account.${f}`)}
+              <input name={`${m}.${f}`} maxLength={80} defaultValue={(rules.paymentAccounts[m] as Record<string, string> | undefined)?.[f]} {...field} />
+            </label>
+          ))}
+        </fieldset>
+      ))}
       <FormStatus id={`${id}-error`} state={state} />
       <button type="submit" disabled={pending} className={buttonClass}>
         {t("settings.save")}

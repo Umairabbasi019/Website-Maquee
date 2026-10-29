@@ -56,6 +56,14 @@ export const MoneyRulesSchema = z.object({
     .default({}),
 });
 
+type PaymentAccounts = z.infer<typeof MoneyRulesSchema>["paymentAccounts"];
+// The settings form's inputs per account, in display order.
+export const ACCOUNT_FIELDS = {
+  bank: ["bankName", "accountTitle", "accountNumber"],
+  jazzcash: ["accountTitle", "number"],
+  easypaisa: ["accountTitle", "number"],
+} as const satisfies { [M in keyof PaymentAccounts]-?: readonly (keyof NonNullable<PaymentAccounts[M]>)[] };
+
 export const MessagingSchema = z.object({
   whatsappNumber: z.string().optional(),
   reminderDays: z.array(z.number().int().positive()),

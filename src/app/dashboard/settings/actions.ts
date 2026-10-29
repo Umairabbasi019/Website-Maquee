@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { can, ForbiddenError, type Viewer } from "@/modules/access";
 import { availableProvider } from "@/modules/payments";
 import { deleteDatePrice, listDatePrices, saveDatePrice, type DatePrice } from "@/modules/calendar";
-import { deleteSlot, getMoneyRules, listHalls, saveHall, saveMoneyRules, saveSlot } from "@/modules/tenants";
+import { ACCOUNT_FIELDS, deleteSlot, getMoneyRules, listHalls, saveHall, saveMoneyRules, saveSlot } from "@/modules/tenants";
 import { parseRupees } from "@/sections/shared/format";
 import type { TranslationKey } from "@/ui/i18n";
 import { getDashboard } from "../context";
@@ -23,6 +23,14 @@ const text = (fd: FormData, name: string) => String(fd.get(name) ?? "").trim();
 // Empty is NaN, so the module's Zod schema refuses it instead of reading 0.
 const num = (fd: FormData, name: string) => (text(fd, name) === "" ? NaN : Number(text(fd, name)));
 const id = (fd: FormData) => text(fd, "id") || undefined;
+// An account with every field blank is removed; a half-filled one fails the module's schema.
+const paymentAccounts = (fd: FormData) =>
+  Object.fromEntries(
+    Object.entries(ACCOUNT_FIELDS).flatMap(([method, fields]) => {
+      const values = Object.fromEntries(fields.map((f) => [f, text(fd, `${method}.${f}`)]));
+      return Object.values(values).some(Boolean) ? [[method, values]] : [];
+    }),
+  );
 
 // The venue only ever comes from the dashboard session; the browser sends only the row id it acts on, and every
 // write filters by this venue, so another venue's id changes nothing.
@@ -143,7 +151,13 @@ export async function saveMoneyRulesAction(_prev: FormState, fd: FormData): Prom
           showPriceEstimate,
           paymentMethods: gateway ? [...methods, "gateway"] : methods,
           ...(mode && { instantBooking: fd.get("instantBooking") === "on" }),
-          ...(setup && { taxPercent: num(fd, "taxPercent"), advancePercent: num(fd, "advancePercent"), holdHours: num(fd, "holdHours") }),
+          ...(setup && {
+            taxPercent: num(fd, "taxPercent"),
+            advancePercent: num(fd, "advancePercent"),
+            holdHours: num(fd, "holdHours"),
+            advanceDueDays: num(fd, "advanceDueDays"),
+            paymentAccounts: paymentAccounts(fd),
+          }),
         },
         availableProvider() !== null,
       ),

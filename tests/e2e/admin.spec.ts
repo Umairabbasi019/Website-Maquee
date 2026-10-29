@@ -54,7 +54,7 @@ test("super admin creates Test Hall and sees it with 0/6 checklist items", async
   const row = page.getByRole("row").filter({ hasText: "Test Hall" });
   await expect(row).toContainText("0/6");
   await expect(row).toContainText(en["status.setup"]);
-  await expect(page.getByRole("row").filter({ hasText: "Manor" })).toContainText("5/6");
+  await expect(page.getByRole("row").filter({ hasText: "Manor" })).toContainText("6/6");
   await shoot(page, "admin-list");
 });
 

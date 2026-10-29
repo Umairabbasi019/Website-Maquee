@@ -1,7 +1,7 @@
 import "server-only";
 import { createServerClient, recordAudit, requirePerm } from "@/modules/access";
 import { setupChecklist, type ChecklistItem } from "../checklist";
-import { IdentitySchema } from "../settings";
+import { IdentitySchema, MoneyRulesSchema } from "../settings";
 import { normalizeHost } from "./resolve";
 
 // Super admin console reads and writes. Every function checks platform.tenants.manage (aal2) itself;
@@ -25,7 +25,7 @@ type TenantRow = {
   slug: string;
   status: TenantStatus;
   tenant_domains: { host: string; verified_at: string | null }[];
-  tenant_settings: { identity: unknown } | null;
+  tenant_settings: { identity: unknown; money_rules: unknown } | null;
   halls: { count: number }[];
   packages: { count: number }[];
   media_assets: { count: number }[];
@@ -45,6 +45,7 @@ function check<T extends { data: unknown; error: { message: string } | null }>(
 function summarise(row: TenantRow, lastActivity: string | null): TenantSummary {
   const verified = row.tenant_domains.filter((d) => d.verified_at);
   const identity = IdentitySchema.safeParse(row.tenant_settings?.identity);
+  const money = MoneyRulesSchema.safeParse(row.tenant_settings?.money_rules);
   return {
     id: row.id,
     name: row.name,
@@ -56,17 +57,16 @@ function summarise(row: TenantRow, lastActivity: string | null): TenantSummary {
       {
         domains: verified.length,
         halls: row.halls[0]?.count ?? 0,
-        // shortcut: payment accounts have no table until M5, so this item stays honestly "missing".
         packages: row.packages[0]?.count ?? 0,
         heroMedia: row.media_assets[0]?.count ?? 0,
-        paymentAccounts: 0,
+        paymentAccounts: money.success ? Object.keys(money.data.paymentAccounts).length : 0,
       },
     ),
   };
 }
 
 const TENANT_SELECT =
-  "id, name, slug, status, tenant_domains(host, verified_at), tenant_settings(identity), halls(count), packages(count), media_assets(count)";
+  "id, name, slug, status, tenant_domains(host, verified_at), tenant_settings(identity, money_rules), halls(count), packages(count), media_assets(count)";
 
 async function lastActivity(db: Awaited<ReturnType<typeof createServerClient>>, tenantId: string) {
   const rows = check(
