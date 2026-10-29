@@ -5,12 +5,13 @@ export {
   normalisePkMobile,
   readRequestForm,
   requestFieldErrors,
+  todayIn,
   type BookingRequestInput,
   type RequestFormState,
   type RequestFormValues,
 } from "./request";
-export { createBookingRequest, estimateFor, getRequestOptions, hashKey } from "./server/request";
-export { getBookingByToken, type CustomerBookingView } from "./server/token";
+export { check, createBookingRequest, estimateFor, getRequestOptions, hashKey } from "./server/request";
+export { getBookingByToken, resolveBookingToken, type CustomerBookingView } from "./server/token";
 export {
   cancelBooking,
   confirmBooking,

@@ -51,7 +51,7 @@ vi.mock("@/modules/access", () => {
   };
 });
 
-const { deleteMedia, uploadDepth, uploadMedia } = await import("@/modules/media");
+const { checkImage, deleteMedia, uploadDepth, uploadMedia } = await import("@/modules/media");
 
 const jpegFile = async (name: string, width: number, height: number) =>
   new File([new Uint8Array(await sharp({ create: { width, height, channels: 3, background: "#884422" } }).jpeg().toBuffer())], name);
@@ -113,6 +113,21 @@ describe("uploadMedia", () => {
     expect(await uploadMedia(TENANT, file, { alt: "  ", category: "gallery" })).toEqual({ error: "alt" });
     expect(await uploadMedia(TENANT, file, { alt: "x", category: "../secret" })).toEqual({ error: "category" });
     expect(calls.uploads).toEqual([]);
+  });
+});
+
+describe("checkImage", () => {
+  const MB4 = 4 * 1024 * 1024;
+
+  it("refuses a file one byte over the caller's limit, and keeps the 15 MB limit for uploads", async () => {
+    expect(await checkImage(Buffer.alloc(MB4 + 1), MB4)).toEqual({ error: "tooLarge" });
+    expect(await checkImage(Buffer.alloc(MB4 + 1), 15 * 1024 * 1024)).toEqual({ error: "type" });
+  });
+
+  it("refuses a GIF by its bytes and accepts WebP", async () => {
+    expect(await checkImage(Buffer.from("GIF89a" + "0".repeat(20)), MB4)).toEqual({ error: "type" });
+    const webp = await sharp({ create: { width: 8, height: 8, channels: 3, background: "#fff" } }).webp().toBuffer();
+    expect(await checkImage(webp, MB4)).toMatchObject({ meta: { format: "webp", width: 8, height: 8 } });
   });
 });
 

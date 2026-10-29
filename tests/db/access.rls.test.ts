@@ -110,6 +110,10 @@ async function seed(c: Client) {
     [B, customerB, slotB, eventB],
   );
   await c.query("insert into quotes (tenant_id, booking_id, version, snapshot, total_paisa, advance_paisa) values ($1, $2, 1, '{}', 1, 1)", [B, bookingB]);
+  await c.query(
+    "insert into payments (tenant_id, booking_id, kind, method, amount_paisa, status, source) values ($1, $2, 'payment', 'cash', 1, 'verified', 'staff')",
+    [B, bookingB],
+  );
   await c.query("insert into access_tokens (tenant_id, kind, target_id, token_hash, expires_at) values ($1, 'booking', $2, 'h', now())", [B, bookingB]);
   await c.query("insert into booking_ref_counters (tenant_id, yymm, n) values ($1, '2701', 1)", [B]);
   await c.query("insert into booking_request_hits (tenant_id, key_hash) values ($1, 'k')", [B]);
@@ -152,7 +156,9 @@ async function tenantTables(c: Client): Promise<string[]> {
 }
 
 // Revoked from client roles outright (tests/db/tenant-secrets.test.ts, tests/db/booking.rls.test.ts), so RLS count checks do not apply.
-const REVOKED_TABLES = new Set(["tenant_secrets", "access_tokens", "booking_ref_counters", "booking_request_hits"]);
+const REVOKED_TABLES = new Set(["tenant_secrets", "access_tokens", "booking_ref_counters", "booking_request_hits", "provider_events"]);
+// Readable through RLS but with no client write grant; their write refusals are tested in their own RLS file.
+const READ_ONLY_TABLES = new Set(["payments"]);
 
 async function allTables(c: Client): Promise<string[]> {
   const r = await c.query(
@@ -183,6 +189,7 @@ describe("access RLS", () => {
       expect(await count(c, "select count(*) from tenant_settings where tenant_id = $1", [s.A])).toBe(1);
       for (const t of tables.filter((t) => !REVOKED_TABLES.has(t))) {
         expect(await count(c, `select count(*) from public.${t} where tenant_id = $1`, [s.B]), t).toBe(0);
+        if (READ_ONLY_TABLES.has(t)) continue;
         expect((await c.query(`update public.${t} set tenant_id = tenant_id where tenant_id = $1`, [s.B])).rowCount, t).toBe(0);
         expect((await c.query(`delete from public.${t} where tenant_id = $1`, [s.B])).rowCount, t).toBe(0);
       }

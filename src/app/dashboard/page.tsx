@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { can, dashboardNav } from "@/modules/access";
 import { countNewRequests } from "@/modules/booking";
+import { Alerts, getPaymentAlerts } from "@/modules/payments";
 import { t } from "@/ui/i18n";
 import { Forbidden } from "@/ui/notices";
 import { getDashboard } from "./context";
@@ -17,10 +18,11 @@ export default async function OverviewPage() {
     if (first) redirect(first.href);
     return <Forbidden />;
   }
-  const count = await countNewRequests(venue.id);
+  const [count, alerts] = await Promise.all([countNewRequests(venue.id), can(viewer, venue.id, "payments.verify") ? getPaymentAlerts(venue.id) : null]);
   return (
     <section>
       <h1 className="text-2xl font-semibold">{t("nav.overview")}</h1>
+      {alerts && <Alerts alerts={alerts} />}
       <Link
         href="/dashboard/bookings?status=requested"
         className="mt-6 inline-block rounded-lg border border-muted/40 p-6 text-lg font-medium hover:bg-accent/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text"

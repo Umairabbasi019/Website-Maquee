@@ -3,19 +3,27 @@
 ## Journeys
 
 ### J1 Customer requests a date
-Built in M4. Quick booking (pay and auto-book) comes in M5; the manual-payment steps after confirmation come with M5 and M7.
+Built in M4; M5 adds the payment panel (J1a) and quick booking (J2).
 1. Opens the venue site and taps "Request booking" (a package's button carries the choice into the form).
 2. Opens `/book`. Every future date is open; the form never shows whether a day is taken. Picks date, time (slot), event, guests, package and add-ons, then name, phone and WhatsApp consent. If the manager turned the estimate on, a live "Estimate" shows the price without hall hire (or "Price on call" with no package). Works without JavaScript.
 3. Submits and lands on `/book/sent`: "Request sent", the reference (for example `MA-2610-0042`) and a private link, with "The venue will contact you to confirm the details." A phone or IP over 5 requests in an hour sees "Too many requests from here. Please try again in an hour, or call the venue." for every date alike.
 4. Opens the link `/b/<token>` (noindex, no referrer, expires 60 days after the event; the phone is never shown in full). The page shows the reference, status, date, time, event, guests, package and add-ons, plus:
    - **Requested:** "Requested. The venue will contact you."
-   - **Confirmed:** "Confirmed", the hall, the final locked total and the advance. After a price change by the manager, only the total and the advance show, never the calculated lines or the reason.
+   - **Confirmed:** "Confirmed", the hall, the final locked total and the advance, and the payment panel (J1a). After a price change by the manager, only the total and the advance show, never the calculated lines or the reason.
    - **Declined or cancelled:** "This request was not confirmed. Please contact the venue." The staff reason is never shown.
    - **Expired** (a request past its date, never confirmed): "This request has passed its date."
 5. An unknown or expired link, or one opened on another venue's host, gives the same 404.
 
-### J2 Customer books with online payment (after the provider is connected)
-Planned for M5 with the quick-booking switch. The customer picks a date, sees the standard package price and pays on the booking link. The provider confirms to the server, and the booking becomes Confirmed automatically. A held date uses `holdHours`. If the hold had expired and the date was taken, the status becomes Refund pending and the manager is alerted.
+### J1a Customer pays the advance by receipt (Manager first, the default)
+Built in M5. After the manager confirms, the customer's `/b/<token>` page shows a payment panel. Nothing counts as paid until staff say so.
+1. The panel shows total, paid (verified money only), balance, the advance and its due date, and the venue's bank, JazzCash and Easypaisa details for the methods the venue turned on and filled in.
+2. The customer pays outside the site, then uploads a receipt: method, amount in rupees and one JPEG, PNG or WebP image up to 4 MB (checked by content). Works without JavaScript. At most 3 receipts wait at once and 10 uploads per hour per booking.
+3. The row reads "Checking". A manager, owner or accounts user sees a "Receipts to review" alert, opens the booking, opens the receipt in a new tab, and either verifies it (changing the amount to what arrived if needed) or rejects it with a reason. A rejected row shows "Not accepted: <reason>" and the customer can upload again. A rejection never cancels the booking; if the event date has passed the owner is also alerted.
+4. Staff can record cash or direct payments and refunds themselves, change the advance due date, and mark a trusted customer "Pays later". An unpaid advance past its date only raises an alert; nothing is cancelled.
+5. Cancelling a booking with money paid asks the manager to choose "Keep the money" or "Refund due"; refund due stays an alert until recorded refunds cover the paid amount. Money verified after the cancel or after the last refund (a late webhook or receipt) also shows as refund due, until a refund covers it. Refunds are recorded by hand; no money is sent.
+
+### J2 Customer books with quick booking and online payment
+Built in M5. A manager or owner turns on `instantBooking` in Settings (it needs an advance above 0 and a package). The customer submits the same form; the server prices it, picks the first free hall by name and creates the booking as Awaiting advance with a hold of `holdHours`. If no hall is free it becomes a normal request. The customer pays on the booking link by receipt (staff verify) or, when online payment is on, with Pay online: the provider's signed webhook, never the return page, verifies the money and confirms the booking. A smaller verified payment is kept and the hold stays. If the hold had expired and the date was taken, the status becomes Refund pending and the manager is alerted; this also happens when the date is taken from an expired hold that already had part of its advance paid. Online payment exists only with the sandbox provider until a real gateway is added (see `INTEGRATIONS.md`).
 
 ### J3 Family shares a quote
 Customer taps "Share with family" on the estimate or booking link. Family members open a read-only quote page and can tap "Reserve this date" or contact the manager.
@@ -88,7 +96,7 @@ Keys are checked on the server and in RLS. S = super admin, O = venue owner, M =
 
 Owner memberships (built-in owner role) are created, changed, deactivated and deleted only by the super admin, even when an owner holds `users.manage`. An owner with it manages the other staff.
 
-Customer (no login) with a valid booking token: view own booking and its final price (M4); later also payments, upload a receipt, edit invite and final details until the cutoff (M5, M8). Nothing else.
+Customer (no login) with a valid booking token: view own booking and its final price (M4), payments and upload a receipt (M5); later also edit invite and final details until the cutoff (M8). Nothing else.
 
 Rules:
 - The super admin's grants per user override role defaults; "never" cells cannot be granted below super admin.

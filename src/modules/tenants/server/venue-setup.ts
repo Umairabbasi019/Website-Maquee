@@ -2,11 +2,12 @@ import "server-only";
 import { z } from "zod";
 import { createServerClient, createServiceClient, recordAudit, requirePerm } from "@/modules/access";
 import { MoneyRulesSchema, TimeSchema, type TenantSettings } from "../settings";
+import { readTenantSecret } from "./secrets";
 
 // Halls and slots save on the user's session after a requirePerm check here; RLS, the column-permission trigger and
 // the audit trigger (supabase/migrations/20261026000300_settings_m3.sql) check again. Money rules go through the service client.
 
-export type SetupResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "inUse" };
+export type SetupResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "inUse" | "gatewayUnavailable" };
 
 /** Postgres insufficient_privilege: RLS on insert, or the column-permission trigger. */
 const INSUFFICIENT_PRIVILEGE = "42501";
@@ -142,20 +143,35 @@ export async function getMoneyRules(tenantId: string): Promise<TenantSettings["m
   return (await readMoneyRules(tenantId)).rules;
 }
 
+const withoutGateway = (methods: string[]) => methods.filter((m) => m !== "gateway").sort();
+// Changing these is the venue's mode switch (instant booking, card gateway), not venue setup.
+const MODE_PERMS = ["bookings.edit", "payments.verify"] as const;
+
 /**
- * Currency and time zone are not stored here (they live on the tenant), so they are not accepted.
- * A prices.edit holder may change only showPriceEstimate; any other change needs tenant.settings.edit.
+ * Currency and time zone are not stored here (they live on the tenant), so they are not accepted. A key missing from
+ * `input` keeps its stored value, so a form that omits `advanceDueDays` or `paymentAccounts` never resets them.
+ * A prices.edit holder may change only showPriceEstimate. Instant booking and the card gateway need bookings.edit and
+ * payments.verify; any other change needs tenant.settings.edit. Turning the gateway on also needs a provider for this
+ * deployment (`gatewayProvider`, from the payments module, which this module cannot import) and the venue's saved key.
  */
-export async function saveMoneyRules(tenantId: string, input: unknown): Promise<SetupResult> {
+export async function saveMoneyRules(tenantId: string, input: unknown, gatewayProvider: boolean): Promise<SetupResult> {
   await setupOrPrices(tenantId);
-  const parsed = MoneyRulesInputSchema.safeParse(input);
-  if (!parsed.success) return { error: "invalid" };
   const { stored, rules } = await readMoneyRules(tenantId);
-  const restChanged = Object.entries(parsed.data).some(
-    ([key, value]) => key !== "showPriceEstimate" && JSON.stringify(value) !== JSON.stringify(rules[key as keyof typeof rules]),
-  );
+  const parsed = MoneyRulesInputSchema.safeParse({ ...rules, ...(typeof input === "object" ? input : null) });
+  if (!parsed.success) return { error: "invalid" };
+  const next = parsed.data;
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const restChanged = Object.entries(next).some(([key, value]) => {
+    if (key === "showPriceEstimate" || key === "instantBooking") return false;
+    const before = rules[key as keyof typeof rules];
+    return key === "paymentMethods" ? !same(withoutGateway(value as string[]), withoutGateway(before as string[])) : !same(value, before);
+  });
   if (restChanged) await requirePerm(tenantId, "tenant.settings.edit");
-  const { error } = await createServiceClient().from("tenant_settings").update({ money_rules: parsed.data }).eq("tenant_id", tenantId);
+  const gatewayOn = next.paymentMethods.includes("gateway");
+  const gatewayChanged = gatewayOn !== rules.paymentMethods.includes("gateway");
+  if (next.instantBooking !== rules.instantBooking || gatewayChanged) for (const key of MODE_PERMS) await requirePerm(tenantId, key);
+  if (gatewayOn && gatewayChanged && !(gatewayProvider && (await readTenantSecret(tenantId, "payments")))) return { error: "gatewayUnavailable" };
+  const { error } = await createServiceClient().from("tenant_settings").update({ money_rules: next }).eq("tenant_id", tenantId);
   if (error) throw new Error(`money_rules: ${error.message}`);
   await recordAudit({
     tenantId,
@@ -163,7 +179,7 @@ export async function saveMoneyRules(tenantId: string, input: unknown): Promise<
     entity: "tenant_settings",
     entityId: tenantId,
     before: stored,
-    after: parsed.data,
+    after: next,
   });
   return { ok: true };
 }

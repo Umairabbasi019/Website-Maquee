@@ -25,6 +25,8 @@ export const defaultSettings: TenantSettings = {
     instantBooking: false,
     showPriceEstimate: true,
     paymentMethods: ["bank", "jazzcash", "easypaisa"],
+    advanceDueDays: 3,
+    paymentAccounts: {},
   },
   messaging: { reminderDays: [7, 3, 1], morningSummaryTime: "08:00", marketingCapPerMonth: 4 },
   limits: { loginLimit: 5, managerLimit: 2 },

@@ -48,10 +48,13 @@ test("a manager sets the hall hire price, date prices and the estimate switch, b
   // prices.edit shows Money rules with only the estimate switch editable.
   await expect(page.getByRole("heading", { name: en["settings.moneyRules"] })).toBeVisible();
   const money = page.getByRole("form", { name: en["settings.moneyRules"] });
-  await expect(money).toContainText(en["settings.money.estimateOnly"]);
-  for (const label of ["settings.money.tax", "settings.money.advance", "settings.money.hold", "settings.money.instant", "settings.money.method.bank"] as const) {
+  await expect(money).toContainText(en["settings.money.limited"]);
+  for (const label of ["settings.money.tax", "settings.money.advance", "settings.money.hold", "settings.money.dueDays", "settings.money.method.bank"] as const) {
     await expect(money.getByLabel(en[label])).toBeDisabled();
   }
+  // The mode switch (instant booking, card gateway) needs bookings.edit and payments.verify, which a manager holds.
+  await expect(money.getByLabel(en["settings.money.instant"])).toBeEnabled();
+  await expect(money.getByLabel(en["settings.money.method.gateway"])).toBeEnabled();
   const estimate = money.getByLabel(en["settings.money.estimate"]);
   await expect(estimate).toBeEnabled();
   await expect(estimate).toBeChecked();
@@ -124,11 +127,28 @@ test("the super admin changes the advance to 40 % and it is audited", async ({ p
 
   const money = page.getByRole("form", { name: en["settings.moneyRules"] });
   await money.getByLabel(en["settings.money.advance"]).fill("40");
+  await money.getByLabel(en["settings.money.dueDays"]).fill("5");
+  const account = (method: "bank" | "jazzcash" | "easypaisa") => money.getByRole("group", { name: en[`settings.money.method.${method}`] });
+  await account("easypaisa").getByLabel(en["settings.money.account.accountTitle"]).fill("Manor Marquee");
+  await account("easypaisa").getByLabel(en["settings.money.account.number"]).fill("03001234567");
+  for (const label of ["settings.money.account.accountTitle", "settings.money.account.number"] as const) {
+    await account("jazzcash").getByLabel(en[label]).fill("");
+  }
   await money.getByRole("button", { name: en["settings.save"] }).click();
   await expect(money.getByRole("status")).toHaveText(en["settings.saved"]);
 
   const rules = await db.query("select money_rules from tenant_settings where tenant_id = $1", [manor]);
-  expect(rules.rows[0].money_rules).toMatchObject({ advancePercent: 40, holdHours: 48 });
+  expect(rules.rows[0].money_rules).toMatchObject({ advancePercent: 40, holdHours: 48, advanceDueDays: 5 });
+  expect(rules.rows[0].money_rules.paymentAccounts).toEqual({
+    bank: expect.objectContaining({ bankName: expect.any(String) }),
+    easypaisa: { accountTitle: "Manor Marquee", number: "03001234567" },
+  });
+  // Half an account is refused, and nothing is saved.
+  await account("bank").getByLabel(en["settings.money.account.accountNumber"]).fill("");
+  await money.getByRole("button", { name: en["settings.save"] }).click();
+  await expect(money.getByRole("alert")).toHaveText(en["settings.error.invalid"]);
+  const after = await db.query("select money_rules from tenant_settings where tenant_id = $1", [manor]);
+  expect(after.rows[0].money_rules).toEqual(rules.rows[0].money_rules);
   expect(rules.rows[0].money_rules).not.toHaveProperty("currency");
   const audit = await db.query(
     "select before, after from audit_events where tenant_id = $1 and action = 'settings.money_rules' and created_at >= $2",

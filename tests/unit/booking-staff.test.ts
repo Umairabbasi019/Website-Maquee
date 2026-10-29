@@ -85,8 +85,8 @@ vi.mock("@/modules/access", () => ({
     if (!held.has(key)) throw new ForbiddenError(key);
     return viewer;
   },
-  recordAudit: async (a: Row) => {
-    if (failAudit) throw new Error("audit down");
+  recordAuditAfterCommit: async (a: Row) => {
+    if (failAudit) return console.error(`audit ${a.action} failed for booking ${a.entityId}`, new Error("audit down"));
     audits.push(a);
   },
   createServerClient: async () => ({ from: query }),
@@ -175,6 +175,20 @@ describe("listBookings and countNewRequests", () => {
     ]);
   });
 
+  it("reads a hold past its time as hold_expired, and lists only live holds as awaiting_advance", async () => {
+    const hold = (hours: number) => ({ status: "awaiting_advance", hold_expires_at: new Date(Date.now() + hours * 3_600_000).toISOString() });
+    tables.bookings = [row(11, hold(5)), row(12, hold(-5))];
+    expect(await refs()).toEqual([
+      ["R-11", "awaiting_advance"],
+      ["R-12", "hold_expired"],
+    ]);
+    expect(await refs("awaiting_advance")).toEqual([["R-11", "awaiting_advance"]]);
+  });
+
+  it("lists only the booking ids asked for", async () => {
+    expect((await listBookings(T1, { ids: [id(12)] })).rows.map((b) => b.reference)).toEqual(["R-12"]);
+  });
+
   it("returns the embedded quote total, and caps at 200 with more set", async () => {
     tables.bookings = [row(11, { quote: { total_paisa: 123 } }), row(12, {})];
     expect((await listBookings(T1, {})).rows.map((b) => b.totalPaisa)).toEqual([123, null]);
@@ -202,6 +216,8 @@ describe("confirmBooking", () => {
         p_hall: HALL,
         p_total: 25_000_000,
         p_advance: 12_500_000,
+        // Venue today + advanceDueDays (default 3); Karachi has no daylight saving.
+        p_advance_due_on: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date(Date.now() + 3 * 86_400_000)),
         p_actor: USER,
         p_snapshot: { calculatedTotalPaisa: 25_000_000, finalTotalPaisa: 25_000_000, overrideReason: null, subtotalPaisa: 25_000_000, taxPaisa: 0 },
       },
@@ -331,5 +347,17 @@ describe("declineBooking and cancelBooking", () => {
     rpcError = { code: "P0001", message: "invalid_transition: cancelled to cancelled" };
     await expect(cancelBooking(T1, BOOKING, "Again please")).resolves.toEqual({ error: "state" });
     await expect(cancelBooking(T1, OTHER_BOOKING, "Family change")).resolves.toEqual({ error: "notFound" });
+  });
+
+  it("passes the refund choice, and maps a missing one to refundChoice", async () => {
+    await expect(cancelBooking(T1, BOOKING, "Family change", true)).resolves.toEqual({ ok: true });
+    await expect(cancelBooking(T1, BOOKING, "Family change")).resolves.toEqual({ ok: true });
+    expect(rpcs.map((r) => r.args)).toEqual([
+      { p_booking: BOOKING, p_reason: "Family change", p_refund_due: true, p_actor: USER },
+      { p_booking: BOOKING, p_reason: "Family change", p_refund_due: null, p_actor: USER },
+    ]);
+    expect(audits[0]).toMatchObject({ action: "booking.cancel", after: { status: "cancelled", refundDue: true } });
+    rpcError = { code: "P0001", message: "refund_choice_required" };
+    await expect(cancelBooking(T1, BOOKING, "Family change")).resolves.toEqual({ error: "refundChoice" });
   });
 });

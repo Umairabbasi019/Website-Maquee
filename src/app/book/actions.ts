@@ -28,6 +28,8 @@ export async function submitBookingRequest(_prev: RequestFormState, fd: FormData
     const errors = r.error === "invalid" ? [...new Set([...requestFieldErrors(values), ...(r.fields ?? [])])] : [];
     return { values, errors, message: r.error };
   }
+  // A held hall goes straight to the booking page, where the advance is paid.
+  if (r.held) redirect(`/b/${r.token}`);
   // Only the token travels: the sent page reads the reference from the stored booking.
   redirect(`/book/sent?t=${r.token}`);
 }

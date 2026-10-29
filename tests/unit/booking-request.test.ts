@@ -14,6 +14,8 @@ const PKG = id(5);
 const OTHER_PKG = id(6);
 const ADDON = id(7);
 const OTHER_ADDON = id(8);
+const HALL = id(12);
+const GARDEN = id(13);
 
 type Row = Record<string, unknown>;
 const rules = { taxPercent: 0, advancePercent: 50, holdHours: 48, instantBooking: false, paymentMethods: [], showPriceEstimate: true };
@@ -35,10 +37,13 @@ function resetTables() {
       { tenant_id: T1, id: SLOT, name: "Evening" },
       { tenant_id: T2, id: OTHER_SLOT, name: "Evening" },
     ],
+    // Listed out of name order; quick booking tries them by name (Garden, then Main).
     halls: [
-      { tenant_id: T1, capacity_max: 500, is_active: true },
-      { tenant_id: T1, capacity_max: 900, is_active: false },
-      { tenant_id: T2, capacity_max: 2000, is_active: true },
+      { tenant_id: T1, id: HALL, name: "Main", capacity_min: 0, capacity_max: 500, is_active: true, hire_price_paisa: 1_000_000 },
+      { tenant_id: T1, id: id(14), name: "Annex", capacity_min: 400, capacity_max: 450, is_active: true, hire_price_paisa: null },
+      { tenant_id: T1, id: id(15), name: "Closed", capacity_min: 0, capacity_max: 900, is_active: false, hire_price_paisa: null },
+      { tenant_id: T1, id: GARDEN, name: "Garden", capacity_min: 100, capacity_max: 300, is_active: true, hire_price_paisa: null },
+      { tenant_id: T2, id: id(16), name: "Other", capacity_min: 0, capacity_max: 2000, is_active: true, hire_price_paisa: 0 },
     ],
     date_prices: [],
   });
@@ -47,11 +52,18 @@ function resetTables() {
 function query(table: string) {
   reads.push(table);
   let rows = tables[table] ?? [];
+  const sortKeys: string[] = [];
   const q = {
     select: () => q,
     eq: (col: string, val: unknown) => ((rows = rows.filter((r) => r[col] === val)), q),
     lte: () => q,
     gte: () => q,
+    // Each order() call is a later tiebreak, as in SQL.
+    order: (col: string) => (
+      sortKeys.push(col),
+      (rows = [...rows].sort((a, b) => sortKeys.reduce((d, k) => d || String(a[k]).localeCompare(String(b[k])), 0))),
+      q
+    ),
     returns: () => q,
     single: async () => (rows.length === 1 ? { data: rows[0], error: null } : { data: null, error: { message: "not one row" } }),
     maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
@@ -204,7 +216,7 @@ describe("createBookingRequest", () => {
 
   it("sends the server's own names, the hashed keys and a hashed token", async () => {
     const r = await createBookingRequest(T1, valid, "ip-hash");
-    expect(r).toEqual({ ok: true, reference: "VE-2610-0001", token: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/) });
+    expect(r).toEqual({ ok: true, reference: "VE-2610-0001", token: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/), held: false });
     const { fn, args } = rpcs[0];
     expect(fn).toBe("create_booking_request");
     expect(args).toMatchObject({
@@ -230,6 +242,66 @@ describe("createBookingRequest", () => {
     expect(Object.keys(taken).sort()).toEqual(Object.keys(free).sort());
     expect(taken).toMatchObject({ ok: true });
     expect(reads).not.toContain("bookings");
+  });
+});
+
+describe("createBookingRequest quick booking", () => {
+  const quick = { ...rules, instantBooking: true };
+
+  it.each([
+    ["instantBooking is off", rules, valid],
+    ["advancePercent is 0", { ...quick, advancePercent: 0 }, valid],
+    ["there is no package", quick, { ...valid, packageId: undefined }],
+  ])("is skipped when %s", async (_why, moneyRules, input) => {
+    tables.tenant_settings[0].money_rules = moneyRules;
+    await expect(createBookingRequest(T1, input, "ip")).resolves.toMatchObject({ ok: true, held: false });
+    expect(rpcs.map((r) => r.fn)).toEqual(["create_booking_request"]);
+  });
+
+  it("offers the active halls the guests fit, by name, each priced, with the hold end", async () => {
+    tables.tenant_settings[0].money_rules = quick;
+    rpcResult = { data: { reference: "VE-2610-0002", held: true }, error: null };
+    const r = await createBookingRequest(T1, valid, "ip");
+    expect(r).toMatchObject({ ok: true, reference: "VE-2610-0002", held: true });
+    const { fn, args } = rpcs[0];
+    expect(fn).toBe("create_quick_booking");
+    expect(args).toMatchObject({ p_tenant: T1, p_booking: { package_name: "Gold", guests: 300 }, p_hold_until: "2026-10-29T10:00:00.000Z" });
+    // 300 x Rs 4,000 + Rs 25,000 lights, plus Rs 10,000 hire in Main.
+    expect(args.p_candidates).toEqual([
+      { hall: GARDEN, total: 122_500_000, advance: 61_250_000, snapshot: expect.objectContaining({ finalTotalPaisa: 122_500_000, overrideReason: null }) },
+      { hall: HALL, total: 123_500_000, advance: 61_750_000, snapshot: expect.objectContaining({ calculatedTotalPaisa: 123_500_000 }) },
+    ]);
+    expect((args.p_candidates as { snapshot: { inputs: unknown } }[])[1].snapshot.inputs).toEqual({
+      guests: 300,
+      pkg: { name: "Gold", pricePerGuestPaisa: 400000, minGuests: 100 },
+      addons: [{ name: "Lights", pricePaisa: 2500000, basis: "flat" }],
+      hall: { name: "Main", hirePricePaisa: 1_000_000 },
+      datePrice: null,
+      taxPercent: 0,
+      advancePercent: 50,
+    });
+  });
+
+  it("leaves out a hall whose advance is 0, and makes a plain request when no hall is left", async () => {
+    tables.tenant_settings[0].money_rules = quick;
+    catalogues[T1].events[0].packages[0].pricePerGuestPaisa = 0;
+    try {
+      // A zero package price (the mock allows it) and no add-ons: only Main's Rs 10,000 hire leaves an advance to pay.
+      await createBookingRequest(T1, { ...valid, addonIds: [] }, "ip");
+      expect(rpcs[0].fn).toBe("create_quick_booking");
+      expect((rpcs[0].args.p_candidates as { hall: string }[]).map((c) => c.hall)).toEqual([HALL]);
+      tables.halls[0].hire_price_paisa = 0;
+      await expect(createBookingRequest(T1, { ...valid, addonIds: [] }, "ip")).resolves.toMatchObject({ ok: true, held: false });
+      expect(rpcs[1].fn).toBe("create_booking_request");
+    } finally {
+      catalogues[T1].events[0].packages[0].pricePerGuestPaisa = 400000;
+    }
+  });
+
+  it("maps the rate limit to limited", async () => {
+    tables.tenant_settings[0].money_rules = quick;
+    rpcResult = { data: null, error: { code: "P0001", message: "rate_limited" } };
+    await expect(createBookingRequest(T1, valid, "ip")).resolves.toEqual({ error: "limited" });
   });
 });
 

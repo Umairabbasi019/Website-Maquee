@@ -142,6 +142,111 @@ describe("booking transitions", () => {
     }));
 });
 
+describe("payment statuses", () => {
+  /** A booking walked to `status` through legal moves. */
+  async function at(c: Client, s: Awaited<ReturnType<typeof seed>>, status: string) {
+    const b = await s.request();
+    const q = await s.quote(b);
+    if (status === "confirmed") {
+      await s.confirm(b, q);
+      return b;
+    }
+    await c.query(
+      "update bookings set status = 'awaiting_advance', hall_id = $2, during = $3, current_quote_id = $4, hold_expires_at = now() + interval '1 day' where id = $1",
+      [b, s.hall, EVENING, q],
+    );
+    for (const next of ["hold_expired", "refund_pending", "refunded"]) {
+      if (status === "awaiting_advance") break;
+      await c.query("update bookings set status = $2 where id = $1", [b, next]);
+      if (status === next) break;
+    }
+    return b;
+  }
+
+  it.each([
+    ["awaiting_advance", "confirmed"],
+    ["awaiting_advance", "hold_expired"],
+    ["awaiting_advance", "cancelled"],
+    ["hold_expired", "confirmed"],
+    ["hold_expired", "refund_pending"],
+    ["refund_pending", "refunded"],
+  ])("allows %s to %s", (from, to) =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      const b = await at(c, s, from);
+      await c.query("update bookings set status = $2, status_reason = case when $2 = 'cancelled' then 'x' end where id = $1", [b, to]);
+      expect(await one(c, "select status from bookings where id = $1", [b])).toBe(to);
+    }));
+
+  it.each([
+    ["hold_expired", "awaiting_advance"],
+    ["refunded", "confirmed"],
+    ["refund_pending", "confirmed"],
+    ["cancelled", "confirmed"],
+  ])("refuses %s to %s", (from, to) =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      const b = await at(c, s, from === "cancelled" ? "confirmed" : from);
+      if (from === "cancelled") await c.query("update bookings set status = 'cancelled', status_reason = 'x' where id = $1", [b]);
+      await expectReject(c, "update bookings set status = $2 where id = $1", [b, to], /invalid_transition/);
+    }));
+
+  it("refuses an awaiting_advance row without hall, time, quote or hold end", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      const b = await s.request();
+      await expectReject(c, "update bookings set status = 'awaiting_advance' where id = $1", [b], /bookings_held_complete/);
+    }));
+
+  it("blocks an awaiting_advance row over a confirmed one in the same hall", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      await at(c, s, "confirmed");
+      const b = await s.request();
+      const q = await s.quote(b);
+      await expectReject(
+        c,
+        "update bookings set status = 'awaiting_advance', hall_id = $2, during = $3, current_quote_id = $4, hold_expires_at = now() where id = $1",
+        [b, s.hall, EVENING, q],
+        /no_overlap/,
+      );
+    }));
+
+  it("lets a hold_expired row overlap a confirmed one", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      const held = await at(c, s, "hold_expired");
+      const b2 = await s.request();
+      await s.confirm(b2, await s.quote(b2));
+      expect(await one(c, "select status from bookings where id = $1", [held])).toBe("hold_expired");
+    }));
+
+  it("allows refund_due only on a cancelled booking, and then only back to false", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      const b = await at(c, s, "confirmed");
+      await expectReject(c, "update bookings set refund_due = true where id = $1", [b], /bookings_refund_due_cancelled/);
+      await c.query("update bookings set status = 'cancelled', status_reason = 'x', refund_due = true where id = $1", [b]);
+      await c.query("update bookings set refund_due = false where id = $1", [b]);
+      await expectReject(c, "update bookings set refund_due = true where id = $1", [b], /booking_locked/);
+    }));
+
+  it("lets a confirmed booking change advance_due_on and pay_later", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      const b = await at(c, s, "confirmed");
+      await c.query("update bookings set advance_due_on = '2027-01-10', pay_later = true where id = $1", [b]);
+      expect(await one(c, "select pay_later from bookings where id = $1", [b])).toBe(true);
+    }));
+
+  it("locks an awaiting_advance booking's details", () =>
+    withDb(async (c) => {
+      const s = await seed(c);
+      const b = await at(c, s, "awaiting_advance");
+      await expectReject(c, "update bookings set guests = 300 where id = $1", [b], /booking_locked/);
+    }));
+});
+
 describe("booking status history", () => {
   it("records the first status and each change with the actor and reason", () =>
     withDb(async (c) => {

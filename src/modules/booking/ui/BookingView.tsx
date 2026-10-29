@@ -6,13 +6,20 @@ import { longDate } from "./labels";
 
 const STATUS = {
   requested: "booking.status.requested",
+  awaiting_advance: "booking.status.awaiting_advance",
   confirmed: "booking.status.confirmed",
+  hold_expired: "booking.status.hold_expired",
+  refund_pending: "booking.status.refund_pending",
+  refunded: "booking.status.refunded",
   expired: "booking.status.expired",
   declined: "booking.notConfirmed",
   cancelled: "booking.cancelled",
 } as const;
 
-/** What the customer's private link shows. The price appears only once confirmed: the stored total and advance, never a re-sum of the lines. */
+const heldUntil = (iso: string, timeZone: string) =>
+  new Date(iso).toLocaleString("en-PK", { timeZone, day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
+/** What the customer's private link shows. The price appears once a hall is held or confirmed: the stored total and advance, never a re-sum of the lines. */
 export function BookingView({ view }: { view: CustomerBookingView }) {
   const facts: [string, string][] = [
     [t("booking.date"), longDate(view.eventDate)],
@@ -34,6 +41,7 @@ export function BookingView({ view }: { view: CustomerBookingView }) {
           <span className={styles.ref}>{view.reference}</span>
         </div>
         <p>{t(STATUS[view.status])}</p>
+        {view.status === "awaiting_advance" && view.holdExpiresAt && <p>{t("booking.view.heldUntil", { time: heldUntil(view.holdExpiresAt, view.timeZone) })}</p>}
         <dl className={styles.facts}>
           {facts.map(([label, value]) => (
             <div key={label}>

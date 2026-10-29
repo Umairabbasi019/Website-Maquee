@@ -26,7 +26,8 @@ test.afterAll(async () => {
     manorLimits.login_limit,
     manorLimits.manager_limit,
   ]);
-  await db.query("delete from tenant_secrets where tenant_id = (select id from tenants where slug = 'manor')");
+  // Only the WhatsApp secret this file saves; the seeded payments key must survive for the payments specs.
+  await db.query("delete from tenant_secrets where kind = 'whatsapp' and tenant_id = (select id from tenants where slug = 'manor')");
   await db.end();
 });
 
@@ -53,7 +54,7 @@ test("super admin creates Test Hall and sees it with 0/6 checklist items", async
   const row = page.getByRole("row").filter({ hasText: "Test Hall" });
   await expect(row).toContainText("0/6");
   await expect(row).toContainText(en["status.setup"]);
-  await expect(page.getByRole("row").filter({ hasText: "Manor" })).toContainText("5/6");
+  await expect(page.getByRole("row").filter({ hasText: "Manor" })).toContainText("6/6");
   await shoot(page, "admin-list");
 });
 

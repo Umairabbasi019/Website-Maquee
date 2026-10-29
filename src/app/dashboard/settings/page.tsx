@@ -63,7 +63,7 @@ export default async function SettingsPage() {
       )}
       {rules && (
         <Section id="settings-money" title="settings.moneyRules">
-          <MoneyRulesForm rules={rules} full={setup} />
+          <MoneyRulesForm rules={rules} full={setup} mode={can(viewer, venue.id, "bookings.edit") && can(viewer, venue.id, "payments.verify")} />
         </Section>
       )}
     </section>

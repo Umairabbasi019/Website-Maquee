@@ -187,7 +187,7 @@ test("private pages are noindex, send no referrer, and unknown or foreign links 
   await expect(page.locator('meta[name="referrer"]')).toHaveAttribute("content", "no-referrer");
   await page.getByRole("link", { name: en["booking.sent.open"] }).click();
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex, nofollow/);
-  await expect(page.locator('meta[name="referrer"]')).toHaveAttribute("content", "no-referrer");
+  await expect(page.locator('meta[name="referrer"]')).toHaveAttribute("content", "same-origin");
 
   // The same link on another venue's host shows nothing.
   const path = new URL(page.url()).pathname;

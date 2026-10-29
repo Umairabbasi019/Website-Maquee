@@ -1,12 +1,13 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { can, createServerClient, createServiceClient, recordAudit, requirePerm } from "@/modules/access";
+import { can, createServerClient, createServiceClient, recordAuditAfterCommit, requirePerm } from "@/modules/access";
 import { MoneyRulesSchema } from "@/modules/tenants/client";
 import { parseRupees } from "@/sections/shared/format";
-import { applyOverride, priceQuote, quoteOverride, storedQuote, type PriceInput, type Quote, type QuoteSnapshot } from "../pricing";
+import { addDays } from "@/sections/shared/hours";
+import { applyOverride, priceQuote, quoteOverride, snapshotOf, storedQuote, type PriceInput, type Quote, type QuoteSnapshot } from "../pricing";
 import { todayIn } from "../request";
-import { check, datePriceFor } from "./request";
+import { check, datePriceFor, MAX_INT4 } from "./request";
 
 // Staff paths. `tenantId` always comes from getDashboard() in the calling server action, never from the browser.
 // Reads for lists and details use the session client (RLS). Confirm, decline and cancel check permissions here,
@@ -15,7 +16,7 @@ import { check, datePriceFor } from "./request";
 export type StaffBookingRow = {
   id: string;
   reference: string;
-  /** Stored status, or "expired" for a request whose date has passed in the venue time zone. */
+  /** Stored status, "expired" for a request whose date has passed in the venue time zone, or "hold_expired" for a hold past its time. */
   status: string;
   eventDate: string;
   slot: string;
@@ -26,6 +27,10 @@ export type StaffBookingRow = {
   eventType: string;
   /** The stored final total, never summed lines. Null until confirmed. */
   totalPaisa: number | null;
+  /** The venue date (YYYY-MM-DD) the advance is due by. Null until confirmed. */
+  advanceDueOn: string | null;
+  /** Staff agreed the customer may pay the advance later. */
+  payLater: boolean;
 };
 
 export type StaffBookingDetail = StaffBookingRow & {
@@ -39,12 +44,12 @@ export type StaffBookingDetail = StaffBookingRow & {
   timeZone: string;
 };
 
-export type StatusResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "state" };
+export type StatusResult = { ok: true } | { error: "invalid" | "forbidden" | "notFound" | "state" | "refundChoice" };
 export type ConfirmResult =
   | { ok: true }
   | { error: "invalid" | "forbidden" | "notFound" | "slotTaken" | "capacity" | "state" | "outOfRange" | "priceChanged" };
 
-const STATUSES = ["requested", "confirmed", "declined", "cancelled"] as const;
+const STATUSES = ["requested", "awaiting_advance", "confirmed", "hold_expired", "refund_pending", "refunded", "declined", "cancelled"] as const;
 /** List filters: the stored statuses plus "expired", a request whose date has passed. */
 const FILTERS = [...STATUSES, "expired"] as const;
 /** Postgres exclusion_violation: the no_overlap constraint. */
@@ -58,6 +63,8 @@ const Reason = z.string().trim().min(3).max(300);
 const ListQuery = z.object({
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional().catch(undefined),
   status: z.enum(FILTERS).optional().catch(undefined),
+  // Booking ids from a payment alert. shortcut: they travel in the request URL, so a very long list can fail; page them with the M6 table.
+  ids: z.array(z.uuid()).optional().catch(undefined),
 });
 const ConfirmInput = z.object({
   hallId: z.uuid(),
@@ -65,11 +72,9 @@ const ConfirmInput = z.object({
   reason: z.string().optional(),
   previewedTotalPaisa: z.string().optional(),
 });
-/** The largest value of the int4 total and advance columns. */
-const MAX_INT4 = 2_147_483_647;
 
 const ROW_COLUMNS =
-  "id, reference, status, event_date, guests, event_type_name, package_name, addon_names, current_quote_id, " +
+  "id, reference, status, event_date, guests, event_type_name, package_name, addon_names, current_quote_id, hold_expires_at, advance_due_on, pay_later, " +
   "slot:slots(name), hall:halls(name), customer:customers(name, phone_e164)";
 
 // The current quote's total comes in the same request, so the list needs no second query; the hint is needed because quotes also references bookings.
@@ -87,6 +92,9 @@ type BookingRow = {
   package_name: string | null;
   addon_names: string[];
   current_quote_id: string | null;
+  hold_expires_at: string | null;
+  advance_due_on: string | null;
+  pay_later: boolean;
   slot: { name: string };
   hall: { name: string } | null;
   customer: { name: string; phone_e164: string };
@@ -108,11 +116,14 @@ export async function venueToday(tenantId: string): Promise<string> {
   return todayAt(await createServerClient(), tenantId);
 }
 
+/** A hold past its time reads as expired at once; the stored status lags until another write needs the hall (expire_holds). */
+const holdLapsed = (b: BookingRow) => b.status === "awaiting_advance" && Date.parse(b.hold_expires_at!) < Date.now();
+
 function toRow(b: BookingRow, totalPaisa: number | null, today: string): StaffBookingRow {
   return {
     id: b.id,
     reference: b.reference,
-    status: b.status === "requested" && b.event_date < today ? "expired" : b.status,
+    status: b.status === "requested" && b.event_date < today ? "expired" : holdLapsed(b) ? "hold_expired" : b.status,
     eventDate: b.event_date,
     slot: b.slot.name,
     hall: b.hall?.name ?? null,
@@ -121,12 +132,14 @@ function toRow(b: BookingRow, totalPaisa: number | null, today: string): StaffBo
     guests: b.guests,
     eventType: b.event_type_name,
     totalPaisa,
+    advanceDueOn: b.advance_due_on,
+    payLater: b.pay_later,
   };
 }
 
-export async function listBookings(tenantId: string, q: { month?: string; status?: string }): Promise<{ rows: StaffBookingRow[]; more: boolean }> {
+export async function listBookings(tenantId: string, q: { month?: string; status?: string; ids?: string[] }): Promise<{ rows: StaffBookingRow[]; more: boolean }> {
   await requirePerm(tenantId, "bookings.view");
-  const { month, status } = ListQuery.parse(q);
+  const { month, status, ids } = ListQuery.parse(q);
   const db = await createServerClient();
   let query = db.from("bookings").select(LIST_COLUMNS).eq("tenant_id", tenantId);
   if (month) {
@@ -138,7 +151,11 @@ export async function listBookings(tenantId: string, q: { month?: string; status
   // "requested" means still waiting, as countNewRequests counts it; a passed request is "expired" (as toRow labels it).
   if (status === "expired") query = query.eq("status", "requested").lt("event_date", today);
   else if (status === "requested") query = query.eq("status", "requested").gte("event_date", today);
+  // A hold past its time is "hold_expired" and no longer "awaiting_advance", as toRow labels it.
+  else if (status === "awaiting_advance") query = query.eq("status", status).gte("hold_expires_at", new Date().toISOString());
+  else if (status === "hold_expired") query = query.or(`status.eq.hold_expired,and(status.eq.awaiting_advance,hold_expires_at.lt.${new Date().toISOString()})`);
   else if (status) query = query.eq("status", status);
+  if (ids) query = query.in("id", ids);
   query = query.order("event_date").order("created_at");
   // shortcut: the list stops at LIST_LIMIT rows (the calendar's month is never capped); upgrade to real pagination in the M6 bookings table.
   if (!month) query = query.limit(LIST_LIMIT + 1);
@@ -283,19 +300,6 @@ export async function previewQuote(tenantId: string, id: string, hallId: string)
 }
 
 /**
- * Records the audit entry once the change is committed. A failure is logged and not thrown: the manager must not see an
- * error for a change that went through.
- * shortcut: a failed audit write is lost (only logged); upgrade by writing the audit row in the same SQL transaction as the change.
- */
-async function auditAfterCommit(entry: Parameters<typeof recordAudit>[0]) {
-  try {
-    await recordAudit(entry);
-  } catch (e) {
-    console.error(`audit ${entry.action} failed for booking ${entry.entityId}`, e);
-  }
-}
-
-/**
  * Confirms a request in a hall at the calculated price, or at a different total with quotes.override and a reason.
  * One SQL call writes quote v1 and the booking together; a clash with another confirmed booking is `slotTaken`.
  */
@@ -321,7 +325,7 @@ export async function confirmBooking(
   if (!/^-?\d{1,15}$/.test(previewedTotalPaisa ?? "") || Number(previewedTotalPaisa) !== c.quote.totalPaisa) return { error: "priceChanged" };
 
   let quote: Quote = c.quote;
-  let overrideReason: string | null = null;
+  let override: { calculatedTotalPaisa: number; reason: string } | null = null;
   const raw = finalTotalRupees?.trim();
   if (raw) {
     const finalPaisa = parseRupees(raw);
@@ -331,68 +335,72 @@ export async function confirmBooking(
       const why = Reason.safeParse(reason ?? "");
       if (!why.success) return { error: "invalid" };
       quote = applyOverride(c.quote, finalPaisa, c.rules.taxPercent, c.rules.advancePercent);
-      overrideReason = why.data;
+      override = { calculatedTotalPaisa: c.quote.totalPaisa, reason: why.data };
     }
   }
   // total_paisa and advance_paisa are int4: a negative or too large total would fail inside the RPC.
   if (quote.totalPaisa < 0 || quote.totalPaisa > MAX_INT4 || quote.advancePaisa < 0 || quote.advancePaisa > MAX_INT4) return { error: "outOfRange" };
-  const snapshot: QuoteSnapshot = {
-    lines: quote.lines,
-    subtotalPaisa: quote.subtotalPaisa,
-    taxPaisa: quote.taxPaisa,
-    advancePaisa: quote.advancePaisa,
-    calculatedTotalPaisa: c.quote.totalPaisa,
-    finalTotalPaisa: quote.totalPaisa,
-    overrideReason,
-    inputs: c.inputs,
-  };
+  const snapshot = snapshotOf(quote, c.inputs, override);
   const { error } = await db.rpc("confirm_booking", {
     p_booking: id,
     p_hall: hallId,
     p_snapshot: snapshot,
     p_total: quote.totalPaisa,
     p_advance: quote.advancePaisa,
+    p_advance_due_on: addDays(c.today, c.rules.advanceDueDays),
     p_actor: viewer.userId,
   });
   if (error?.code === EXCLUSION) return { error: "slotTaken" };
   if (isTransitionError(error)) return { error: "state" };
   if (error) throw new Error(`confirm_booking: ${error.message}`);
-  await auditAfterCommit({
+  await recordAuditAfterCommit({
     tenantId,
     action: "booking.confirm",
     entity: "booking",
     entityId: id,
     after: { hallId, calculatedTotalPaisa: snapshot.calculatedTotalPaisa, finalTotalPaisa: snapshot.finalTotalPaisa },
-    reason: overrideReason ?? undefined,
+    reason: override?.reason,
   });
   return { ok: true };
 }
 
-async function setStatus(tenantId: string, id: string, reason: string, to: "declined" | "cancelled"): Promise<StatusResult> {
+async function setStatus(
+  tenantId: string,
+  id: string,
+  reason: string,
+  change: { to: "declined" } | { to: "cancelled"; refundDue?: boolean },
+): Promise<StatusResult> {
   const viewer = await requirePerm(tenantId, "bookings.edit");
   const why = Reason.safeParse(reason);
   if (!why.success || !Uuid.safeParse(id).success) return { error: "invalid" };
   const db = createServiceClient();
   const found = check(await db.from("bookings").select("status").eq("tenant_id", tenantId).eq("id", id).maybeSingle<{ status: string }>(), "bookings");
   if (!found) return { error: "notFound" };
+  const { to, ...choice } = change;
   const fn = to === "declined" ? "decline_booking" : "cancel_booking";
-  const { error } = await db.rpc(fn, { p_booking: id, p_reason: why.data, p_actor: viewer.userId });
+  const refund = "refundDue" in choice ? { p_refund_due: choice.refundDue ?? null } : {};
+  const { error } = await db.rpc(fn, { p_booking: id, p_reason: why.data, ...refund, p_actor: viewer.userId });
   if (isTransitionError(error)) return { error: "state" };
+  if (error?.code === RAISED && error.message === "refund_choice_required") return { error: "refundChoice" };
   if (error) throw new Error(`${fn}: ${error.message}`);
-  await auditAfterCommit({
+  await recordAuditAfterCommit({
     tenantId,
     action: to === "declined" ? "booking.decline" : "booking.cancel",
     entity: "booking",
     entityId: id,
     before: { status: found.status },
-    after: { status: to },
+    after: { status: to, ...choice },
     reason: why.data,
   });
   return { ok: true };
 }
 
 /** Declines a request. The reason (3 to 300 characters) is for staff only. */
-export const declineBooking = (tenantId: string, id: string, reason: string) => setStatus(tenantId, id, reason, "declined");
+export const declineBooking = (tenantId: string, id: string, reason: string) => setStatus(tenantId, id, reason, { to: "declined" });
 
-/** Cancels a request or a confirmed booking. The reason (3 to 300 characters) is for staff only. */
-export const cancelBooking = (tenantId: string, id: string, reason: string) => setStatus(tenantId, id, reason, "cancelled");
+/**
+ * Cancels a request, a hold or a confirmed booking. The reason (3 to 300 characters) is for staff only. With money paid,
+ * `refundDue` is required: true owes it back, false keeps it; without it the answer is `refundChoice`.
+ */
+export const cancelBooking = (tenantId: string, id: string, reason: string, refundDue?: boolean) =>
+  setStatus(tenantId, id, reason, { to: "cancelled", refundDue });
