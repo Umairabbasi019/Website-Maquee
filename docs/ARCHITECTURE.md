@@ -51,7 +51,7 @@ Each module lives in `src/modules/<name>/` and owns its server actions, queries,
 
 | Kind | Interface | MVP adapters |
 |---|---|---|
-| `payments` | `createPayment`, `verifyWebhook`, `getStatus`, `refund` | `manual`, `sandbox` (bank/gateway later) |
+| `payments` | `newRef`, `createPayment`, `peekRef`, `verifyWebhook`, `getStatus` (`refund` deferred) | `sandbox` (bank/gateway later); manual payments need no adapter |
 | `messaging` | `send`, `parseWebhook` | `whatsapp-cloud`, `email`, `dev-log` |
 | `storage` | `put`, `getUrl`, `remove` | `supabase-storage`, `s3-compatible` |
 | `auth` | session helpers | `supabase-auth` |

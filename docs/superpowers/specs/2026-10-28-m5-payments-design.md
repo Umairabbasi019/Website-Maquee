@@ -142,6 +142,8 @@ interface PaymentProvider {
 type ProviderEvent = { eventId: string; providerRef: string; status: "paid" | "failed"; amountPaisa: number; currency: string };
 ```
 
+As built, `createPayment` also takes `providerRef: string`, a merchant reference made first by a new method `newRef(): string`, and returns only `{ redirectUrl }`: the system inserts the pending payment with that ref before calling the gateway. A fourth method `peekRef(rawBody): string | null` reads the reference out of an unverified delivery, only to pick the venue's key; the verified event's `providerRef` must then equal it. `getStatus` stays status-only. See `src/modules/payments/providers/types.ts` and `DECISIONS.md`.
+
 `refund` is left out until a gateway does refunds (refunds are manual in M5). REQUIREMENTS PAY-2 is updated to say so.
 
 Flow: Pay online → server inserts a `pending` online payment, calls `createPayment`, stores `provider_ref`, redirects. Return page `/b/<token>` shows "Checking payment" from the ledger only; it never changes anything.

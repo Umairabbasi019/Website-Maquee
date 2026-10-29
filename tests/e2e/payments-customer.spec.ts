@@ -117,7 +117,7 @@ test("a 5 MB file is refused and nothing is saved", async ({ browser }) => {
   await customer.getByRole("button", { name: en["pay.upload.submit"] }).click();
   await expect(customer).toHaveURL(/\?err=tooLarge$/);
   await expect(customer.getByRole("alert")).toHaveText(en["pay.err.tooLarge"]);
-  expect((await db.query("select count(*)::int n from payments where tenant_id = $1 and source = 'customer_receipt'", [tenant])).rows[0].n).toBe(1);
+  expect((await db.query("select count(*)::int n from payments where tenant_id = $1 and source = 'customer_receipt' and booking_id in (select b.id from bookings b join customers c on c.id = b.customer_id where c.phone_e164 = any($2))", [tenant, OURS])).rows[0].n).toBe(1);
   await customer.context().close();
 });
 

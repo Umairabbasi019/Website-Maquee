@@ -43,16 +43,34 @@ Built in M4 (`supabase/migrations/20261027000100_booking.sql`). Only the server 
 - `access_tokens` (id, tenant_id, kind `booking|quote|invite`, target_id, token_hash unique, expires_at, revoked_at, created_at). Only the sha256 of the link token is stored; the booking link expires 60 days after the event date.
 - `booking_ref_counters` (tenant_id, yymm, n) pk (tenant_id, yymm). Gives the `<PREFIX>-<YYMM>-<NNNN>` reference; PREFIX is the first two letters of the tenant slug, and NNNN is at least four digits (it widens past 9999, never fails).
 - `booking_request_hits` (tenant_id, key_hash, at). Rate limit: 5 requests per hour per phone or IP-bucket hash, and 30 per hour per venue (rows with the fixed key_hash `venue`). Rows are never pruned in M4; the M7 job runner will.
-- Not built yet: `enquiries`, `hold_expires_at`, `referral_code_id` (holds come with quick booking in M5, referrals in M9).
+- Not built yet: `enquiries`, `referral_code_id` (referrals in M9). `hold_expires_at` came in M5 (see payments).
 
-Statuses in M4: `requested`, `confirmed`, `declined`, `cancelled`. Allowed moves: `requested` to `confirmed`, `declined` or `cancelled`; `confirmed` to `cancelled`. The trigger `check_booking_update()` refuses any other move, and once a booking leaves `requested` its details are locked: a confirmed one can only be cancelled, and a declined or cancelled one never changes. The one exception is the event type and package ids, which may become null when Publish removes the row. A decline or cancel needs a reason. A request whose date has passed shows as "expired" on read; no status is stored. M5 adds `awaiting_advance`.
+Statuses in M4: `requested`, `confirmed`, `declined`, `cancelled`. Allowed moves: `requested` to `confirmed`, `declined` or `cancelled`; `confirmed` to `cancelled`. The trigger `check_booking_update()` refuses any other move, and once a booking leaves `requested` its details are locked: a confirmed one can only be cancelled, and a declined or cancelled one never changes. The one exception is the event type and package ids, which may become null when Publish removes the row. A decline or cancel needs a reason. A request whose date has passed shows as "expired" on read; no status is stored. M5 adds `awaiting_advance`, `hold_expired`, `refund_pending` and `refunded` (see payments).
 
 Status changes go through the service-role functions `confirm_booking()` (writes quote v1 and confirms in one transaction), `decline_booking()` and `cancel_booking()` (`20261027000300_booking_staff_fns.sql`). A public request goes through `create_booking_request()` (`20261027000200_booking_request_fn.sql`): rate limit, customer, reference, booking and token in one transaction. None of these is callable by browsers.
 
 ### payments
-- `payments` (id, tenant_id, booking_id, kind `advance|balance|refund|adjustment`, method, amount_paisa, status `pending|verified|failed|refund_pending|refunded`, provider, provider_ref, recorded_by, verified_by, created_at) unique (provider, provider_ref)
-- `receipts` (id, tenant_id, payment_id, storage_path, uploaded_at)
-- `provider_events` (id, provider, event_id unique, payload, processed_at) — idempotency
+Built in M5 (`supabase/migrations/20261028000100..400`). Only the server (service role) writes; staff with `payments.view` read their own venue's `payments` rows. Money is `int` paisa, as in the quotes.
+- `payments` (id, tenant_id, booking_id, kind `payment|refund`, method `bank|jazzcash|easypaisa|cash|online`, amount_paisa > 0, status `pending|verified|rejected`, source `customer_receipt|staff|provider`, note, reject_reason, receipt_path null, provider null, provider_ref null, recorded_by, verified_by, verified_at, created_at). Checks: `reject_reason` is set exactly when the row is rejected; `source = 'provider'` exactly when `method = 'online'` and when `provider` is set; a refund is always `staff`. Unique (provider, provider_ref) where provider is not null. A customer receipt starts `pending`; a staff payment or refund is written `verified`; an online payment starts `pending` and only a verified provider event (or a provider status check) verifies it. Deleting a booking deletes its rows.
+- `provider_events` (id, provider, event_id, payment_id null, payload, result, received_at) unique (provider, event_id). Every webhook delivery that passed the signature check, for replay protection and audit. No client policy.
+- `bookings` gains `hold_expires_at`, `advance_due_on date` (set at confirm: confirm date + `advanceDueDays`), `pay_later boolean` (manager marks a trusted customer; no overdue alert) and `refund_due boolean` (set by the cancel choice; allowed only on `cancelled` rows, and only ever cleared afterwards).
+- Derived on read, never stored: paid = verified payments - verified refunds; balance = total - paid (negative when overpaid); advance met = paid >= advance. The state label (`Advance due`, `Advance overdue`, `Advance paid`, `Balance due`, `Fully paid`, `Pays later`) is computed in `src/modules/payments/ledger.ts`: "advance paid" needs an advance above 0 and paid equal to it; with the advance met and money still owing the label is `Balance due`; `Fully paid` at balance <= 0.
+- Receipt files: private Storage bucket `payment-receipts` at `<tenant_id>/<booking_id>/<uuid>.<ext>` (the path is chosen in TypeScript before the insert). No `storage.objects` policy: only the service role reads or writes, and staff open a file through a 5-minute signed URL.
+- Functions (service role only, each takes `p_actor`, locks the booking `for update` and raises `P0001` with a message the server maps to a plain reason): `record_payment()` (customer receipt, staff payment, staff refund, pending online row; 1 paisa up to the balance for a payment, up to paid for a refund; at most 3 pending and 10 per hour customer receipts per booking), `verify_payment()` (staff may change the amount to what arrived; the changed amount is what the advance check uses), `reject_payment()`, `set_payment_terms()` (advance due date, pays later), `apply_provider_event()` (idempotent on (provider, event_id)), `settle_booking()` (confirms or re-takes a held booking once paid >= advance), `expire_holds()`, `create_quick_booking()`, `payment_alerts()`. `confirm_booking()` and `cancel_booking()` were replaced in M5: confirm sets `advance_due_on` and expires overlapping holds first; cancel takes a `p_refund_due` choice that is required when money is paid.
+
+Statuses added in M5: `awaiting_advance`, `hold_expired`, `refund_pending`, `refunded`.
+
+| From | To | When |
+|---|---|---|
+| (new) | `awaiting_advance` | quick booking created (hall, range, quote v1 and `hold_expires_at` required) |
+| `awaiting_advance` | `confirmed` | verified paid >= advance (even after `hold_expires_at`, as nobody could take the slot without flipping it) |
+| `awaiting_advance` | `hold_expired` | the hold time passed and another write needed the slot |
+| `awaiting_advance` | `cancelled` | manager cancels with a reason |
+| `hold_expired` | `confirmed` | verified paid >= advance and the range is still free |
+| `hold_expired` | `refund_pending` | verified payment arrives and the range is taken (`23P01`); the payment stays verified |
+| `refund_pending` | `refunded` | refunds cover all verified money |
+
+Reads show an `awaiting_advance` row past `hold_expires_at` as "Hold expired" without writing. The status trigger `check_booking_update()` lists which columns each status leaves free; everything else is locked.
 
 ### notifications
 - `message_templates` (id, tenant_id, key, channel, body, provider_template_name, approved)
@@ -75,9 +93,9 @@ Status changes go through the service-role functions `confirm_booking()` (writes
 create extension if not exists btree_gist;
 alter table bookings add constraint no_overlap
   exclude using gist (hall_id with =, during with &&)
-  where (status = 'confirmed');
+  where (status in ('confirmed', 'awaiting_advance'));
 ```
-Only `confirmed` bookings count in M4. A request has no hall and no range, so requests never conflict and a taken date is accepted like any other. `during` is the slot on the event date in the venue time zone, widened by the slot's `buffer_minutes` at both ends; a slot whose end is not after its start ends the next day. Two slots whose buffered ranges overlap block each other in the same hall. Two managers confirming at once: `confirm_booking()` takes a per-hall advisory lock, so the second sees the first's committed row, gets `23P01` and the server turns it into a plain "slot just taken" message with nothing kept. When quick booking arrives in M5, the status list grows (`awaiting_advance`, with holds and `hold_expires_at`) and the constraint changes with it.
+In M4 only `confirmed` bookings counted; M5 added `awaiting_advance` (a hold). An expired hold is flipped to `hold_expired` under the hall lock by the next write that needs the slot, so it stops blocking only then. A request has no hall and no range, so requests never conflict and a taken date is accepted like any other. `during` is the slot on the event date in the venue time zone, widened by the slot's `buffer_minutes` at both ends; a slot whose end is not after its start ends the next day. Two slots whose buffered ranges overlap block each other in the same hall. Two managers confirming at once: `confirm_booking()` takes a per-hall advisory lock, so the second sees the first's committed row, gets `23P01` and the server turns it into a plain "slot just taken" message with nothing kept. The same lock covers `create_quick_booking()` and a late verified payment on a `hold_expired` booking; the first to commit wins and the other gets `23P01`.
 
 ## RLS strategy
 
@@ -86,6 +104,7 @@ Only `confirmed` bookings count in M4. A request has no hall and no range, so re
 - Public data (site config, catalogue) is read through server-side views or functions, not open tables. Availability is never public.
 - Token pages resolve on the server with the service role after hashing and checking the token; they return only that booking's fields, never the full phone or a staff reason.
 - Booking tables (M4): RLS is on for all seven. `customers`, `bookings`, `quotes` and `booking_status_history` have a select policy for `bookings.view` and no client write policy. `access_tokens`, `booking_ref_counters` and `booking_request_hits` have no policy and all rights are revoked from `anon` and `authenticated`. The trigger functions are revoked from clients too.
+- Payments (M5): `payments` has a select policy for `payments.view` and no client write policy; `provider_events` has no policy and all rights are revoked from clients; the `payment-receipts` bucket has no policy at all. Negative tests cover another venue, the `staff` role and anon.
 - `tenant_secrets` and `provider_events` have no client policies; `tenant_secrets` is also revoked from client roles. `audit_events` has a read-only policy for holders of `audit.view`; rows are added only through `record_audit()` and update/delete are blocked by trigger.
 - Owner protection: below the super admin, an owner membership cannot be deactivated, deleted, re-roled or have its overrides edited, and nobody can assign the owner role. Only the super admin changes owners (`supabase/migrations/20261020000700_owner_protection.sql`).
 - Published site content (event types, packages, offers, add-ons, stage themes, `tenant_settings`) cannot be written by a client outside Publish: a trigger refuses it unless `publish_site()` set `app.publishing`. Hall, slot and date price writes are direct but audited by trigger.
@@ -101,4 +120,4 @@ Bookings and payments kept for accounting (tenant-configurable, default 7 years)
 
 ## Seeds
 
-Two demo tenants (Manor with sample prices labelled "sample", and a fictional second venue with a different theme), demo users per role, two sample `requested` bookings and one `confirmed` booking (with quote) for Manor, at 90 to 100 days out, written by `scripts/seed-bookings.ts`. More statuses come with later milestones.
+Two demo tenants (Manor with sample prices labelled "sample", and a fictional second venue with a different theme), demo users per role, two sample `requested` bookings and two `confirmed` bookings (with quote) for Manor, at 85 to 100 days out, written by `scripts/seed-bookings.ts`. One confirmed sample has a verified advance receipt and the other a pending Rs 1,000 receipt row with no file (`receipt_path` null). Manor also gets sample bank and JazzCash details (titles say "Sample") and a random local sandbox payments key. More statuses come with later milestones.

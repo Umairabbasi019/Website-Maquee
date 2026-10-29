@@ -91,4 +91,23 @@ describe("seeded demo tenants", () => {
     );
     expect(admin.rowCount).toBe(1);
   });
+
+  it("seeds Manor sample payment accounts, one verified advance and one pending receipt with no file", async () => {
+    const manor = await pool.query(`select s.money_rules from tenant_settings s join tenants t on t.id = s.tenant_id where t.slug = 'manor'`);
+    const { bank, jazzcash } = manor.rows[0].money_rules.paymentAccounts;
+    expect(bank.accountTitle).toMatch(/sample/i);
+    expect(jazzcash.accountTitle).toMatch(/sample/i);
+    const { rows } = await pool.query(
+      `select p.status, p.source, p.receipt_path, b.status as booking_status
+       from payments p
+       join bookings b on b.id = p.booking_id and b.tenant_id = p.tenant_id
+       join customers c on c.id = b.customer_id
+       join tenants t on t.id = p.tenant_id
+       where t.slug = 'manor' and c.phone_e164 like '+9230011100%' order by p.status`,
+    );
+    expect(rows).toEqual([
+      { status: "pending", source: "customer_receipt", receipt_path: null, booking_status: "confirmed" },
+      { status: "verified", source: "customer_receipt", receipt_path: null, booking_status: "confirmed" },
+    ]);
+  });
 });

@@ -49,7 +49,7 @@ IDs are referenced by the roadmap and tests. "Must" items are MVP.
 
 ### Payments (PAY)
 - PAY-1 Manual: bank, JazzCash, Easypaisa + receipt upload; staff verification books the date.
-- PAY-2 Provider interface (`createPayment`, `verifyWebhook`, `getStatus`, `refund`) with a sandbox adapter.
+- PAY-2 Provider interface (`newRef`, `createPayment`, `peekRef`, `verifyWebhook`, `getStatus`) with a sandbox adapter. `refund` is deferred until a gateway does refunds; refunds are recorded by hand in M5.
 - PAY-3 Auto-book only on a server-verified provider confirmation (signature, booking, amount, currency, not a repeat). Redirect pages never confirm.
 - PAY-4 Payment for a date taken after hold expiry → Refund pending + manager alert.
 - PAY-5 Ledger per booking with method, provider reference and recorder.
