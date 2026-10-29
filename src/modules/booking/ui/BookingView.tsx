@@ -16,6 +16,9 @@ const STATUS = {
   cancelled: "booking.cancelled",
 } as const;
 
+const heldUntil = (iso: string, timeZone: string) =>
+  new Date(iso).toLocaleString("en-PK", { timeZone, day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
 /** What the customer's private link shows. The price appears once a hall is held or confirmed: the stored total and advance, never a re-sum of the lines. */
 export function BookingView({ view }: { view: CustomerBookingView }) {
   const facts: [string, string][] = [
@@ -38,6 +41,7 @@ export function BookingView({ view }: { view: CustomerBookingView }) {
           <span className={styles.ref}>{view.reference}</span>
         </div>
         <p>{t(STATUS[view.status])}</p>
+        {view.status === "awaiting_advance" && view.holdExpiresAt && <p>{t("booking.view.heldUntil", { time: heldUntil(view.holdExpiresAt, view.timeZone) })}</p>}
         <dl className={styles.facts}>
           {facts.map(([label, value]) => (
             <div key={label}>

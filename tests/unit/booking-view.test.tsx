@@ -20,6 +20,7 @@ const view = (status: CustomerBookingView["status"]): CustomerBookingView => ({
   holdExpiresAt: null,
   advanceDueOn: null,
   venueName: "Venue",
+  timeZone: "Asia/Karachi",
 });
 
 describe("BookingView", () => {

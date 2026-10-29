@@ -23,7 +23,7 @@ async function currencyOf(tenantId: string): Promise<string> {
 }
 
 /** Online payment is on when the venue allows the gateway method and has saved its key. */
-async function onlineEnabled(tenantId: string): Promise<boolean> {
+export async function onlineEnabled(tenantId: string): Promise<boolean> {
   const row = check(
     await db().from("tenant_settings").select("money_rules").eq("tenant_id", tenantId).maybeSingle<{ money_rules: unknown }>(),
     "tenant_settings",

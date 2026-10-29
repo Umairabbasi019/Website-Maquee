@@ -8,7 +8,7 @@ import { settleSandbox } from "./actions";
 // Per reference, read on every request; never cached.
 export const instant = false;
 
-export const metadata: Metadata = { title: t("pay.sandbox.heading"), robots: { index: false, follow: false }, referrer: "no-referrer" };
+export const metadata: Metadata = { title: t("pay.sandbox.heading"), robots: { index: false, follow: false }, referrer: "same-origin" };
 
 /** The fake gateway's checkout. It exists only while the sandbox is on; anything else is a 404. */
 export default async function SandboxCheckoutPage({ params, searchParams }: { params: Promise<{ ref: string }>; searchParams: Promise<{ done?: string }> }) {

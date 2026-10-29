@@ -23,6 +23,8 @@ export type CustomerBookingView = {
   /** The advance due date of a confirmed booking (YYYY-MM-DD), if set. */
   advanceDueOn: string | null;
   venueName: string;
+  /** The venue's IANA time zone, for showing the hold's end in venue time. */
+  timeZone: string;
 };
 
 type BookingRow = {
@@ -123,5 +125,6 @@ export async function getBookingByToken(token: string, tenantId: string): Promis
     holdExpiresAt: b.hold_expires_at,
     advanceDueOn: b.advance_due_on,
     venueName: venue.name,
+    timeZone: venue.time_zone,
   };
 }
