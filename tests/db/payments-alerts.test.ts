@@ -57,7 +57,8 @@ async function booking(name: string, status: string, over: { day?: number; dueOn
 
 const verified = (b: string, amount: number, kind = "payment") =>
   pool.query(
-    `insert into payments (tenant_id, booking_id, kind, method, amount_paisa, status, source) values ($1, $2, $3, 'cash', $4, 'verified', 'staff')`,
+    `insert into payments (tenant_id, booking_id, kind, method, amount_paisa, status, source, verified_at)
+     values ($1, $2, $3, 'cash', $4, 'verified', 'staff', clock_timestamp())`,
     [tenant, b, kind, amount],
   );
 const receipt = (b: string, status: string, ageDays = 0) =>
@@ -110,6 +111,20 @@ beforeAll(async () => {
   await booking("cancelledKept", "confirmed");
   await verified(ids.cancelledKept, 60_000);
   await pool.query("update bookings set status = 'cancelled', status_reason = 'x' where id = $1", [ids.cancelledKept]);
+  // Late money: verified after the cancel (nothing paid before it), or after a full refund. Not: late money refunded again.
+  await booking("lateCancelled", "confirmed");
+  await pool.query("update bookings set status = 'cancelled', status_reason = 'x' where id = $1", [ids.lateCancelled]);
+  await verified(ids.lateCancelled, 20_000);
+  await booking("lateRefunded", "refund_pending");
+  await verified(ids.lateRefunded, 30_000);
+  await verified(ids.lateRefunded, 30_000, "refund");
+  await pool.query("update bookings set status = 'refunded' where id = $1", [ids.lateRefunded]);
+  await verified(ids.lateRefunded, 30_000);
+  await booking("lateSettled", "confirmed");
+  await verified(ids.lateSettled, 60_000);
+  await pool.query("update bookings set status = 'cancelled', status_reason = 'x' where id = $1", [ids.lateSettled]);
+  await verified(ids.lateSettled, 20_000);
+  await verified(ids.lateSettled, 20_000, "refund");
   await booking("overpaid", "confirmed");
   await verified(ids.overpaid, 80_000);
   await verified(ids.overpaid, 30_000);
@@ -150,8 +165,15 @@ describe("getPaymentAlerts", () => {
     expect(names((await alertsFor(viewer("manager"))).advanceOverdue)).toEqual(["overdue"]);
   });
 
-  it("lists refund_pending, cancelled-and-owing and overpaid bookings, in any status", async () => {
-    expect(names((await alertsFor(viewer("manager"))).refundDue)).toEqual(["cancelledOwing", "overpaid", "overpaidHeld", "refundPending"]);
+  it("lists refund_pending, cancelled-and-owing, overpaid and late-money bookings, in any status", async () => {
+    expect(names((await alertsFor(viewer("manager"))).refundDue)).toEqual([
+      "cancelledOwing",
+      "lateCancelled",
+      "lateRefunded",
+      "overpaid",
+      "overpaidHeld",
+      "refundPending",
+    ]);
   });
 
   it("lists pending provider payments older than an hour", async () => {

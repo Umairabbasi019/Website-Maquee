@@ -250,6 +250,15 @@ describe("settle rule", () => {
       expect(await status(c, b)).toBe("refund_pending");
       await staffPay(c, b, ADVANCE - 20_000, "refund");
       expect(await status(c, b)).toBe("refunded");
+      // Late money on a refunded booking (a webhook that finished afterwards) can still be refunded, but no more than paid.
+      await c.query(
+        "insert into payments (tenant_id, booking_id, kind, method, amount_paisa, status, source, verified_at) select tenant_id, id, 'payment', 'cash', 5000, 'verified', 'staff', now() from bookings where id = $1",
+        [b],
+      );
+      await expectReject(c, RECORD, [b, "refund", "cash", 5001, "staff", ACTOR], /amount/);
+      await expectReject(c, RECORD, [b, "payment", "cash", 100, "staff", ACTOR], /payment_state/);
+      await staffPay(c, b, 5000, "refund");
+      expect(await paid(c, b)).toBe(0);
     }));
 
   it("clears refund_due on a cancelled booking once refunds bring paid to 0", () =>

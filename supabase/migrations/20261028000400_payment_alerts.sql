@@ -16,6 +16,17 @@ language sql stable security definer set search_path = '' as $$
     left join paid p on p.booking_id = bk.id
     where bk.tenant_id = p_tenant
       and bk.status in ('awaiting_advance', 'confirmed', 'hold_expired', 'refund_pending', 'cancelled')
+  ), late as (
+    -- Late money: verified after the booking moved into cancelled or refunded (a webhook or receipt that finished after
+    -- the cancel), net of refunds since. Money kept at the cancel was verified before it, so it stays quiet.
+    select p.booking_id
+    from public.payments p
+    join public.bookings bk on bk.id = p.booking_id
+    where p.tenant_id = p_tenant and p.status = 'verified' and bk.status in ('cancelled', 'refunded')
+      and p.verified_at > (select max(h.at) from public.booking_status_history h
+        where h.tenant_id = p_tenant and h.booking_id = bk.id and h.to_status = bk.status)
+    group by p.booking_id
+    having sum(case p.kind when 'payment' then p.amount_paisa else -p.amount_paisa end) > 0
   )
   select jsonb_build_object(
     'receiptsToReview', coalesce((select jsonb_agg(distinct booking_id) from public.payments
@@ -25,10 +36,12 @@ language sql stable security definer set search_path = '' as $$
     'advanceOverdue', coalesce((select jsonb_agg(b.id) from b, venue
       where b.status = 'confirmed' and not b.pay_later and b.total_paisa is not null and b.advance_due_on < venue.today
         and b.paid < b.advance_paisa and b.total_paisa - b.paid > 0), '[]'),
-    'refundDue', coalesce((select jsonb_agg(b.id) from b
+    'refundDue', coalesce((select jsonb_agg(id) from (
+      select b.id from b
       where b.status = 'refund_pending'
         or (b.status = 'cancelled' and b.refund_due and b.paid > 0)
-        or b.paid > b.total_paisa), '[]'),
+        or b.paid > b.total_paisa
+      union select booking_id from late) r), '[]'),
     'rejectedAfterEvent', coalesce((select jsonb_agg(distinct p.booking_id) from public.payments p
       join public.bookings bk on bk.id = p.booking_id, venue
       where p.tenant_id = p_tenant and p.status = 'rejected' and p.created_at > now() - interval '30 days'

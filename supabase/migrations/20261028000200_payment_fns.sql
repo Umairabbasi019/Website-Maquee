@@ -104,7 +104,8 @@ begin
   end if;
   v_booking := public.lock_booking(p_booking);
   if not (v_booking.status in ('confirmed', 'awaiting_advance', 'hold_expired', 'refund_pending')
-    or (p_kind = 'refund' and v_booking.status = 'cancelled')) then
+    -- A refunded booking can still take a refund: late money from a webhook that finished after the last refund.
+    or (p_kind = 'refund' and v_booking.status in ('cancelled', 'refunded'))) then
     raise exception using errcode = 'P0001', message = 'payment_state';
   end if;
   v_paid := public.booking_paid(p_booking);
