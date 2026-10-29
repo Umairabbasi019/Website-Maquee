@@ -9,7 +9,7 @@ One milestone at a time. Each ends with a code review, checks actually run, docs
 | M2 | Public site from config | L | M1 | Done, merged |
 | M3 | Venue configuration and catalogue | M | M1 | Done, merged |
 | M4 | Booking requests and pricing | L | M3 | Done, merged |
-| M5 | Payments | M | M4 | Built on `feat/m5-payments`, awaiting review and merge |
+| M5 | Payments | M | M4 | Done, merged |
 | M6 | Dashboard and operations | L | M4, M5 | Not started |
 | M7 | Notifications and jobs | M | M4 | Not started |
 | M8 | Customer extras: stage preview, invite + RSVP | M | M4, M7 | Not started |
@@ -67,7 +67,7 @@ Scope: choose hosting, deploy, domains and HTTPS, backups, monitoring, security 
 Acceptance: every launch checklist item verified, not assumed.
 
 ## Handoff
-Current state: M0 to M4 are merged to `main`. M5 (payments) is built on `feat/m5-payments`; it needs the milestone code review and merge. Next is M6.
+Current state: M0 to M5 are merged to `main`. Next is M6 (dashboard and operations).
 
 Checks run on the M3 branch (2026-10-26, after `npm run db:seed`): lint and typecheck clean; 225 unit tests (26 files), 184 database tests (21 files) and 59 Playwright tests pass; `npm run build` passes.
 
@@ -77,7 +77,7 @@ Checks run on the M4 branch before merge (2026-10-28, after `npm run db:seed`): 
 
 Built in M4: the pricing service (integer paisa, half-up rounding to the rupee once per line, date prices, tax, advance, override); booking tables, guards and the service-role SQL functions; the public request form at `/book` (works without JavaScript) with an optional estimate; `/book/sent` and the private link `/b/<token>`; the staff bookings list, detail and confirm, decline and cancel at `/dashboard/bookings`; the month calendar at `/dashboard/calendar`; the new-request count on the overview; the `showPriceEstimate` setting; sample bookings in the Manor seed.
 
-Checks run on the M5 branch (2026-10-29, after `npm run db:seed`): lint and typecheck clean; 412 unit tests (40 files), 344 database tests (30 files) and 88 Playwright tests (17 files, run in three chunks of spec files) pass; `npm run build` passes. The first full Playwright run timed out in 5 tests at the 18-minute mark (slow machine); each passed when rerun in chunks.
+Checks run on the M5 branch before merge (2026-10-29, after `npm run db:seed`, after the final review fixes): lint and typecheck clean; 415 unit tests (41 files), 346 database tests (31 files) and 88 Playwright tests pass; `npm run build` passes.
 
 Built in M5: the payments schema (ledger, provider event log, private receipts bucket, `no_overlap` with holds, four new statuses); service-role SQL functions for payments, holds, quick booking, cancel choice and alerts; the `payments` module (ledger maths, receipt upload, staff actions, alerts); the customer payment panel on `/b/<token>`; quick booking with holds and the manager switch; the provider interface with the dev-only sandbox, `/pay/sandbox/[ref]` and the webhook `/api/payments/webhook/[provider]`; the staff ledger on the booking page and dashboard alerts; sample payment accounts, one verified advance and one pending receipt in the Manor seed. A receipt or a redirect never confirms a booking.
 
