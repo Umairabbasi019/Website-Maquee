@@ -19,7 +19,7 @@ const BUCKET = "payment-receipts";
 
 // Staff never record an online payment: only the provider does.
 const STAFF_METHODS = ["bank", "jazzcash", "easypaisa", "cash"] as const;
-const Uuid = z.uuid();
+export const Uuid = z.uuid();
 const Rupees = z.string().transform((s) => parseRupees(s)).pipe(z.number());
 const RecordInput = z.object({
   kind: z.enum(["payment", "refund"]),
@@ -41,12 +41,12 @@ const SQL_ERRORS: Record<string, Failure["error"]> = {
 type RpcError = { code?: string; message: string };
 
 /** The answer for a refused call, or undefined for an error that should be thrown. */
-const refusal = (e: RpcError): Failure | undefined => {
+export const refusal = (e: RpcError): Failure | undefined => {
   const error = e.code === RAISED ? SQL_ERRORS[e.message] : undefined;
   return error && { error };
 };
 
-const fail = (fn: string, e: RpcError): never => {
+export const fail = (fn: string, e: RpcError): never => {
   throw new Error(`${fn}: ${e.message}`);
 };
 
@@ -54,14 +54,14 @@ const fail = (fn: string, e: RpcError): never => {
  * Calls a payment SQL function. Two payment actions on one booking can deadlock in rare timing; Postgres aborts one of
  * them, and running it again once is safe because the aborted call changed nothing.
  */
-async function callSql(fn: string, args: Record<string, unknown>) {
+export async function callSql(fn: string, args: Record<string, unknown>) {
   const db = createServiceClient();
   let r = await db.rpc(fn, args);
   if (r.error?.code === DEADLOCK) r = await db.rpc(fn, args);
   return r;
 }
 
-async function inTenant(table: "bookings" | "payments", tenantId: string, id: string, columns: string) {
+export async function inTenant(table: "bookings" | "payments", tenantId: string, id: string, columns: string) {
   const db = createServiceClient();
   return check(await db.from(table).select(columns).eq("tenant_id", tenantId).eq("id", id).maybeSingle<Record<string, unknown>>(), table);
 }

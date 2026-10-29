@@ -500,6 +500,12 @@ export const en = {
   "settings.money.method.jazzcash": "JazzCash",
   "settings.money.method.easypaisa": "Easypaisa",
   "settings.money.method.gateway": "Card gateway",
+  "pay.sandbox.heading": "Sandbox checkout",
+  "pay.sandbox.note": "A test payment. No money moves.",
+  "pay.sandbox.amount": "Amount",
+  "pay.sandbox.pay": "Pay",
+  "pay.sandbox.fail": "Fail the payment",
+  "pay.sandbox.done": "Payment sent. Go back to your booking link.",
 } as const;
 
 export type TranslationKey = keyof typeof en;

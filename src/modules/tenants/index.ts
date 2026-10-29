@@ -2,7 +2,7 @@ export { getPrimaryHost, isPlatformHost, normalizeHost, resolveTenantByHost, typ
 export { createTenantFromTemplate } from "./server/create-tenant";
 export * from "./settings";
 export { setupChecklist, type ChecklistItem } from "./checklist";
-export { encryptSecret, listSecretMeta, saveTenantSecret, SECRET_KINDS, type SecretKind } from "./server/secrets";
+export { encryptSecret, listSecretMeta, readTenantSecret, saveTenantSecret, SECRET_KINDS, type SecretKind } from "./server/secrets";
 export {
   createAccount,
   deleteEmptyAccount,

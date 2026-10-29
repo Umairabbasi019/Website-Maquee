@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 // Relative on purpose, like seed-site.ts: the module indexes pull in server-only and React code.
 import { priceQuote, snapshotOf, type PriceInput } from "../src/modules/booking/pricing";
+import { encryptSecret } from "../src/modules/tenants/server/crypto";
 import { MoneyRulesSchema } from "../src/modules/tenants/settings";
 import { assertLocalSupabaseUrl } from "./local-guard";
 
@@ -39,6 +40,11 @@ const dayInZone = (days: number, timeZone: string) =>
 
 async function main() {
   const tenant = check(await admin.from("tenants").select("id, time_zone").eq("slug", "manor").single(), "tenant manor");
+  // A random local key for the sandbox provider; it signs and checks inside this database, so nobody needs to know it.
+  check(
+    await admin.from("tenant_secrets").upsert({ tenant_id: tenant.id, kind: "payments", ciphertext: encryptSecret(randomBytes(24).toString("base64url")) }),
+    "payments secret",
+  );
   const existing = check(
     await admin.from("customers").select("id").eq("tenant_id", tenant.id).in("phone_e164", SAMPLES.map((s) => s.phone)),
     "sample customers",
