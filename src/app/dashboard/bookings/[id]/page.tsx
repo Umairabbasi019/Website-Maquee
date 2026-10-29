@@ -1,15 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { can, canAny, DASHBOARD_SCREENS } from "@/modules/access";
-import { ConfirmForm, getBookingDetail, longDate, previewQuote, QuoteLines, ReasonForm, statusLabel } from "@/modules/booking";
+import { ConfirmForm, getBookingDetail, longDate, previewQuote, QuoteLines, ReasonForm, statusLabel, venueToday } from "@/modules/booking";
+import { Ledger, listPayments, paymentState, summarise } from "@/modules/payments";
 import { listHalls } from "@/modules/tenants";
 import { formatLocalPhone, formatRs } from "@/sections/shared/format";
 import { t, type TranslationKey } from "@/ui/i18n";
 import { Forbidden } from "@/ui/notices";
 import { getDashboard } from "../../context";
 import { cancelAction, confirmAction, declineAction, previewAction } from "../actions";
+import { checkOnlineAction, paymentTermsAction, recordPaymentAction, rejectPaymentAction, verifyPaymentAction } from "../payment-actions";
 
 export const instant = false; // see layout.tsx
+
+// A hold past its time (hold_expired) and a refund in progress cannot be cancelled: the database refuses those moves.
+const CANCELLABLE = ["requested", "expired", "awaiting_advance", "confirmed"];
 
 function Section({ id, title, children }: { id: string; title: TranslationKey; children: React.ReactNode }) {
   return (
@@ -35,7 +40,15 @@ function Facts({ facts }: { facts: [string, string][] }) {
   );
 }
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ hall?: string | string[] }> };
+const LEDGER_ACTIONS = {
+  verify: verifyPaymentAction,
+  reject: rejectPaymentAction,
+  record: recordPaymentAction,
+  terms: paymentTermsAction,
+  check: checkOnlineAction,
+};
+
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ hall?: string | string[]; payErr?: string | string[] }> };
 
 export default async function BookingPage({ params, searchParams }: Props) {
   const { viewer, venue } = await getDashboard();
@@ -60,9 +73,13 @@ export default async function BookingPage({ params, searchParams }: Props) {
       })
     : [];
   // ?hall= comes from "Update quote" without JavaScript; only a hall that fits is taken.
-  const { hall: asked } = await searchParams;
+  const { hall: asked, payErr } = await searchParams;
   const hallId = (halls.find((h) => h.id === asked && !h.disabled) ?? halls.find((h) => !h.disabled))?.id ?? "";
   const preview = hallId ? await previewQuote(venue.id, b.id, hallId) : null;
+  // The ledger shows once a quote exists (a hold, a confirmed booking, or one since cancelled or refunded).
+  const rows = b.quote && can(viewer, venue.id, "payments.view") ? await listPayments(venue.id, b.id) : null;
+  const ledger = b.quote && rows ? { rows, summary: summarise(b.quote.totalPaisa, b.quote.advancePaisa, rows) } : null;
+  const today = ledger && b.status === "confirmed" ? await venueToday(venue.id) : null;
   const when = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: b.timeZone });
 
   return (
@@ -122,9 +139,24 @@ export default async function BookingPage({ params, searchParams }: Props) {
           <ReasonForm bookingId={b.id} kind="decline" action={declineAction} />
         </Section>
       )}
-      {edit && b.status !== "declined" && b.status !== "cancelled" && (
+      {ledger && (
+        <Section id="booking-payments" title="pay.ledger.heading">
+          <Ledger
+            bookingId={b.id}
+            rows={ledger.rows}
+            summary={ledger.summary}
+            state={today ? paymentState(ledger.summary, b, today) : null}
+            terms={today ? b : null}
+            canVerify={can(viewer, venue.id, "payments.verify")}
+            actions={LEDGER_ACTIONS}
+            receiptHref={(paymentId) => `/dashboard/bookings/receipt/${paymentId}`}
+            error={typeof payErr === "string" ? payErr : undefined}
+          />
+        </Section>
+      )}
+      {edit && CANCELLABLE.includes(b.status) && (
         <Section id="booking-cancel" title="bookings.cancel.heading">
-          <ReasonForm bookingId={b.id} kind="cancel" action={cancelAction} />
+          <ReasonForm bookingId={b.id} kind="cancel" paidPaisa={ledger?.summary.paidPaisa} action={cancelAction} />
         </Section>
       )}
       <Section id="booking-history" title="bookings.detail.history">

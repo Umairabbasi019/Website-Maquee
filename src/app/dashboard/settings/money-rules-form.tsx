@@ -8,8 +8,11 @@ import { FormStatus } from "./form-status";
 
 const METHODS = MoneyRulesSchema.shape.paymentMethods.unwrap().element.options;
 
-/** `full` = tenant.settings.edit; otherwise only the price estimate toggle is editable (prices.edit). */
-export function MoneyRulesForm({ rules, full }: { rules: TenantSettings["moneyRules"]; full: boolean }) {
+/**
+ * `full` = tenant.settings.edit: every field. `mode` = bookings.edit and payments.verify: instant booking and the card
+ * gateway. Otherwise only the price estimate toggle is editable (prices.edit).
+ */
+export function MoneyRulesForm({ rules, full, mode }: { rules: TenantSettings["moneyRules"]; full: boolean; mode: boolean }) {
   const id = useId();
   const [state, action, pending] = useActionState(saveMoneyRulesAction, null);
   const error = state && "error" in state;
@@ -17,7 +20,7 @@ export function MoneyRulesForm({ rules, full }: { rules: TenantSettings["moneyRu
 
   return (
     <form action={action} aria-label={t("settings.moneyRules")} className="space-y-3 rounded-lg border border-muted/40 p-4">
-      {!full && <p className="text-sm">{t("settings.money.estimateOnly")}</p>}
+      {!full && <p className="text-sm">{t("settings.money.limited")}</p>}
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">
           {t("settings.money.tax")}
@@ -33,7 +36,7 @@ export function MoneyRulesForm({ rules, full }: { rules: TenantSettings["moneyRu
         </label>
       </div>
       <label className="flex items-center gap-2">
-        <input name="instantBooking" type="checkbox" disabled={!full} defaultChecked={rules.instantBooking} />
+        <input name="instantBooking" type="checkbox" disabled={!mode} defaultChecked={rules.instantBooking} />
         {t("settings.money.instant")}
       </label>
       <label className="flex items-center gap-2">
@@ -44,7 +47,7 @@ export function MoneyRulesForm({ rules, full }: { rules: TenantSettings["moneyRu
         <legend>{t("settings.money.methods")}</legend>
         {METHODS.map((m) => (
           <label key={m} className="flex items-center gap-2">
-            <input name="paymentMethods" type="checkbox" value={m} disabled={!full} defaultChecked={rules.paymentMethods.includes(m)} />
+            <input name="paymentMethods" type="checkbox" value={m} disabled={m === "gateway" ? !mode : !full} defaultChecked={rules.paymentMethods.includes(m)} />
             {t(`settings.money.method.${m}`)}
           </label>
         ))}

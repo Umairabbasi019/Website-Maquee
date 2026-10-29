@@ -48,10 +48,13 @@ test("a manager sets the hall hire price, date prices and the estimate switch, b
   // prices.edit shows Money rules with only the estimate switch editable.
   await expect(page.getByRole("heading", { name: en["settings.moneyRules"] })).toBeVisible();
   const money = page.getByRole("form", { name: en["settings.moneyRules"] });
-  await expect(money).toContainText(en["settings.money.estimateOnly"]);
-  for (const label of ["settings.money.tax", "settings.money.advance", "settings.money.hold", "settings.money.instant", "settings.money.method.bank"] as const) {
+  await expect(money).toContainText(en["settings.money.limited"]);
+  for (const label of ["settings.money.tax", "settings.money.advance", "settings.money.hold", "settings.money.method.bank"] as const) {
     await expect(money.getByLabel(en[label])).toBeDisabled();
   }
+  // The mode switch (instant booking, card gateway) needs bookings.edit and payments.verify, which a manager holds.
+  await expect(money.getByLabel(en["settings.money.instant"])).toBeEnabled();
+  await expect(money.getByLabel(en["settings.money.method.gateway"])).toBeEnabled();
   const estimate = money.getByLabel(en["settings.money.estimate"]);
   await expect(estimate).toBeEnabled();
   await expect(estimate).toBeChecked();

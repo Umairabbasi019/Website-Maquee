@@ -16,7 +16,7 @@ import { check, datePriceFor, MAX_INT4 } from "./request";
 export type StaffBookingRow = {
   id: string;
   reference: string;
-  /** Stored status, or "expired" for a request whose date has passed in the venue time zone. */
+  /** Stored status, "expired" for a request whose date has passed in the venue time zone, or "hold_expired" for a hold past its time. */
   status: string;
   eventDate: string;
   slot: string;
@@ -27,6 +27,10 @@ export type StaffBookingRow = {
   eventType: string;
   /** The stored final total, never summed lines. Null until confirmed. */
   totalPaisa: number | null;
+  /** The venue date (YYYY-MM-DD) the advance is due by. Null until confirmed. */
+  advanceDueOn: string | null;
+  /** Staff agreed the customer may pay the advance later. */
+  payLater: boolean;
 };
 
 export type StaffBookingDetail = StaffBookingRow & {
@@ -45,7 +49,7 @@ export type ConfirmResult =
   | { ok: true }
   | { error: "invalid" | "forbidden" | "notFound" | "slotTaken" | "capacity" | "state" | "outOfRange" | "priceChanged" };
 
-const STATUSES = ["requested", "confirmed", "declined", "cancelled"] as const;
+const STATUSES = ["requested", "awaiting_advance", "confirmed", "hold_expired", "refund_pending", "refunded", "declined", "cancelled"] as const;
 /** List filters: the stored statuses plus "expired", a request whose date has passed. */
 const FILTERS = [...STATUSES, "expired"] as const;
 /** Postgres exclusion_violation: the no_overlap constraint. */
@@ -59,6 +63,8 @@ const Reason = z.string().trim().min(3).max(300);
 const ListQuery = z.object({
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional().catch(undefined),
   status: z.enum(FILTERS).optional().catch(undefined),
+  // Booking ids from a payment alert. shortcut: they travel in the request URL, so a very long list can fail; page them with the M6 table.
+  ids: z.array(z.uuid()).optional().catch(undefined),
 });
 const ConfirmInput = z.object({
   hallId: z.uuid(),
@@ -68,7 +74,7 @@ const ConfirmInput = z.object({
 });
 
 const ROW_COLUMNS =
-  "id, reference, status, event_date, guests, event_type_name, package_name, addon_names, current_quote_id, " +
+  "id, reference, status, event_date, guests, event_type_name, package_name, addon_names, current_quote_id, hold_expires_at, advance_due_on, pay_later, " +
   "slot:slots(name), hall:halls(name), customer:customers(name, phone_e164)";
 
 // The current quote's total comes in the same request, so the list needs no second query; the hint is needed because quotes also references bookings.
@@ -86,6 +92,9 @@ type BookingRow = {
   package_name: string | null;
   addon_names: string[];
   current_quote_id: string | null;
+  hold_expires_at: string | null;
+  advance_due_on: string | null;
+  pay_later: boolean;
   slot: { name: string };
   hall: { name: string } | null;
   customer: { name: string; phone_e164: string };
@@ -107,11 +116,14 @@ export async function venueToday(tenantId: string): Promise<string> {
   return todayAt(await createServerClient(), tenantId);
 }
 
+/** A hold past its time reads as expired at once; the stored status lags until another write needs the hall (expire_holds). */
+const holdLapsed = (b: BookingRow) => b.status === "awaiting_advance" && Date.parse(b.hold_expires_at!) < Date.now();
+
 function toRow(b: BookingRow, totalPaisa: number | null, today: string): StaffBookingRow {
   return {
     id: b.id,
     reference: b.reference,
-    status: b.status === "requested" && b.event_date < today ? "expired" : b.status,
+    status: b.status === "requested" && b.event_date < today ? "expired" : holdLapsed(b) ? "hold_expired" : b.status,
     eventDate: b.event_date,
     slot: b.slot.name,
     hall: b.hall?.name ?? null,
@@ -120,12 +132,14 @@ function toRow(b: BookingRow, totalPaisa: number | null, today: string): StaffBo
     guests: b.guests,
     eventType: b.event_type_name,
     totalPaisa,
+    advanceDueOn: b.advance_due_on,
+    payLater: b.pay_later,
   };
 }
 
-export async function listBookings(tenantId: string, q: { month?: string; status?: string }): Promise<{ rows: StaffBookingRow[]; more: boolean }> {
+export async function listBookings(tenantId: string, q: { month?: string; status?: string; ids?: string[] }): Promise<{ rows: StaffBookingRow[]; more: boolean }> {
   await requirePerm(tenantId, "bookings.view");
-  const { month, status } = ListQuery.parse(q);
+  const { month, status, ids } = ListQuery.parse(q);
   const db = await createServerClient();
   let query = db.from("bookings").select(LIST_COLUMNS).eq("tenant_id", tenantId);
   if (month) {
@@ -137,7 +151,11 @@ export async function listBookings(tenantId: string, q: { month?: string; status
   // "requested" means still waiting, as countNewRequests counts it; a passed request is "expired" (as toRow labels it).
   if (status === "expired") query = query.eq("status", "requested").lt("event_date", today);
   else if (status === "requested") query = query.eq("status", "requested").gte("event_date", today);
+  // A hold past its time is "hold_expired" and no longer "awaiting_advance", as toRow labels it.
+  else if (status === "awaiting_advance") query = query.eq("status", status).gte("hold_expires_at", new Date().toISOString());
+  else if (status === "hold_expired") query = query.or(`status.eq.hold_expired,and(status.eq.awaiting_advance,hold_expires_at.lt.${new Date().toISOString()})`);
   else if (status) query = query.eq("status", status);
+  if (ids) query = query.in("id", ids);
   query = query.order("event_date").order("created_at");
   // shortcut: the list stops at LIST_LIMIT rows (the calendar's month is never capped); upgrade to real pagination in the M6 bookings table.
   if (!month) query = query.limit(LIST_LIMIT + 1);

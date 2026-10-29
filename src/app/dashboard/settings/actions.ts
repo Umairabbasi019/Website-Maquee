@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { can, ForbiddenError, type Viewer } from "@/modules/access";
+import { availableProvider } from "@/modules/payments";
 import { deleteDatePrice, listDatePrices, saveDatePrice, type DatePrice } from "@/modules/calendar";
 import { deleteSlot, getMoneyRules, listHalls, saveHall, saveMoneyRules, saveSlot } from "@/modules/tenants";
 import { parseRupees } from "@/sections/shared/format";
@@ -15,6 +16,7 @@ const ERRORS = {
   notFound: "settings.error.notFound",
   overlap: "settings.error.overlap",
   inUse: "settings.error.slotInUse",
+  gatewayUnavailable: "settings.error.gatewayUnavailable",
 } as const satisfies Record<string, TranslationKey>;
 
 const text = (fd: FormData, name: string) => String(fd.get(name) ?? "").trim();
@@ -126,20 +128,25 @@ export async function deleteDatePriceAction(_prev: FormState, fd: FormData): Pro
 export async function saveMoneyRulesAction(_prev: FormState, fd: FormData): Promise<FormState> {
   const showPriceEstimate = fd.get("showPriceEstimate") === "on";
   return inVenue(async (tenantId, viewer) => {
-    if (can(viewer, tenantId, "tenant.settings.edit")) {
-      return done(
-        await saveMoneyRules(tenantId, {
-          taxPercent: num(fd, "taxPercent"),
-          advancePercent: num(fd, "advancePercent"),
-          holdHours: num(fd, "holdHours"),
-          instantBooking: fd.get("instantBooking") === "on",
+    // A disabled field is not posted, so a role sends only the fields it may change; saveMoneyRules keeps the stored
+    // value of every key left out (and the schema drops currency and time zone), so nothing else can change.
+    const setup = can(viewer, tenantId, "tenant.settings.edit");
+    const mode = can(viewer, tenantId, "bookings.edit") && can(viewer, tenantId, "payments.verify");
+    const stored = await getMoneyRules(tenantId);
+    const asked = fd.getAll("paymentMethods").map(String);
+    const gateway = (mode ? asked : stored.paymentMethods).includes("gateway");
+    const methods = (setup ? asked : stored.paymentMethods).filter((m) => m !== "gateway");
+    return done(
+      await saveMoneyRules(
+        tenantId,
+        {
           showPriceEstimate,
-          paymentMethods: fd.getAll("paymentMethods").map(String),
-        }),
-      );
-    }
-    // A prices-only editor sends just the estimate toggle; the rest is the stored rules (the schema drops currency and
-    // time zone), so nothing else can change.
-    return done(await saveMoneyRules(tenantId, { ...(await getMoneyRules(tenantId)), showPriceEstimate }));
+          paymentMethods: gateway ? [...methods, "gateway"] : methods,
+          ...(mode && { instantBooking: fd.get("instantBooking") === "on" }),
+          ...(setup && { taxPercent: num(fd, "taxPercent"), advancePercent: num(fd, "advancePercent"), holdHours: num(fd, "holdHours") }),
+        },
+        availableProvider() !== null,
+      ),
+    );
   });
 }

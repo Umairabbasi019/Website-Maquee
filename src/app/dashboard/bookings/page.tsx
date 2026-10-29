@@ -1,24 +1,30 @@
 import Link from "next/link";
-import { canAny, DASHBOARD_SCREENS } from "@/modules/access";
+import { can, canAny, DASHBOARD_SCREENS } from "@/modules/access";
 import { listBookings, longDate, statusLabel } from "@/modules/booking";
+import { ALERT_KEYS, getPaymentAlerts } from "@/modules/payments";
 import { formatLocalPhone, formatRs } from "@/sections/shared/format";
-import { t } from "@/ui/i18n";
+import { t, type TranslationKey } from "@/ui/i18n";
 import { Forbidden } from "@/ui/notices";
 import { getDashboard } from "../context";
 
 export const instant = false; // see layout.tsx
 
-const FILTERS = ["requested", "expired", "confirmed", "declined", "cancelled"];
+const FILTERS = ["requested", "expired", "awaiting_advance", "hold_expired", "confirmed", "refund_pending", "refunded", "declined", "cancelled"];
 const cell = "border-b border-muted/40 p-2 text-left align-top";
 
-export default async function BookingsPage({ searchParams }: { searchParams: Promise<{ status?: string | string[] }> }) {
+type Props = { searchParams: Promise<{ status?: string | string[]; alert?: string | string[] }> };
+
+export default async function BookingsPage({ searchParams }: Props) {
   const { viewer, venue } = await getDashboard();
   if (!venue) return null;
   const screen = DASHBOARD_SCREENS.find((s) => s.href === "/dashboard/bookings")!;
   if (!canAny(viewer, venue.id, screen.perm)) return <Forbidden />;
-  const { status } = await searchParams;
+  const { status, alert } = await searchParams;
+  // ?alert= lists the bookings a dashboard payment alert counts; only a holder of payments.verify may ask for it.
+  const alertKey = ALERT_KEYS.find((k) => k === alert);
+  const ids = alertKey && can(viewer, venue.id, "payments.verify") ? (await getPaymentAlerts(venue.id))[alertKey] : undefined;
   const current = typeof status === "string" && FILTERS.includes(status) ? status : undefined;
-  const { rows, more } = await listBookings(venue.id, { status: current });
+  const { rows, more } = await listBookings(venue.id, { status: current, ids });
 
   return (
     <section>
@@ -38,6 +44,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
           ))}
         </ul>
       </nav>
+      {alertKey && ids && <p className="mt-4">{t(`pay.alert.${alertKey}` as TranslationKey, { count: ids.length })}</p>}
       {more && <p className="mt-4">{t("bookings.more")}</p>}
       {rows.length === 0 ? (
         <p className="mt-6">{t("bookings.none")}</p>
