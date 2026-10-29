@@ -94,10 +94,15 @@ export async function uploadReceipt(tenantId: string, token: string, fd: FormDat
     return { error: known.error === "amount" || known.error === "limit" || known.error === "state" ? known.error : "invalid" };
   }
   const db = createServiceClient();
-  const stored = await db.storage.from(BUCKET).upload(path, bytes, { contentType: `image/${format}` });
-  if (stored.error) {
-    await db.from("payments").delete().eq("id", String(data));
-    return { error: "invalid" };
+  let stored = false;
+  try {
+    stored = !(await db.storage.from(BUCKET).upload(path, bytes, { contentType: `image/${format}` })).error;
+  } catch {
+    // A thrown upload is rolled back like a refused one.
   }
-  return { ok: true };
+  if (stored) return { ok: true };
+  const removed = await db.from("payments").delete().eq("id", String(data));
+  // A row left behind with no file would show the customer a receipt nobody can open.
+  if (removed.error) throw new Error(`receipt rollback: ${removed.error.message}`);
+  return { error: "invalid" };
 }

@@ -11,13 +11,12 @@ type Props = {
   /** Server Actions bound to the link's token; plain forms, so the panel works without JavaScript. */
   uploadAction: (fd: FormData) => Promise<void>;
   payOnlineAction: () => Promise<void>;
-  sent: boolean;
   /** From the URL: only picks which message to show, never what the panel says is paid. */
   error: string | undefined;
 };
 
 /** The money part of the customer's private link: what is paid, what is being checked, where to pay and the receipt form. */
-export function PaymentPanel({ payments: p, uploadAction, payOnlineAction, sent, error }: Props) {
+export function PaymentPanel({ payments: p, uploadAction, payOnlineAction, error }: Props) {
   const { summary: s } = p;
   // The advance still owed, else the balance: what a receipt most likely is for.
   const due = s.advanceMet ? s.balancePaisa : s.advancePaisa - s.paidPaisa;
@@ -40,11 +39,6 @@ export function PaymentPanel({ payments: p, uploadAction, payOnlineAction, sent,
       {checking && (
         <p role="status" className={styles.note}>
           {t("pay.checking")}
-        </p>
-      )}
-      {sent && (
-        <p role="status" className={styles.note}>
-          {t("pay.sent")}
         </p>
       )}
       {error && ERRORS.includes(error) && (

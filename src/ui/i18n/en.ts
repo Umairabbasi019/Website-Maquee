@@ -511,7 +511,6 @@ export const en = {
   "pay.paid": "Paid so far",
   "pay.balance": "Balance",
   "pay.checking": "Checking payment",
-  "pay.sent": "Receipt sent. The venue will check it.",
   "pay.row.checking": "Checking",
   "pay.row.verified": "Received",
   "pay.row.rejected": "Not accepted",

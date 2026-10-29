@@ -11,7 +11,8 @@ const home = (token: string) => `/b/${encodeURIComponent(token)}`;
 export async function uploadReceiptAction(token: string, fd: FormData): Promise<void> {
   const tenantId = await hostTenant();
   const r = tenantId ? await uploadReceipt(tenantId, token, fd) : { error: "invalid" as const };
-  redirect(`${home(token)}?${"ok" in r ? "sent=1" : `err=${r.error}`}`);
+  // On success the pending row, shown as Checking, is the confirmation.
+  redirect("ok" in r ? home(token) : `${home(token)}?err=${r.error}`);
 }
 
 export async function payOnlineAction(token: string): Promise<void> {

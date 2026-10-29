@@ -22,7 +22,7 @@ export default async function CustomerBookingPage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ sent?: string; err?: string }>;
+  searchParams: Promise<{ err?: string }>;
 }) {
   const site = await hostSite();
   const { token } = await params;
@@ -37,7 +37,6 @@ export default async function CustomerBookingPage({
           payments={payments}
           uploadAction={uploadReceiptAction.bind(null, token)}
           payOnlineAction={payOnlineAction.bind(null, token)}
-          sent={query.sent === "1"}
           error={query.err}
         />
       )}

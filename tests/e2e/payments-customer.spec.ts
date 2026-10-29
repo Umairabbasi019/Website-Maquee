@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import sharp from "sharp";
+import { formatRs, rupeesInput } from "../../src/sections/shared/format";
 import { en } from "../../src/ui/i18n/en";
 import { assertPassword, openDb, signIn, TENANT_BASE } from "./helpers";
 
@@ -87,6 +88,10 @@ test("a confirmed booking shows the advance and bank details, and a receipt sent
   const customer = await noJsPage(browser);
   await customer.goto(`${TENANT_BASE}${link}`);
   const panel = customer.getByRole("region", { name: en["pay.heading"] });
+  // The Gold package at 300 guests: the advance is what the receipt form asks for.
+  const advance = (await db.query("select q.advance_paisa from quotes q join bookings b on b.current_quote_id = q.id where b.reference = $1", [reference])).rows[0].advance_paisa;
+  await expect(customer.getByRole("region", { name: en["booking.view.price"] })).toContainText(formatRs(advance));
+  await expect(customer.getByLabel(en["pay.upload.amount"])).toHaveValue(rupeesInput(advance));
   await expect(panel).toContainText("Meezan Bank");
   await expect(panel).toContainText("PK00MEZN0000001234");
   // The seeded venue has no JazzCash details, so no JazzCash account is shown.
@@ -94,8 +99,7 @@ test("a confirmed booking shows the advance and bank details, and a receipt sent
 
   await customer.getByLabel(en["pay.upload.file"]).setInputFiles({ name: "receipt.jpg", mimeType: "image/jpeg", buffer: await jpeg() });
   await customer.getByRole("button", { name: en["pay.upload.submit"] }).click();
-  await expect(customer).toHaveURL(/\?sent=1$/);
-  await expect(customer.getByText(en["pay.sent"])).toBeVisible();
+  await expect(customer).toHaveURL(`${TENANT_BASE}${link}`);
   await expect(customer.getByText(en["pay.row.checking"], { exact: true })).toBeVisible();
 
   const rows = (await db.query("select status, method, receipt_path, source from payments where tenant_id = $1 and booking_id = (select b.id from bookings b where b.reference = $2)", [tenant, reference])).rows;
@@ -114,6 +118,25 @@ test("a 5 MB file is refused and nothing is saved", async ({ browser }) => {
   await expect(customer).toHaveURL(/\?err=tooLarge$/);
   await expect(customer.getByRole("alert")).toHaveText(en["pay.err.tooLarge"]);
   expect((await db.query("select count(*)::int n from payments where tenant_id = $1 and source = 'customer_receipt'", [tenant])).rows[0].n).toBe(1);
+  await customer.context().close();
+});
+
+test("a Manor receipt form posted on another venue's host saves nothing", async ({ browser }) => {
+  const customer = await noJsPage(browser);
+  await customer.goto(`${TENANT_BASE}${link}`);
+  const hidden = await customer
+    .locator('form:has(input[name="receipt"]) input[type="hidden"]')
+    .evaluateAll((els) => Object.fromEntries(els.map((e) => [(e as HTMLInputElement).name, (e as HTMLInputElement).value])));
+  const count = async () => (await db.query("select count(*)::int n from payments where tenant_id = $1", [tenant])).rows[0].n;
+  const before = await count();
+  const other = "http://demo.localhost:3000";
+  const res = await customer.request.post(`${other}${link}`, {
+    multipart: { ...hidden, method: "bank", amount: "500", receipt: { name: "r.jpg", mimeType: "image/jpeg", buffer: await jpeg() } },
+    headers: { Origin: other },
+    maxRedirects: 0,
+  });
+  expect(res.headers()["location"]).toMatch(/err=invalid$/);
+  expect(await count()).toBe(before);
   await customer.context().close();
 });
 
